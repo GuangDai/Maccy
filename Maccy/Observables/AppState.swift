@@ -98,7 +98,7 @@ class AppState {
     Task { @MainActor in
       let history = AppState.shared.history
       guard history.items.isEmpty else { return }
-      try? await history.load()
+      await history.loadAndRecordError("History prewarm load failed")
     }
   }
 

@@ -181,10 +181,31 @@ class History: ItemsContainer {
     }
   }
 
+  #if DEBUG
+  /// Test-only: when set, `load()` fails, simulating a transient store error
+  /// so the no-silent-swallow path is exercisable. Compiled out of Release.
+  private var forceLoadFailure = false
+
+  /// Error injected by `forceLoadFailure`.
+  private enum ForcedLoadFailure: Error {
+    case forced
+  }
+
+  /// Test-only setter for `forceLoadFailure`.
+  func setLoadFailureForTesting(_ enabled: Bool) {
+    forceLoadFailure = enabled
+  }
+  #endif
+
   /// Fetches all items, sorts them, decorates each, and applies the size limit.
   /// Decorator construction is wrapped in `autoreleasepool` to bound the
   /// AppKit transients (e.g. `ApplicationImageCache` misses) to this call.
   func load() async throws {
+    #if DEBUG
+    if forceLoadFailure {
+      throw ForcedLoadFailure.forced
+    }
+    #endif
     let descriptor = FetchDescriptor<HistoryItem>()
     let results = try Storage.shared.context.fetch(descriptor)
     all = autoreleasepool { sorter.sort(results).map { HistoryItemDecorator($0) } }
@@ -199,6 +220,19 @@ class History: ItemsContainer {
     // Ensure that panel size is proper *after* loading all items.
     Task {
       AppState.shared.popup.needsResize = true
+    }
+  }
+
+  /// Loads history, recording (not swallowing) any error on `lastPersistError`
+  /// — the popup-open and prewarm paths use this instead of `try?` so a load
+  /// failure is diagnosable rather than a silent empty list (DS-023).
+  /// `loadAfterDefaultsChange` already does the same; this is the shared helper
+  /// for the external callers.
+  func loadAndRecordError(_ message: String = "History load failed") async {
+    do {
+      try await load()
+    } catch {
+      recordPersistenceError(message, error)
     }
   }
 

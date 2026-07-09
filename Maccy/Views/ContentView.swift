@@ -63,7 +63,7 @@ struct ContentView: View {
         // The hotkey-down prewarm may have already loaded history; only load when
         // items are still empty to avoid refetching on every open.
         if appState.history.items.isEmpty {
-          try? await appState.history.load()
+          await appState.history.loadAndRecordError("History popup-open load failed")
         }
       }
     }

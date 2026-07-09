@@ -262,13 +262,18 @@ jobs:
           # Tolerate benign headless-runner system noise — the Metal compiler
           # service and HDRImageConverter are unavailable on the GPU-less runner
           # and log "failed"/"falling back" lines that are not Maccy failures.
-          # Also tolerate the one deliberately-triggered error log from the
-          # dedup-index fault-injection test (`testTransientInitFetchFailure…`),
-          # which exercises `BackgroundClipboardIngestor`'s init-retry path:
-          # it is an *expected* error, not a regression. Exclude these from the
-          # scan (see macos26-arm-ci history).
+          # Also tolerate deliberately-triggered error logs from fault-injection
+          # tests — these exercise an *expected* error path, not a regression:
+          #   - testTransientInitFetchFailure… -> BackgroundClipboardIngestor's
+          #     dedup-index init retry ("Dedup index init failed; retry …")
+          #   - testSyncAllToStoreDoesNotWipeAllOnFetchFailure -> History's
+          #     syncAllToStore no-wipe path ("syncAllToStore identifier fetch
+          #     failed …")
+          #   - testLoadAndRecordErrorRecordsFailureNotSwallows -> History's
+          #     load path ("History load failed …")
+          # Exclude these from the scan (see macos26-arm-ci history).
           matches=$(grep -Ein '(^|[^[:alpha:]])(warning:|error:|\*\* TEST FAILED \*\*|Fatal error|[Ff]ailed)([^[:alpha:]]|$)' "$LOG_DIR/${{ matrix.shard }}.log" \
-                    | grep -vE 'HDRImageConverter.*falling back to SIMD|MTLCompiler.*XPC_ERROR_CONNECTION_INVALID|Compiler failed with XPC_ERROR_CONNECTION_INVALID|Dedup index init failed; retry' || true)
+                    | grep -vE 'HDRImageConverter.*falling back to SIMD|MTLCompiler.*XPC_ERROR_CONNECTION_INVALID|Compiler failed with XPC_ERROR_CONNECTION_INVALID|Dedup index init failed; retry|syncAllToStore identifier fetch failed|History load failed' || true)
           if [[ -n "$matches" ]]; then
             echo "$matches"
             echo "Warnings, errors, or failures found in ${{ matrix.shard }}.log"

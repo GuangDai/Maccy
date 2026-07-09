@@ -212,6 +212,27 @@ final class HistoryConsumeTests: XCTestCase {
   }
   #endif
 
+  // MARK: - loadAndRecordError (DS-023)
+
+  #if DEBUG
+  /// A `load()` failure surfaced through `loadAndRecordError` must be recorded
+  /// on `lastPersistError`, not silently swallowed. The popup-open and prewarm
+  /// paths route through this helper instead of `try?`, so a load failure is
+  /// diagnosable rather than a silent empty list.
+  func testLoadAndRecordErrorRecordsFailureNotSwallows() async {
+    history.lastPersistError = nil
+    history.setLoadFailureForTesting(true)
+    defer { history.setLoadFailureForTesting(false) }
+
+    await history.loadAndRecordError()
+
+    XCTAssertNotNil(
+      history.lastPersistError,
+      "A load failure must be recorded on lastPersistError, not swallowed"
+    )
+  }
+  #endif
+
   // MARK: - Helpers
 
   /// Inserts a single-string-content `HistoryItem` into the shared main context
