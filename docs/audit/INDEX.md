@@ -2,7 +2,7 @@
 
 > **本文件是审计文档仓库的单一权威导航中心,自包含。** 阅读任何审计文档前先读此页,以避免把"冻结的设计意图"或"历史快照"误读为"当前状态"。
 >
-> 最近更新:**2026-07-05**(新增 `2026-07-05-applicationimage-mainactor-crash/`:`ApplicationImage.nsImage.getter` 的 `setEventHandler` 闭包因 `@MainActor` 继承(SE-0420)+ `DispatchSourceHandler` 非 `@Sendable`+`queue: .global()` 后台回调 → `dispatch_assert_queue_fail` `SIGTRAP`;证伪 06-28 gap-audit 7.4"经 main hop 隔离安全"判断;修复一行 `queue:.main`;含同类隔离风险 C1–C5 排查清单 + 全量预扫描候选表)。Phase-1 整理(2026-06-29:删除已落地的过程/手记文档与被推翻的中间分析,保留 3 个权威源 + 冻结 spec-of-record + 原始捕获数据)仍适用。
+> 最近更新:**2026-07-09**(`2026-07-09-design-audit-verification/` — `/grill-with-docs` verification of the design-structure audit: 13-agent verify+refute workflow + firsthand grep. **27/34 findings confirmed verbatim; 6 severity-overstated (DS-002 Crit→High etc.); DS-019 refuted; 19 new issues** incl. a silent session-wide dedup-disable (`NEW-dedup-ids-1`) and the `searchGeneration` bug-class; 16 glossary/location fixes. Recalibrates the playbook's Wave A. HEAD `6cd37c8`. Same day also **rewrote** `2026-07-09-design-structure-audit/` in **English only**, ~3.3k lines: step-by-step data-flow traces (`02`), evidence-backed findings DS-001…034 (`17`), per-module deep dives, master playbook (`19`). HEAD `6cd37c8`. Supersedes the earlier Chinese draft of the same folder.). Earlier 2026-07-05:`2026-07-05-applicationimage-mainactor-crash/`. Phase-1 整理(2026-06-29)仍适用。
 
 ## 0. 三大权威源 + spec-of-record(reading order)
 
@@ -114,6 +114,29 @@
 |------|------|------|
 | `2026-07-05-applicationimage-mainactor-crash/README.md` | A | **生产崩溃分析 + 同类隔离风险排查方法学**。`ApplicationImage.nsImage.getter` 的 `setEventHandler` 闭包因 `DispatchSourceHandler` 非 `@Sendable` + `@MainActor` 类(SE-0420 继承)带运行时序言;`queue: .global()` 在后台回调 → `dispatch_assert_queue_fail` → `SIGTRAP`。潜伏 ~14h(等 app bundle 删除/重命名触发)。**证伪 06-28 gap-audit 7.4"经 main hop 隔离安全"误判**。**2026-07-06 已修(`c4b91ee`)**:`queue: .global()` → `.main` + 删冗余内层 `main.async` hop(原"序言后 hop"结构是脚枪)。含 C1–C5 排查清单 + 全量预扫描候选表(仅 ApplicationImage 确认 trap;`deinit+assumeIsolated`+NSCache 后台驱逐 §8 待验证)。 |
 
+### 2026-07-09 — Design structure audit (English rewrite, A, active)
+
+| Path | role | Summary |
+|------|------|---------|
+| [`2026-07-09-design-structure-audit/README.md`](2026-07-09-design-structure-audit/README.md) | A | **English-only** design/structure/domain/pipeline/cohesion suite (HEAD `6cd37c8`). Does not replace architecture/memory/roadmap authorities. |
+| **[`2026-07-09-design-structure-audit/19-master-playbook.md`](2026-07-09-design-structure-audit/19-master-playbook.md)** | **A** | **Execution entry**: ordered steps A0–F, DS coverage, red lines, progress table. |
+| `2026-07-09-design-structure-audit/02-end-to-end-data-flows.md` | A | **Primary evidence**: step-by-step ingest/load/search/select/delete/legacy/images. |
+| `2026-07-09-design-structure-audit/17-findings-catalog.md` | A | **DS-001…034** with file:line evidence, impact, verification. |
+| `2026-07-09-design-structure-audit/00`–`01`, `03`–`16`, `18`, `glossary` | A | Executive summary, structure map, per-module deep dives, coupling matrix, target shape, glossary. |
+
+### 2026-07-09 — Design audit verification & grilling (A, active)
+
+| Path | role | Summary |
+|------|------|---------|
+| [`2026-07-09-design-audit-verification/README.md`](2026-07-09-design-audit-verification/README.md) | A | **Verification + recalibration** of the design-structure audit (HEAD `6cd37c8`). 13-agent verify+refute workflow + firsthand grep. |
+| [`2026-07-09-design-audit-verification/00-executive-verdict.md`](2026-07-09-design-audit-verification/00-executive-verdict.md) | A | Headline + recalibrated priority order (re-weights playbook Wave A: `NEW-dedup-ids-1` to top; generation bug-class; per-copy O(n)×2 up). |
+| [`2026-07-09-design-audit-verification/01-verdict-matrix.md`](2026-07-09-design-audit-verification/01-verdict-matrix.md) | A | Per-finding verdict table (all 34) + adversarial retrial column. |
+| [`2026-07-09-design-audit-verification/02-new-findings.md`](2026-07-09-design-audit-verification/02-new-findings.md) | A | **19 issues the audit missed**, ranked Medium→Low. |
+| [`2026-07-09-design-audit-verification/03-severity-and-glossary-corrections.md`](2026-07-09-design-audit-verification/03-severity-and-glossary-corrections.md) | A | Severity recalibration rationale + 16 location/glossary fixes. |
+| [`2026-07-09-design-audit-verification/glossary-supplement.md`](2026-07-09-design-audit-verification/glossary-supplement.md) | A | Terms sharpened during grilling (search-generation discipline, incremental-but-O(n), silent dedup disable, mutating read, dead-feature subtree). |
+
+> **读法**:`2026-07-09-design-structure-audit/` 的**机制判定**(数据流、DS 定位)经对抗式复核全部成立 → 仍是最准的设计地图;但其**严重度系统性偏高**(6 项夸大),且漏掉 19 项(含静默全去重失效)。**优先级与严重度一律以 `2026-07-09-design-audit-verification/` 为准**;设计机制以原 audit 为准。
+
 ### 独立文档
 
 | 路径 | role | 摘要 |
@@ -136,3 +159,5 @@
 - **CI 绿 ≠ spec 完成**:BS-5/6/7/8 均已 commit 且 CI green,但**无一按 spec 完成**(见 06-28 gap-audit)。
 - **冻结 spec ≠ 当前状态**:`2026-06-14/roadmap/` 是被测量所依据的 spec-of-record;真实完成度永远以 `2026-06-28-roadmap-bs5-bs8-gap-audit/00-summary.md` 为准,而非步骤文档的 checkbox。
 - **架构看单一源**:当前架构/根因以 `architecture-and-root-causes.md` 为参考;不要再引用已删除的 06-14 深度审计或 06-25 模块分析。
+- **Design structure (English)**: module boundaries / step data-flows / cohesion-coupling → `2026-07-09-design-structure-audit/`. HEAD re-checks there (fingerprint candidate backfill, DecodedImageCache removed, file-size nil, surrounding guard) **override** stale Chinese draft and outdated gap bullets when they conflict.
+- **To refactor step-by-step**: open [`19-master-playbook.md`](2026-07-09-design-structure-audit/19-master-playbook.md) only as the execution entry (do not re-prioritize from scratch).
