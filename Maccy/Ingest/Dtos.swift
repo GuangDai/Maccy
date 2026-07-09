@@ -129,7 +129,9 @@ struct IngestResult: Equatable, Sendable {
   /// dispatch site tell a real failure (`event == nil` AND `persistenceFailed`)
   /// from a legitimate filter-out (`event == nil`, `persistenceFailed == false`)
   /// so it surfaces failures without false-positiveing on filtered copies.
-  let persistenceFailed: Bool = false
+  /// `var` (not `let`) so the memberwise initializer exposes it as a defaulted
+  /// parameter — a `let` with a default is fixed and not settable at init.
+  var persistenceFailed: Bool = false
 }
 
 /// Instrumentation for one ingest: dedup candidate hits, bytes fingerprinted, and parse wall-time in milliseconds.
