@@ -125,6 +125,11 @@ enum IngestIgnoreReason: Equatable, Sendable {
 struct IngestResult: Equatable, Sendable {
   let event: StoreEvent?
   let metrics: IngestMetrics
+  /// True only when the actor failed to commit (a persistence error). Lets the
+  /// dispatch site tell a real failure (`event == nil` AND `persistenceFailed`)
+  /// from a legitimate filter-out (`event == nil`, `persistenceFailed == false`)
+  /// so it surfaces failures without false-positiveing on filtered copies.
+  let persistenceFailed: Bool = false
 }
 
 /// Instrumentation for one ingest: dedup candidate hits, bytes fingerprinted, and parse wall-time in milliseconds.

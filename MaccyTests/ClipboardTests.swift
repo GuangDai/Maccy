@@ -233,6 +233,31 @@ final class ClipboardTests: XCTestCase {
     XCTAssertNil(pasteboard.data(forType: .rtf))
   }
 
+  // MARK: - ingest failure surfacing (NEW-ingest-dualpath-4)
+
+  /// A persistence failure in the actor (`IngestResult.persistenceFailed`) must
+  /// surface on `History.lastPersistError` via `surfaceIngestFailureIfNeeded`,
+  /// not disappear as only a log line. A filtered-out ingest (`event == nil`
+  /// but not a failure) must NOT flag an error.
+  func testSurfaceIngestFailureFlagsPersistenceFailureOnly() {
+    History.shared.lastPersistError = nil
+
+    clipboard.surfaceIngestFailureIfNeeded(
+      IngestResult(event: nil, metrics: .zero, persistenceFailed: true)
+    )
+    XCTAssertNotNil(
+      History.shared.lastPersistError,
+      "A persistence failure must surface on lastPersistError, not just a log line"
+    )
+
+    History.shared.lastPersistError = nil
+    clipboard.surfaceIngestFailureIfNeeded(IngestResult(event: nil, metrics: .zero))
+    XCTAssertNil(
+      History.shared.lastPersistError,
+      "A filtered-out (non-failure) ingest must not flag a persistence error"
+    )
+  }
+
   // MARK: - helpers
 
   /// Drives the pasteboard the way the old tests did: declare types, set the

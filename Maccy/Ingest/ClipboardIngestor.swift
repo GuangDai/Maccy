@@ -228,7 +228,8 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
       logger.error("Failed to commit ingest: \(String(describing: error))")
       return IngestResult(
         event: nil,
-        metrics: IngestMetrics(dedupHits: dedupHits, bytesHashed: bytesHashed, parseMs: parseMs)
+        metrics: IngestMetrics(dedupHits: dedupHits, bytesHashed: bytesHashed, parseMs: parseMs),
+        persistenceFailed: true
       )
     }
 

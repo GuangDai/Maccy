@@ -234,8 +234,22 @@ class Clipboard {
       return
     }
 
-    Task { await ingestor.ingest(request) }
+    Task {
+      let result = await ingestor.ingest(request)
+      surfaceIngestFailureIfNeeded(result)
+    }
   }
+
+  /// Surfaces a persistence failure (the actor set
+  /// `IngestResult.persistenceFailed`) onto `History.lastPersistError` so a lost
+  /// copy is diagnosable instead of only a log line (NEW-ingest-dualpath-4). The
+  /// actor already logged the error detail; this flags it on the main-side state.
+  func surfaceIngestFailureIfNeeded(_ result: IngestResult) {
+    guard result.persistenceFailed else { return }
+    History.shared.lastPersistError = ClipboardIngestPersistenceError()
+  }
+
+  private struct ClipboardIngestPersistenceError: Error {}
 
   /// Builds a raw, unfiltered `IngestRequest` from the current pasteboard
   /// snapshot.
