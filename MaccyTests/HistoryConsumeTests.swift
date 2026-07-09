@@ -233,6 +233,33 @@ final class HistoryConsumeTests: XCTestCase {
   }
   #endif
 
+  // MARK: - Search-generation discipline (DS-013 / NEW-history-spine-3/4)
+
+  /// `load()` replaces `all` with fresh decorators; it must bump
+  /// `searchGeneration` so an in-flight search can't apply against the stale ids
+  /// and render an empty result list (NEW-history-spine-3).
+  func testLoadBumpsSearchGeneration() async throws {
+    let genBefore = history.searchGeneration
+    try await history.load()
+    XCTAssertGreaterThan(history.searchGeneration, genBefore)
+  }
+
+  /// `togglePin` reorders `all`; it must invalidate in-flight search like
+  /// `clear`/`clearAll`/`delete` do, so a stale apply can't render the pre-pin
+  /// order (DS-013).
+  func testTogglePinBumpsSearchGeneration() async {
+    let item = insertItem(text: "pinme")
+    try? Storage.shared.context.save()
+    history.consume(.added(snapshot(of: item)))
+    guard let decorator = history.all.first else {
+      return XCTFail("Expected one decorator after consume")
+    }
+
+    let genBefore = history.searchGeneration
+    history.togglePin(decorator)
+    XCTAssertGreaterThan(history.searchGeneration, genBefore)
+  }
+
   // MARK: - Helpers
 
   /// Inserts a single-string-content `HistoryItem` into the shared main context

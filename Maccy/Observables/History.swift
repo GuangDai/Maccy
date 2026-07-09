@@ -208,6 +208,9 @@ class History: ItemsContainer {
     #endif
     let descriptor = FetchDescriptor<HistoryItem>()
     let results = try Storage.shared.context.fetch(descriptor)
+    // Replacing `all` with fresh decorators invalidates any in-flight search's
+    // held ids; bump the generation so a stale apply can't render empty results.
+    invalidateInFlightSearch()
     all = autoreleasepool { sorter.sort(results).map { HistoryItemDecorator($0) } }
     items = all
 
@@ -648,6 +651,7 @@ class History: ItemsContainer {
     guard let item else {
       return
     }
+    invalidateInFlightSearch()
 
     let modifierFlags = currentModifierFlags()
 
@@ -683,6 +687,9 @@ class History: ItemsContainer {
   /// Toggles an item's pin, persists it, re-sorts `all`, and clears the query.
   func togglePin(_ item: HistoryItemDecorator?) {
     guard let item else { return }
+    // Pin changes `all`'s order; cancel any in-flight search so a stale apply
+    // can't render results in the pre-pin order (DS-013).
+    invalidateInFlightSearch()
 
     let previousPin = item.item.pin
     item.togglePin()
