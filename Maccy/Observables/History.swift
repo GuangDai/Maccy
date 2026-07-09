@@ -301,10 +301,10 @@ class History: ItemsContainer {
   /// copy. `.removed`/`.cleared` (not emitted by the ingest actor today), and
   /// any `nil`-persistentID snapshot or `model(for:)` miss, fall back to the
   /// full `reconcileWithStore`. The final `all` order matches the old full sort.
-  func consume(_ event: StoreEvent) {
+  func consume(_ event: StoreEvent, trimmedPersistentIDs: [PersistentIdentifier] = []) {
     switch event {
     case .added(let snapshot), .merged(let snapshot):
-      insertIncrementally(snapshot)
+      insertIncrementally(snapshot, trimmedPersistentIDs: trimmedPersistentIDs)
     case .removed, .cleared:
       // The ingest actor only emits .added/.merged today; handle the others
       // defensively by full reconcile, so a future emitter stays correct.
@@ -314,11 +314,15 @@ class History: ItemsContainer {
 
   /// Incremental path for `.added`/`.merged`: fetch the one committed @Model on
   /// main, remove any existing decorator for it (`.merged` re-insert + duplicate
-  /// safety), binary-insert it at the sorted position, then sync `all` to the
-  /// store (the ingestor may have trimmed an oldest item — `syncAllToStore`).
-  /// Falls back to `reconcileWithStore` on any guard failure so correctness never
+  /// safety), binary-insert it at the sorted position, then drop the decorators
+  /// the ingestor deleted this ingest (the duplicate plus size-trim evictions)
+  /// via the actor-supplied `trimmedPersistentIDs` in O(deleted) — instead of
+  /// re-fetching every row identifier on each copy (D4 / `NEW-history-spine-2`).
+  /// An empty set (the actor deleted nothing this copy — the common plain-copy
+  /// case) is a no-op. Falls back to `reconcileWithStore` on any guard failure
+  /// (nil persistentID, `model(for:)` miss, title mismatch) so correctness never
   /// depends on the fast path.
-  private func insertIncrementally(_ snapshot: ItemSnapshotDTO) {
+  private func insertIncrementally(_ snapshot: ItemSnapshotDTO, trimmedPersistentIDs: [PersistentIdentifier]) {
     guard let persistentID = snapshot.persistentID else {
       reconcileWithStore()
       return
@@ -359,7 +363,18 @@ class History: ItemsContainer {
       }
       await actor.insert(entry, at: position)
     }
-    syncAllToStore()
+    // D4: drop exactly the decorators the ingest actor deleted this ingest (the
+    // duplicate plus size-trim evictions), in O(deleted). An empty set means the
+    // actor deleted nothing this copy, so there is nothing to reconcile — a
+    // no-op, which is the win on the common plain-copy path (the old code
+    // re-fetched every row identifier here on every copy). For a `.merged`
+    // ingest this also removes the dup's orphan decorator, which the
+    // persistentID check above cannot (the merged survivor has a fresh id; the
+    // dup's is only in `trimmedPersistentIDs`). Guard failures above already
+    // fell through to `reconcileWithStore`.
+    if !trimmedPersistentIDs.isEmpty {
+      removeDecorators(forPersistentIDs: Set(trimmedPersistentIDs))
+    }
     refreshVisibleItems()
     if searchQuery.isEmpty && !AppState.shared.navigator.isMultiSelectInProgress {
       AppState.shared.navigator.select(item: unpinnedItems.first ?? pinnedItems.first)
@@ -367,58 +382,23 @@ class History: ItemsContainer {
     AppState.shared.popup.needsResize = true
   }
 
-  #if DEBUG
-  /// Test-only: when set, `syncAllToStore`'s identifier fetch fails, simulating
-  /// a transient store error so the no-wipe-on-failure path is exercisable.
-  /// Compiled out of Release; production is always false.
-  private var forceSyncAllFetchFailure = false
-
-  /// Error injected by `forceSyncAllFetchFailure`.
-  private enum ForcedSyncAllFetchFailure: Error {
-    case forced
-  }
-
-  /// Test-only setter for `forceSyncAllFetchFailure`.
-  func setSyncAllFetchFailureForTesting(_ enabled: Bool) {
-    forceSyncAllFetchFailure = enabled
-  }
-  #endif
-
-  /// Drops `all` decorators whose backing @Model the ingestor trimmed. The
-  /// ingestor deletes oldest-unpinned-by-`lastCopiedAt` beyond `Defaults[.size]`,
-  /// which is NOT the UI sort order, so `all` can't trim itself correctly. Uses
-  /// `fetchIdentifiers` (ids only — no @Model faulting) so the per-copy sync stays
-  /// cheap; this is the only O(n) piece of the incremental path. A fetch failure
-  /// is recorded and leaves `all` untouched — it is NOT treated as an empty
-  /// store, which would wipe the whole list while the DB stayed intact.
-  private func syncAllToStore() {
-    let storeIDs: Set<PersistentIdentifier>
-    do {
-      #if DEBUG
-      if forceSyncAllFetchFailure {
-        throw ForcedSyncAllFetchFailure.forced
-      }
-      #endif
-      storeIDs = Set(
-        try Storage.shared.context.fetchIdentifiers(FetchDescriptor<HistoryItem>())
-      )
-    } catch {
-      recordPersistenceError("syncAllToStore identifier fetch failed", error)
-      return
-    }
+  /// Drops `all` decorators whose backing item the ingest actor deleted this
+  /// ingest — the O(deleted) replacement for `syncAllToStore`'s full id-set
+  /// fetch + scan (D4 / `NEW-history-spine-2`). Same removal + corpus-drop +
+  /// cleanup as `syncAllToStore`, but matches a known set instead of re-fetching
+  /// the store, so per-copy cost is O(deleted) (usually 0–1) not O(rows).
+  private func removeDecorators(forPersistentIDs ids: Set<PersistentIdentifier>) {
     var removedSearchIDs: [UUID] = []
     var index = all.startIndex
     while index < all.count {
-      if storeIDs.contains(all[index].item.persistentModelID) {
-        index += 1
-      } else {
+      if ids.contains(all[index].item.persistentModelID) {
         removedSearchIDs.append(all[index].id)
         cleanup(all[index])
         all.remove(at: index)
+      } else {
+        index += 1
       }
     }
-    // Drop any decorators the ingestor trimmed (e.g. a size-limit eviction) so
-    // they don't linger as orphans in the search-actor corpus.
     if !removedSearchIDs.isEmpty {
       let actor = searchActor
       Task { await actor.remove(removedSearchIDs) }

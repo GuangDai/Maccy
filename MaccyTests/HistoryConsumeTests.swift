@@ -178,39 +178,65 @@ final class HistoryConsumeTests: XCTestCase {
     XCTAssertEqual(history.all.count, 2, "A dropped, C added → still 2")
   }
 
-  // MARK: - syncAllToStore fetch-failure (DS-002)
+  // MARK: - D4: actor-supplied trimmed persistent IDs (NEW-history-spine-2)
 
-  #if DEBUG
-  /// A `syncAllToStore` identifier-fetch failure must NOT wipe `all`. The old
-  /// code did `(try? fetchIdentifiers(...)) ?? []`, collapsing any throw to an
-  /// empty set and removing every decorator — clearing the UI while the DB
-  /// stayed intact. The fix records the error and returns without mutating
-  /// `all` (mirroring `reconcileWithStore`'s catch).
-  func testSyncAllToStoreDoesNotWipeAllOnFetchFailure() {
+  /// When the ingest actor supplies `trimmedPersistentIDs`, `consume` drops
+  /// exactly those decorators (the duplicate plus size-trim evictions) in
+  /// O(deleted) — replacing the old per-copy full-identifier fetch.
+  func testConsumeTrimmedPersistentIDsRemovesOnlyThoseDecorators() {
     let itemA = insertItem(text: "a")
     try? Storage.shared.context.save()
     history.consume(.added(snapshot(of: itemA)))
     XCTAssertEqual(history.all.count, 1)
-    history.lastPersistError = nil
-
-    history.setSyncAllFetchFailureForTesting(true)
-    defer { history.setSyncAllFetchFailureForTesting(false) }
 
     let itemB = insertItem(text: "b")
     try? Storage.shared.context.save()
-    history.consume(.added(snapshot(of: itemB)))
+    // The actor hands the consumer the persistent IDs it just deleted. Here it
+    // "deleted" A, so A's decorator must be trimmed — without touching B.
+    history.consume(.added(snapshot(of: itemB)), trimmedPersistentIDs: [itemA.persistentModelID])
 
-    XCTAssertEqual(
-      history.all.count, 2,
-      "A fetch failure must not wipe all; both items must survive"
-    )
-    XCTAssertNotNil(
-      history.lastPersistError,
-      "The fetch failure must be recorded on lastPersistError"
-    )
+    XCTAssertEqual(history.all.count, 1, "B inserted; A trimmed")
+    XCTAssertEqual(history.all.first?.title, "b")
+  }
+
+  /// An empty `trimmedPersistentIDs` means the actor deleted nothing this copy,
+  /// so there is nothing to reconcile — a no-op. The common plain-copy path (no
+  /// duplicate, no size-trim) is O(1): the D4 win versus the old per-copy fetch.
+  func testConsumeEmptyTrimmedIsNoOp() {
+    let itemA = insertItem(text: "a")
+    try? Storage.shared.context.save()
+    history.consume(.added(snapshot(of: itemA)))
+
+    let itemB = insertItem(text: "b")
+    try? Storage.shared.context.save()
+    history.consume(.added(snapshot(of: itemB)))  // default trimmedPersistentIDs == []
+
+    XCTAssertEqual(history.all.count, 2, "Nothing deleted → nothing trimmed")
     XCTAssertTrue(Set(history.all.map(\.title)).isSuperset(of: ["a", "b"]))
   }
-  #endif
+
+  /// A `.merged` ingest: the dup's orphan decorator — whose persistent id the
+  /// merged survivor cannot match — is removed because the actor included it in
+  /// `trimmedPersistentIDs`. The actor deletes `dup` from the store (simulated
+  /// here) and inserts a fresh survivor.
+  func testConsumeMergedTrimsDupDecorator() {
+    let dup = insertItem(text: "dup")
+    try? Storage.shared.context.save()
+    history.consume(.added(snapshot(of: dup)))
+    XCTAssertEqual(history.all.count, 1)
+
+    // The actor's commit deleted `dup` and inserted a fresh `survivor`.
+    Storage.shared.context.delete(dup)
+    let survivor = insertItem(text: "dup")
+    try? Storage.shared.context.save()
+    history.consume(
+      .merged(snapshot(of: survivor)),
+      trimmedPersistentIDs: [dup.persistentModelID]
+    )
+
+    XCTAssertEqual(history.all.count, 1, "dup trimmed; survivor inserted")
+    XCTAssertEqual(history.all.first?.item.persistentModelID, survivor.persistentModelID)
+  }
 
   // MARK: - loadAndRecordError (DS-023)
 

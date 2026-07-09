@@ -65,7 +65,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      onEvent: { event in collector.append(event) }
+      onEvent: { event, _ in collector.append(event) }
     )
 
     let result = await ingestor.ingest(request(text: "hello"))
@@ -102,7 +102,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      onEvent: { event in collector.append(event) }
+      onEvent: { event, _ in collector.append(event) }
     )
 
     _ = await ingestor.ingest(request(text: "duplicate me"))
@@ -135,7 +135,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      onEvent: { event in collector.append(event) }
+      onEvent: { event, _ in collector.append(event) }
     )
 
     let oversized = String(repeating: "a", count: HistoryItemContent.maxValueSize + 1)
@@ -156,7 +156,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      onEvent: { event in collector.append(event) }
+      onEvent: { event, _ in collector.append(event) }
     )
 
     let result = await ingestor.ingest(request(text: "this is a secret message"))
@@ -182,7 +182,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { clock.now },
-      onEvent: { event in collector.append(event) }
+      onEvent: { event, _ in collector.append(event) }
     )
 
     _ = await ingestor.ingest(request(text: "first"))
@@ -205,7 +205,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      onEvent: { event in collector.append(event) }
+      onEvent: { event, _ in collector.append(event) }
     )
 
     let result = await ingestor.ingest(request(text: "timing"))
@@ -231,7 +231,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      onEvent: { _ in }
+      onEvent: { _, _ in }
     )
 
     _ = await ingestor.ingest(request(text: "cross-context visibility"))
@@ -259,7 +259,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      onEvent: { _ in }
+      onEvent: { _, _ in }
     )
 
     let result = await ingestor.ingest(
@@ -322,7 +322,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_300) },
-      onEvent: { event in collector.append(event) }
+      onEvent: { event, _ in collector.append(event) }
     )
 
     let result = await ingestor.ingest(request)
@@ -380,7 +380,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { clock.now },
-      onEvent: { event in collector.append(event) }
+      onEvent: { event, _ in collector.append(event) }
     )
 
     // Two DISTINCT items → store [A (older), B (newer)].
@@ -429,7 +429,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      onEvent: { event in collector.append(event) }
+      onEvent: { event, _ in collector.append(event) }
     )
 
     let foo = "foo".data(using: .utf8)
@@ -473,7 +473,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      onEvent: { event in collector.append(event) }
+      onEvent: { event, _ in collector.append(event) }
     )
 
     func heavyRequest(changeCount: Int) -> IngestRequest {
@@ -535,7 +535,7 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      onEvent: { _ in }
+      onEvent: { _, _ in }
     )
 
     // First ingest with the init fetch forced to fail: "pre" never enters the

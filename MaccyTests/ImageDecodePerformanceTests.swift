@@ -97,17 +97,16 @@ final class ImageDecodePerformanceTests: PerformanceTestCase {
   // MARK: - G-copy per-copy consume, N=1000 (D4 measure-first baseline)
 
   /// N=1000 variant of ``testGCopyPerCopyConsume_N200`` — the scale at which
-  /// the `syncAllToStore` O(rows) slice D4 targets becomes a visible fraction
-  /// of each per-copy consume. Measures the full `consume(.added)` path (which
-  /// includes `insertIncrementally` → `syncAllToStore`'s `fetchIdentifiers`
-  /// over every row plus the linear scan of `all`); D4 will later remove that
-  /// slice, and this baseline stays as the regression gate that shows the drop.
-  ///
-  /// `Defaults[.size]` is raised to 1000 (the base `setUp` caps it at 200) so
-  /// `load()` keeps all prefill items; `tearDown` restores the saved value.
-  /// Prefill is a direct batch insert + one save (O(n)), not the legacy `add`
-  /// factory path (O(n²) at n=1000; B3 retires `add`) — the test measures the
-  /// per-copy consume path, not the setup.
+  /// the per-copy `consume(.added)` cost becomes visible. D4 replaced the old
+  /// `insertIncrementally` → `syncAllToStore` O(rows) `fetchIdentifiers` + scan
+  /// with an O(deleted) `removeDecorators` driven by the actor-supplied trimmed
+  /// persistent IDs (and a no-op when nothing was deleted — the common plain
+  /// copy). This baseline recorded the pre-D4 cost (6.50 ms avg at n=1000,
+  /// 3.25× the n=200 cost — CI run `29056900573`); it stays as the regression
+  /// gate showing the post-D4 drop. `Defaults[.size]` is raised to 1000 (the
+  /// base `setUp` caps it at 200) so `load()` keeps all prefill items; the
+  /// prefill is a direct batch insert + one save (O(n)), not the legacy `add`
+  /// factory path (O(n²) at n=1000; B3 retires `add`).
   func testGCopyPerCopyConsume_N1000() async throws {
     Defaults[.size] = 1000
     let history = History.shared

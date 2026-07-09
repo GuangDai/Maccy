@@ -154,7 +154,7 @@ final class FingerprintMigrationTests: XCTestCase {
       modelContainer: Storage.shared.container,
       image: PassthroughImageProcessor(),
       now: { Date(timeIntervalSince1970: 1_700_000_000) },
-      onEvent: { _ in }
+      onEvent: { _, _ in }
     )
   }
 

@@ -90,12 +90,28 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     let historyLimit: Int
   }
 
+  /// The deletions one `commit` applied, for two consumers: the dedup-index keys
+  /// (`ItemID`, for `maintainDedupIndex`) and the fetchable persistent IDs the
+  /// main-thread observer needs to drop the corresponding decorators in O(deleted)
+  /// without re-fetching every row on each copy (D4 / `NEW-history-spine-2`).
+  /// Both are captured from the `@Model` refs before `context.delete`.
+  private struct CommitDeletes: Sendable {
+    let dedupIDs: [ItemID]
+    let persistentIDs: [PersistentIdentifier]
+  }
+
   // `var` with defaults so the `@ModelActor` macro's generated
   // `init(modelContainer:)` satisfies "all stored properties initialized"; the
   // real values are set in the custom init below.
   private var image: ImageProcessing = PassthroughImageProcessor()
   private var now: @Sendable () -> Date = { Date() }
-  private var onEvent: @Sendable (StoreEvent) async -> Void = { _ in }
+  /// Delivers the committed `StoreEvent` plus the `PersistentIdentifier`s of the
+  /// items this ingest deleted (the duplicate plus size-trim evictions) back to
+  /// the main observer. The consumer drops exactly those decorators from `all`
+  /// in O(deleted) instead of re-fetching every row identifier on each copy (D4 /
+  /// `NEW-history-spine-2`). `[PersistentIdentifier]` is `Sendable` (it already
+  /// rides `ItemSnapshotDTO.persistentID`), so it crosses this actor→main hop.
+  private var onEvent: @Sendable (StoreEvent, [PersistentIdentifier]) async -> Void = { _, _ in }
   private let logger = Logger(label: "org.p0deje.Maccy")
 
   /// In-memory dedup index over every committed item's content entries,
@@ -145,7 +161,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     modelContainer: ModelContainer,
     image: ImageProcessing,
     now: @escaping @Sendable () -> Date,
-    onEvent: @escaping @Sendable (StoreEvent) async -> Void
+    onEvent: @escaping @Sendable (StoreEvent, [PersistentIdentifier]) async -> Void
   ) {
     self.modelContainer = modelContainer
     self.image = image
@@ -221,9 +237,9 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     let dedupHits = dup != nil ? 1 : 0
     let bytesHashed = Self.bytesHashed(for: item)
 
-    let deletedItemIDs: [ItemID]
+    let commitResult: CommitDeletes
     do {
-      deletedItemIDs = try commit(item, deleting: dup, limit: mainWork.historyLimit)
+      commitResult = try commit(item, deleting: dup, limit: mainWork.historyLimit)
     } catch {
       logger.error("Failed to commit ingest: \(String(describing: error))")
       return IngestResult(
@@ -234,12 +250,12 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     }
 
     // Keep the dedup index in sync with the committed transaction.
-    maintainDedupIndex(inserted: item, deleted: deletedItemIDs)
+    maintainDedupIndex(inserted: item, deleted: commitResult.dedupIDs)
 
     let event: StoreEvent = dup == nil
       ? .added(snapshot(of: item))
       : .merged(snapshot(of: item))
-    await onEvent(event)
+    await onEvent(event, commitResult.persistentIDs)
 
     return IngestResult(
       event: event,
@@ -453,12 +469,14 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// the main-actor `Defaults[.size]` snapshot (oldest first), insert the new
   /// item, then one `processPendingChanges` plus `save`.
   ///
-  /// Returns the `ItemID`s of the deleted items (the duplicate plus each
-  /// size-trim eviction) so the caller can keep the dedup index in sync —
-  /// captured from each item before it is deleted, since a post-save snapshot of
-  /// a deleted `@Model` would fault a torn row.
-  private func commit(_ item: HistoryItem, deleting dup: HistoryItem?, limit: Int) throws -> [ItemID] {
+  /// Returns the deletions (dedup-index `ItemID`s plus the fetchable persistent
+  /// IDs) so the caller can keep the dedup index in sync and hand the main
+  /// observer the exact set of decorators to drop — captured from each item
+  /// before it is deleted, since a post-save snapshot of a deleted `@Model`
+  /// would fault a torn row.
+  private func commit(_ item: HistoryItem, deleting dup: HistoryItem?, limit: Int) throws -> CommitDeletes {
     var deletedItemIDs: [ItemID] = []
+    var deletedPersistentIDs: [PersistentIdentifier] = []
     try modelContext.transaction {
       // Sort unpinned by lastCopiedAt descending so `dropFirst(limit - 1)` is the
       // oldest tail — exactly what `History.limitHistorySize` deletes. The dup is
@@ -473,11 +491,13 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
       if let dup {
         unpinned.removeAll { $0 == dup }
         deletedItemIDs.append(snapshot(of: dup).id)
+        deletedPersistentIDs.append(dup.persistentModelID)
         modelContext.delete(dup)
       }
       if unpinned.count > limit - 1 {
         for excess in unpinned.dropFirst(limit - 1) {
           deletedItemIDs.append(snapshot(of: excess).id)
+          deletedPersistentIDs.append(excess.persistentModelID)
           modelContext.delete(excess)
         }
       }
@@ -485,7 +505,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     }
     modelContext.processPendingChanges()
     try modelContext.save()
-    return deletedItemIDs
+    return CommitDeletes(dedupIDs: deletedItemIDs, persistentIDs: deletedPersistentIDs)
   }
 
   /// Builds the `IngestConfig` snapshot the pure filter needs, mirroring the

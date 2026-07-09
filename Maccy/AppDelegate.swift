@@ -83,7 +83,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       modelContainer: Storage.shared.container,
       image: HistoryItemDecorator.defaultImageProcessor,
       now: { Date() },
-      onEvent: { @MainActor event in History.shared.consume(event) }
+      onEvent: { @MainActor event, trimmedPersistentIDs in
+        History.shared.consume(event, trimmedPersistentIDs: trimmedPersistentIDs)
+      }
     )
     Clipboard.shared.start()
 
