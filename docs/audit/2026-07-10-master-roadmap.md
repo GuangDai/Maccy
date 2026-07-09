@@ -50,7 +50,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 | # | Step | Closes | Effort | Risk | Notes |
 |---|------|--------|--------|------|-------|
 | B0 | **History split design** (doc-only) | DS-001 | S | — | Decide facade name (`History`) + the 5–7 partition types (ListState / StoreProjector / SearchSession / Mutations / LegacyWriter + UIEffectPort). Output = an ADR. |
-| B1 | **UIEffectPort** | DS-007 | M | M | Inject a protocol (requestResize/closePopup/selectLead/scrollTarget…) into `History`; production adapter on `AppState`; spy/noop in tests. **This is the highest-leverage next move** — breaks the ×23 reverse coupling and makes `History` unit-testable without UI chrome. |
+| B1 | **UIEffectPort (DEFERRED — tried & reverted 2026-07-10)** | DS-007 | — | — | A protocol+adapter that wraps `AppState.shared` only *relocates* the coupling — the adapter still calls `AppState.shared` in every method, so runtime is unchanged and testability isn't unblocked ("脱裤子放屁"). The real fix is **inversion** (History publishes effect intents; UI subscribes), which belongs with the projection split (B2), not a standalone port. Defer. |
 | B2 | **History file split** (no behavior) | DS-001, DS-022 | M–L | M | One file per commit (`refactor(history): split … no behavior change`). Also routes all store IO through one port (closes the dual persistence channel). Order: Legacy → Search → Reconcile → Mutations. |
 | B3 | **Migrate tests off `add`** | DS-003 | M–L | M | `seedViaConsume` helper; quarantine sessionLog-only tests. 45 `history.add` call sites across 5 test files. |
 | B4 | **Remove/isolate legacy `add`** | DS-003, DS-016 | M | M | After B3. Delete `MainActorIngestorAdapter.ingest` (fully dead). |
@@ -138,10 +138,9 @@ E4 (dead subtree) needs your delete/keep decision
 ## 6. Near-term plan (the next 3–5 concrete moves)
 
 1. **Push `7fb08bd`** (Wave A Step 3b) once Step 4 greens → Wave A fully landed.
-2. **Commit the verification doc suite** (`2026-07-09-design-audit-verification/` + INDEX + cross-links) — it's the authority for everything above and is currently uncommitted.
+2. ~~Commit the verification doc suite~~ — **done** (`876de39`).
 3. **Resolve D0 (Load ADR) + E4 (dead subtree)** — two quick decisions that unblock D1 and a big cleanup.
-4. **B1 — UIEffectPort** — the highest-leverage structural move; breaks the ×23 coupling, makes `History` testable. First real Wave B step.
-5. **D4 — `syncAllToStore` O(n)→O(deleted)** — small, measured perf win on the hot path; good first D-wave item and pairs with BS-4.
+4. **D4 — `syncAllToStore` O(n)→O(deleted)** — concrete, measured perf win on every copy (have the ingest actor return the `deletedItemIDs` it already computes instead of re-fetching all identifiers). The right kind of next step: concrete value, not ceremony. (B1 UIEffectPort was reverted — hollow; see §3 Wave B.)
 
 Parallel-safe: C1 (filter cleanup — different files) and E1 (Intent port) can run alongside B without conflict.
 
@@ -164,4 +163,4 @@ Parallel-safe: C1 (filter cleanup — different files) and E1 (Intent port) can 
 
 ---
 
-**One-line summary:** Wave A closed the silent-failure + search-generation defects; next is the **History split (B1 UIEffectPort first)** as the highest-leverage structural move, with the **Load ADR (D0)** and the **dead-subtree decision (E4)** as the two quick decisions that unblock the rest.
+**One-line summary:** Wave A closed the silent-failure + search-generation defects. Next is **concrete-value work** — D4 (per-copy perf) or the Load ADR (D0) / dead-subtree (E4) decisions — **not** the hollow UIEffectPort (reverted 2026-07-10). Structural decoupling of History↔AppState waits for a real projection split (inversion), not a singleton-wrapping port.
