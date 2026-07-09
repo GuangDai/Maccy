@@ -107,7 +107,11 @@ final class HistoryConsumeTests: XCTestCase {
 
   // MARK: - .merged
 
-  /// Consuming a `.merged` event replaces the prior decorator with the merged item.
+  /// Consuming a `.merged` event replaces the prior decorator with the merged
+  /// item. The actor deletes the duplicate in `commit` and reports its
+  /// persistent id in `trimmedPersistentIDs`; the consumer drops that orphan
+  /// (which `insertIncrementally`'s own id check can't match — the merged
+  /// successor has a fresh id).
   func testConsumeMergedReflectsReplacedItem() {
     let original = insertItem(text: "dup")
     original.numberOfCopies = 1
@@ -122,7 +126,10 @@ final class HistoryConsumeTests: XCTestCase {
     merged.numberOfCopies = 3
     try? Storage.shared.context.save()
 
-    history.consume(.merged(snapshot(of: merged)))
+    history.consume(
+      .merged(snapshot(of: merged)),
+      trimmedPersistentIDs: [original.persistentModelID]
+    )
 
     XCTAssertEqual(history.all.count, 1, "Merge must produce a single decorator, not two")
     XCTAssertEqual(history.all.first?.item.numberOfCopies, 3)
@@ -155,9 +162,10 @@ final class HistoryConsumeTests: XCTestCase {
     XCTAssertEqual(history.all.map(\.title), fullSortTitles)
   }
 
-  /// A consume must drop decorators whose backing model is gone from the store
-  /// (the ingestor trims oldest-unpinned every copy at steady state — by
-  /// `lastCopiedAt`, not the UI sort, so `all` can't trim itself).
+  /// A consume must drop the decorators the ingest actor reports deleting —
+  /// supplied in `trimmedPersistentIDs`. At steady state the actor trims
+  /// oldest-unpinned every copy (by `lastCopiedAt`, not the UI sort, so `all`
+  /// can't trim itself); it reports each eviction so the consumer drops it.
   func testConsumeRemovesDecoratorWhenStoreItemDeleted() {
     let itemA = insertItem(text: "a")
     let itemB = insertItem(text: "b")
@@ -166,15 +174,18 @@ final class HistoryConsumeTests: XCTestCase {
     history.consume(.added(snapshot(of: itemB)))
     XCTAssertEqual(history.all.count, 2)
 
-    // Delete A from the store (as the ingestor's trim would), add C, consume —
-    // the sync on C's consume must drop A's decorator.
+    // The actor trims A (oldest-unpinned) when adding C, and reports A in the
+    // trimmed set alongside C's `.added` event.
     Storage.shared.context.delete(itemA)
     let itemC = insertItem(text: "c")
     try? Storage.shared.context.save()
-    history.consume(.added(snapshot(of: itemC)))
+    history.consume(
+      .added(snapshot(of: itemC)),
+      trimmedPersistentIDs: [itemA.persistentModelID]
+    )
 
     let titles = Set(history.all.map(\.title))
-    XCTAssertFalse(titles.contains("a"), "store-deleted item must be removed from all")
+    XCTAssertFalse(titles.contains("a"), "trimmed item must be removed from all")
     XCTAssertEqual(history.all.count, 2, "A dropped, C added → still 2")
   }
 
