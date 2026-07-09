@@ -134,42 +134,30 @@ jobs:
             only: "MaccyTests"
             skip: "MaccyTests/PerformanceHarnessWiringTest MaccyTests/HistoryItemPerformanceTests MaccyTests/ImageDecodePerformanceTests MaccyTests/TextSearchPerformanceTests MaccyTests/CorpusGeneratorTests"
             block: true
+          # UI suite consolidated from five shards into two (former ui-1/ui-2/ui-3
+          # -> ui-1; ui-4/ui-5 -> ui-2) so the full suite (36 tests) fits the
+          # strategy's max-parallel with no queueing. Same tests, regrouped.
           - shard: ui-1
-            only: "MaccyUITests/MaccyUITests/testPopupWithHotkey MaccyUITests/MaccyUITests/testCloseWithHotkey MaccyUITests/MaccyUITests/testPopupWithMenubar MaccyUITests/MaccyUITests/testNewCopyIsAdded MaccyUITests/MaccyUITests/testSearch MaccyUITests/MaccyUITests/testCopyWithClick MaccyUITests/MaccyUITests/testDownArrow MaccyUITests/MaccyUITests/testUpArrow"
+            only: "MaccyUITests/MaccyUITests/testPopupWithHotkey MaccyUITests/MaccyUITests/testCloseWithHotkey MaccyUITests/MaccyUITests/testPopupWithMenubar MaccyUITests/MaccyUITests/testNewCopyIsAdded MaccyUITests/MaccyUITests/testSearch MaccyUITests/MaccyUITests/testCopyWithClick MaccyUITests/MaccyUITests/testDownArrow MaccyUITests/MaccyUITests/testUpArrow MaccyUITests/MaccyUITests/testCopyWithEnter MaccyUITests/MaccyUITests/testCopyWithCommandShortcut MaccyUITests/MaccyUITests/testCopyImage MaccyUITests/MaccyUITests/testCopyFile MaccyUITests/MaccyUITests/testCopyRTF MaccyUITests/MaccyUITests/testCopyHTML MaccyUITests/MaccyUITests/testSearchFiles MaccyUITests/MaccyUITests/testSearchAndCopyWithCommandShortcut MaccyUITests/MaccyUITests/testControlJ MaccyUITests/MaccyUITests/testControlK MaccyUITests/MaccyUITests/testDeleteEntry MaccyUITests/MaccyUITests/testDeleteEntryDuringSearch MaccyUITests/MaccyUITests/testClear MaccyUITests/MaccyUITests/testClearDuringSearch"
             skip: ""
             block: true
           - shard: ui-2
-            only: "MaccyUITests/MaccyUITests/testCopyWithEnter MaccyUITests/MaccyUITests/testCopyWithCommandShortcut MaccyUITests/MaccyUITests/testCopyImage MaccyUITests/MaccyUITests/testCopyFile MaccyUITests/MaccyUITests/testCopyRTF MaccyUITests/MaccyUITests/testCopyHTML MaccyUITests/MaccyUITests/testSearchFiles"
+            only: "MaccyUITests/MaccyUITests/testClearAll MaccyUITests/MaccyUITests/testPin MaccyUITests/MaccyUITests/testPinDuringSearch MaccyUITests/MaccyUITests/testUnpin MaccyUITests/MaccyUITests/testRemoveLastWordFromSearchWithControlW MaccyUITests/MaccyUITests/testPasteToSearch MaccyUITests/MaccyUITests/testDisablesOnOptionClickingMenubarIcon MaccyUITests/MaccyUITests/testDisablesOnlyForNextCopyOnOptionShiftClickingMenubarIcon MaccyUITests/MaccyUITests/testCreatesNewCopyOnEnterWhenSearchResultsAreEmpty MaccyUITests/MaccyUITests/testOpenAndClose MaccyUITests/MaccyUITests/testOpenAndSelectSecondItem MaccyUITests/MaccyUITests/testOpenAndSelectThirdItem MaccyUITests/MaccyUITests/testOpenAndSelectThirdItemRepeatedPress MaccyUITests/MaccyUITests/testTogglePopupAndCloseOnClickOutside"
             skip: ""
             block: true
-          - shard: ui-3
-            only: "MaccyUITests/MaccyUITests/testSearchAndCopyWithCommandShortcut MaccyUITests/MaccyUITests/testControlJ MaccyUITests/MaccyUITests/testControlK MaccyUITests/MaccyUITests/testDeleteEntry MaccyUITests/MaccyUITests/testDeleteEntryDuringSearch MaccyUITests/MaccyUITests/testClear MaccyUITests/MaccyUITests/testClearDuringSearch"
-            skip: ""
-            block: true
-          - shard: ui-4
-            only: "MaccyUITests/MaccyUITests/testClearAll MaccyUITests/MaccyUITests/testPin MaccyUITests/MaccyUITests/testPinDuringSearch MaccyUITests/MaccyUITests/testUnpin MaccyUITests/MaccyUITests/testRemoveLastWordFromSearchWithControlW MaccyUITests/MaccyUITests/testPasteToSearch MaccyUITests/MaccyUITests/testDisablesOnOptionClickingMenubarIcon"
-            skip: ""
-            block: true
-          - shard: ui-5
-            only: "MaccyUITests/MaccyUITests/testDisablesOnlyForNextCopyOnOptionShiftClickingMenubarIcon MaccyUITests/MaccyUITests/testCreatesNewCopyOnEnterWhenSearchResultsAreEmpty MaccyUITests/MaccyUITests/testOpenAndClose MaccyUITests/MaccyUITests/testOpenAndSelectSecondItem MaccyUITests/MaccyUITests/testOpenAndSelectThirdItem MaccyUITests/MaccyUITests/testOpenAndSelectThirdItemRepeatedPress MaccyUITests/MaccyUITests/testTogglePopupAndCloseOnClickOutside"
-            skip: ""
-            block: true
-          # perf shards: split by category (image / text / mixed) into parallel
-          # runners. BLOCKING (block: true) — a perf test failure (timeout, hang,
-          # assertion) fails the run exactly like a unit/UI failure; perf is NOT
-          # silently green. The self-scan below scans every shard's log for
+          # perf shards: split by category (image / text+mixed). BLOCKING
+          # (block: true) — a perf test failure (timeout, hang, assertion) fails
+          # the run exactly like a unit/UI failure; perf is NOT silently green.
+          # The self-scan below scans every shard's log for
           # failed/error/TEST-FAILED. Keep these only-lists and the unit shard's
-          # skip-list above in sync as perf classes are added.
+          # skip-list above in sync as perf classes are added. perf-text absorbs
+          # the former perf-mixed shard (testMixedRenderFirst20 / testMixedRenderB).
           - shard: perf-image
             only: "MaccyTests/ImageDecodePerformanceTests/testImageRenderFirst20 MaccyTests/ImageDecodePerformanceTests/testSingleLargeImageColdLoad MaccyTests/ImageDecodePerformanceTests/testManyImagesColdLoad_N200 MaccyTests/ImageDecodePerformanceTests/testMixedColdLoad_N200 MaccyTests/PerformanceHarnessWiringTest MaccyTests/HistoryItemPerformanceTests MaccyUITests/PerfRenderUITests/testImageRenderB MaccyUITests/PreviewRefreshUITests/testPreviewRefreshesAcrossNavigation"
             skip: ""
             block: true
           - shard: perf-text
-            only: "MaccyTests/ImageDecodePerformanceTests/testTextRenderFirst20 MaccyTests/ImageDecodePerformanceTests/testProbeDetectsSynchronousMainStall MaccyTests/ImageDecodePerformanceTests/testGCopyPerCopyConsume_N200 MaccyTests/TextSearchPerformanceTests MaccyUITests/PerfRenderUITests/testTextRenderB"
-            skip: ""
-            block: true
-          - shard: perf-mixed
-            only: "MaccyTests/ImageDecodePerformanceTests/testMixedRenderFirst20 MaccyUITests/PerfRenderUITests/testMixedRenderB"
+            only: "MaccyTests/ImageDecodePerformanceTests/testTextRenderFirst20 MaccyTests/ImageDecodePerformanceTests/testProbeDetectsSynchronousMainStall MaccyTests/ImageDecodePerformanceTests/testGCopyPerCopyConsume_N200 MaccyTests/TextSearchPerformanceTests MaccyUITests/PerfRenderUITests/testTextRenderB MaccyTests/ImageDecodePerformanceTests/testMixedRenderFirst20 MaccyUITests/PerfRenderUITests/testMixedRenderB"
             skip: ""
             block: true
     env:
