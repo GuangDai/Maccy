@@ -157,7 +157,7 @@ jobs:
             skip: ""
             block: true
           - shard: perf-text
-            only: "MaccyTests/ImageDecodePerformanceTests/testTextRenderFirst20 MaccyTests/ImageDecodePerformanceTests/testProbeDetectsSynchronousMainStall MaccyTests/ImageDecodePerformanceTests/testGCopyPerCopyConsume_N200 MaccyTests/TextSearchPerformanceTests MaccyUITests/PerfRenderUITests/testTextRenderB MaccyTests/ImageDecodePerformanceTests/testMixedRenderFirst20 MaccyUITests/PerfRenderUITests/testMixedRenderB"
+            only: "MaccyTests/ImageDecodePerformanceTests/testTextRenderFirst20 MaccyTests/ImageDecodePerformanceTests/testProbeDetectsSynchronousMainStall MaccyTests/ImageDecodePerformanceTests/testGCopyPerCopyConsume_N200 MaccyTests/ImageDecodePerformanceTests/testGCopyPerCopyConsume_N1000 MaccyTests/TextSearchPerformanceTests MaccyUITests/PerfRenderUITests/testTextRenderB MaccyTests/ImageDecodePerformanceTests/testMixedRenderFirst20 MaccyUITests/PerfRenderUITests/testMixedRenderB"
             skip: ""
             block: true
     env:

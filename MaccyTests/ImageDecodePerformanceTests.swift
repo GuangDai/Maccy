@@ -1,3 +1,4 @@
+import Defaults
 import XCTest
 @testable import Maccy
 
@@ -91,6 +92,64 @@ final class ImageDecodePerformanceTests: PerformanceTestCase {
       "|perCopyMs=[\(perCopy)]|perCopyAvgMs=\(String(format: "%.2f", avg))" +
       "|perCopyMaxMs=\(String(format: "%.2f", maxCopy))" +
       "|mainThread_maxGap_s=\(gap)")
+  }
+
+  // MARK: - G-copy per-copy consume, N=1000 (D4 measure-first baseline)
+
+  /// N=1000 variant of ``testGCopyPerCopyConsume_N200`` — the scale at which
+  /// the `syncAllToStore` O(rows) slice D4 targets becomes a visible fraction
+  /// of each per-copy consume. Measures the full `consume(.added)` path (which
+  /// includes `insertIncrementally` → `syncAllToStore`'s `fetchIdentifiers`
+  /// over every row plus the linear scan of `all`); D4 will later remove that
+  /// slice, and this baseline stays as the regression gate that shows the drop.
+  ///
+  /// `Defaults[.size]` is raised to 1000 (the base `setUp` caps it at 200) so
+  /// `load()` keeps all prefill items; `tearDown` restores the saved value.
+  /// Prefill is a direct batch insert + one save (O(n)), not the legacy `add`
+  /// factory path (O(n²) at n=1000; B3 retires `add`) — the test measures the
+  /// per-copy consume path, not the setup.
+  func testGCopyPerCopyConsume_N1000() async throws {
+    Defaults[.size] = 1000
+    let history = History.shared
+    history.clearAll()
+    for index in 0..<1000 {
+      Storage.shared.context.insert(
+        HistoryBuilder()
+          .withContent(type: "public.utf8-plain-text", value: Data("baseline #\(index)".utf8))
+          .withCopiedAt(Date(timeIntervalSince1970: 1_700_000_000 + Double(index)))
+          .build()
+      )
+    }
+    try Storage.shared.context.save()
+    _ = try? await history.load()
+
+    let clock = ContinuousClock()
+    var perCopyMs: [Double] = []
+    probe.start()
+    for index in 0..<20 {
+      // Insert a new item into the main context (what the actor's background
+      // save merges in), then drive the live consume path.
+      let item = HistoryBuilder()
+        .withContent(type: "public.utf8-plain-text", value: Data("copy #\(index)".utf8))
+        .withCopiedAt(Date(timeIntervalSince1970: 1_700_001_000 + Double(index)))
+        .build()
+      Storage.shared.context.insert(item)
+      try? Storage.shared.context.save()
+      let snapshot = snapshot(of: item)
+      let start = clock.now
+      history.consume(.added(snapshot))
+      perCopyMs.append(Self.milliseconds(start.duration(to: clock.now)))
+    }
+    let gap = await probe.maxGapAsync()
+    probe.stop()
+
+    let avg = perCopyMs.reduce(0, +) / Double(perCopyMs.count)
+    let maxCopy = perCopyMs.max() ?? 0
+    let perCopy = perCopyMs.map { String(format: "%.2f", $0) }.joined(separator: ",")
+    print("PERF|gate=G-copy|method=A|op=consume|n=1000|items=\(perCopyMs.count)" +
+      "|perCopyMs=[\(perCopy)]|perCopyAvgMs=\(String(format: "%.2f", avg))" +
+      "|perCopyMaxMs=\(String(format: "%.2f", maxCopy))" +
+      "|mainThread_maxGap_s=\(gap))")
   }
 
   // MARK: - Probe self-test (foundation check)
