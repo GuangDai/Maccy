@@ -178,6 +178,40 @@ final class HistoryConsumeTests: XCTestCase {
     XCTAssertEqual(history.all.count, 2, "A dropped, C added → still 2")
   }
 
+  // MARK: - syncAllToStore fetch-failure (DS-002)
+
+  #if DEBUG
+  /// A `syncAllToStore` identifier-fetch failure must NOT wipe `all`. The old
+  /// code did `(try? fetchIdentifiers(...)) ?? []`, collapsing any throw to an
+  /// empty set and removing every decorator — clearing the UI while the DB
+  /// stayed intact. The fix records the error and returns without mutating
+  /// `all` (mirroring `reconcileWithStore`'s catch).
+  func testSyncAllToStoreDoesNotWipeAllOnFetchFailure() {
+    let itemA = insertItem(text: "a")
+    try? Storage.shared.context.save()
+    history.consume(.added(snapshot(of: itemA)))
+    XCTAssertEqual(history.all.count, 1)
+    history.lastPersistError = nil
+
+    history.setSyncAllFetchFailureForTesting(true)
+    defer { history.setSyncAllFetchFailureForTesting(false) }
+
+    let itemB = insertItem(text: "b")
+    try? Storage.shared.context.save()
+    history.consume(.added(snapshot(of: itemB)))
+
+    XCTAssertEqual(
+      history.all.count, 2,
+      "A fetch failure must not wipe all; both items must survive"
+    )
+    XCTAssertNotNil(
+      history.lastPersistError,
+      "The fetch failure must be recorded on lastPersistError"
+    )
+    XCTAssertTrue(Set(history.all.map(\.title)).isSuperset(of: ["a", "b"]))
+  }
+  #endif
+
   // MARK: - Helpers
 
   /// Inserts a single-string-content `HistoryItem` into the shared main context

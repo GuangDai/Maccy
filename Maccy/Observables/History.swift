@@ -412,15 +412,45 @@ class History: ItemsContainer {
     AppState.shared.popup.needsResize = true
   }
 
+  #if DEBUG
+  /// Test-only: when set, `syncAllToStore`'s identifier fetch fails, simulating
+  /// a transient store error so the no-wipe-on-failure path is exercisable.
+  /// Compiled out of Release; production is always false.
+  private var forceSyncAllFetchFailure = false
+
+  /// Error injected by `forceSyncAllFetchFailure`.
+  private enum ForcedSyncAllFetchFailure: Error {
+    case forced
+  }
+
+  /// Test-only setter for `forceSyncAllFetchFailure`.
+  func setSyncAllFetchFailureForTesting(_ enabled: Bool) {
+    forceSyncAllFetchFailure = enabled
+  }
+  #endif
+
   /// Drops `all` decorators whose backing @Model the ingestor trimmed. The
   /// ingestor deletes oldest-unpinned-by-`lastCopiedAt` beyond `Defaults[.size]`,
   /// which is NOT the UI sort order, so `all` can't trim itself correctly. Uses
   /// `fetchIdentifiers` (ids only — no @Model faulting) so the per-copy sync stays
-  /// cheap; this is the only O(n) piece of the incremental path.
+  /// cheap; this is the only O(n) piece of the incremental path. A fetch failure
+  /// is recorded and leaves `all` untouched — it is NOT treated as an empty
+  /// store, which would wipe the whole list while the DB stayed intact.
   private func syncAllToStore() {
-    let storeIDs = Set(
-      (try? Storage.shared.context.fetchIdentifiers(FetchDescriptor<HistoryItem>())) ?? []
-    )
+    let storeIDs: Set<PersistentIdentifier>
+    do {
+      #if DEBUG
+      if forceSyncAllFetchFailure {
+        throw ForcedSyncAllFetchFailure.forced
+      }
+      #endif
+      storeIDs = Set(
+        try Storage.shared.context.fetchIdentifiers(FetchDescriptor<HistoryItem>())
+      )
+    } catch {
+      recordPersistenceError("syncAllToStore identifier fetch failed", error)
+      return
+    }
     var removedSearchIDs: [UUID] = []
     var index = all.startIndex
     while index < all.count {
