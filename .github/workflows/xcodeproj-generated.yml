@@ -216,6 +216,11 @@ jobs:
             "${{ steps.bundle.outcome }}"
             "${{ steps.readonly.outcome }}"
           )
+          failed=0
           for outcome in "${outcomes[@]}"; do
-            [[ "$outcome" == success ]]
+            if [[ "$outcome" != success ]]; then
+              echo "M1 gate did not succeed: $outcome" >&2
+              failed=1
+            fi
           done
+          exit "$failed"

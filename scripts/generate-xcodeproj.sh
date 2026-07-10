@@ -43,11 +43,12 @@ if [[ ! -x "$binary" ]]; then
   unzip -q -o "$archive" -d "$XCODEGEN_HOME"
 fi
 
-actual_version="$($binary --version)"
+version_output="$($binary --version)"
+actual_version="${version_output#Version: }"
 if [[ "$actual_version" != "$XCODEGEN_VERSION" ]]; then
   echo "XcodeGen version mismatch" >&2
   echo "Expected: $XCODEGEN_VERSION" >&2
-  echo "Actual:   $actual_version" >&2
+  echo "Actual:   $version_output" >&2
   exit 1
 fi
 
