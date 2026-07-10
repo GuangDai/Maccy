@@ -296,7 +296,7 @@ class HistoryTests: XCTestCase {
 
   func testRemovingSynchronizesIngestorIndex() async {
     let foo = history.add(historyItem("foo"))
-    let expectedID = itemID(for: foo.item)
+    let expectedID = snapshot(of: foo.item).id
     let spy = IngestorSpy()
     let savedIngestor = Clipboard.shared.ingestor
     Clipboard.shared.ingestor = spy
@@ -312,7 +312,7 @@ class HistoryTests: XCTestCase {
     let pinned = history.add(historyItem("pinned"))
     history.togglePin(pinned)
     let unpinned = history.add(historyItem("unpinned"))
-    let expectedID = itemID(for: unpinned.item)
+    let expectedID = snapshot(of: unpinned.item).id
     let spy = IngestorSpy()
     let savedIngestor = Clipboard.shared.ingestor
     Clipboard.shared.ingestor = spy
