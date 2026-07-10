@@ -34,7 +34,7 @@
 
 - Create: `scripts/generate-xcodeproj.sh`
 
-- [ ] **Step 1: Add an exact-version installer/generator**
+- [x] **Step 1: Add an exact-version installer/generator**
 
 The script must:
 
@@ -46,11 +46,11 @@ The script must:
 6. assert `$OUTPUT_ROOT/Maccy-Generated.xcodeproj/project.pbxproj` exists;
 7. never write into the legacy project.
 
-- [ ] **Step 2: Verify shell syntax and failure behavior locally**
+- [x] **Step 2: Verify shell syntax and failure behavior locally**
 
 Run `bash -n scripts/generate-xcodeproj.sh` and a checksum-negative test against a fake archive. Do not execute the macOS binary locally.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Commit as `ci(xcodegen-m1): pin project generator toolchain`.
 
