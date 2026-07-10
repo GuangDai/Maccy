@@ -28,12 +28,10 @@ final class HistoryConsumeTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     // `Storage.shared` is an in-memory singleton shared across every test in
-    // this run, so clear it (and the History view-model) in setUp so each test
-    // starts from a known-empty state. Mirrors the
-    // BackgroundClipboardIngestorTests setUp.
-    try? Storage.shared.context.delete(model: HistoryItem.self)
-    Storage.shared.context.processPendingChanges()
-    try? Storage.shared.context.save()
+    // this run. Release external decorator references before `clearAll()`
+    // deletes their backing models, then let History clear the store and its
+    // view-model together so each test starts from a known-empty state.
+    AppState.shared.navigator.selectWithoutScrolling(item: nil)
     history.clearAll()
     history.searchQuery = ""
 
@@ -45,6 +43,9 @@ final class HistoryConsumeTests: XCTestCase {
   }
 
   override func tearDown() async throws {
+    AppState.shared.navigator.selectWithoutScrolling(item: nil)
+    history.clearAll()
+    history.searchQuery = ""
     Defaults[.size] = savedSize
     Defaults[.sortBy] = savedSortBy
     try await super.tearDown()
