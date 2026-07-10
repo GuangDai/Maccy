@@ -2,7 +2,7 @@
 
 > **本文件是审计文档仓库的单一权威导航中心,自包含。** 阅读任何审计文档前先读此页,以避免把"冻结的设计意图"或"历史快照"误读为"当前状态"。
 >
-> 最近更新:**2026-07-09**(`2026-07-09-design-audit-verification/` — `/grill-with-docs` verification of the design-structure audit: 13-agent verify+refute workflow + firsthand grep. **27/34 findings confirmed verbatim; 6 severity-overstated (DS-002 Crit→High etc.); DS-019 refuted; 19 new issues** incl. a silent session-wide dedup-disable (`NEW-dedup-ids-1`) and the `searchGeneration` bug-class; 16 glossary/location fixes. Recalibrates the playbook's Wave A. HEAD `6cd37c8`. Same day also **rewrote** `2026-07-09-design-structure-audit/` in **English only**, ~3.3k lines: step-by-step data-flow traces (`02`), evidence-backed findings DS-001…034 (`17`), per-module deep dives, master playbook (`19`). HEAD `6cd37c8`. Supersedes the earlier Chinese draft of the same folder.). Earlier 2026-07-05:`2026-07-05-applicationimage-mainactor-crash/`. Phase-1 整理(2026-06-29)仍适用。
+> 最近更新:**2026-07-10**(`2026-07-10-history-split-plan/` — expanded B0 authority: **defer History split**; D4 measure-first (`onEvent` widen); DS-022-standalone hollow-as-B1; full **SwiftLint 1000/1000 policy audit**; forcing-gate + S0–S7 execution board. Expands `history-split-grilling/00-decision.md`. HEAD `bfcf671`. + `2026-07-10-master-roadmap.md` global post-Wave-A order.) Earlier 2026-07-09:`2026-07-09-design-audit-verification/` — `/grill-with-docs` verification of the design-structure audit: 13-agent verify+refute workflow + firsthand grep. **27/34 findings confirmed verbatim; 6 severity-overstated (DS-002 Crit→High etc.); DS-019 refuted; 19 new issues** incl. a silent session-wide dedup-disable (`NEW-dedup-ids-1`) and the `searchGeneration` bug-class; 16 glossary/location fixes. Recalibrates the playbook's Wave A. HEAD `6cd37c8`. Same day also **rewrote** `2026-07-09-design-structure-audit/` in **English only**, ~3.3k lines: step-by-step data-flow traces (`02`), evidence-backed findings DS-001…034 (`17`), per-module deep dives, master playbook (`19`). HEAD `6cd37c8`. Supersedes the earlier Chinese draft of the same folder.). Earlier 2026-07-05:`2026-07-05-applicationimage-mainactor-crash/`. Phase-1 整理(2026-06-29)仍适用。
 
 ## 0. 三大权威源 + spec-of-record(reading order)
 
@@ -136,6 +136,18 @@
 | [`2026-07-09-design-audit-verification/glossary-supplement.md`](2026-07-09-design-audit-verification/glossary-supplement.md) | A | Terms sharpened during grilling (search-generation discipline, incremental-but-O(n), silent dedup disable, mutating read, dead-feature subtree). |
 
 > **读法**:`2026-07-09-design-structure-audit/` 的**机制判定**(数据流、DS 定位)经对抗式复核全部成立 → 仍是最准的设计地图;但其**严重度系统性偏高**(6 项夸大),且漏掉 19 项(含静默全去重失效)。**优先级与严重度一律以 `2026-07-09-design-audit-verification/` 为准**;设计机制以原 audit 为准。
+
+### 2026-07-10 — Master roadmap + History-split plan (A, active)
+
+| 路径 | role | 摘要 |
+|------|------|------|
+| [`2026-07-10-master-roadmap.md`](2026-07-10-master-roadmap.md) | A | **The single forward-looking roadmap** after Wave A: Waves B/C/D/E-F ordered by leverage, deps, decision forks, red lines. Supersedes the playbook's priority order using the verification's recalibration. |
+| **[`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/)** | **A** | **History-structure specialization:** B0 freeze (defer split), hollow-work test, **SwiftLint policy audit** (`a8365fa` 1000/1000), anatomy, DS-022 hollow finding, D4 design (`onEvent` widen), forcing-gate, execution board. **Start here for “what to do about History.swift”.** |
+| [`2026-07-10-history-split-plan/00-executive-summary.md`](2026-07-10-history-split-plan/00-executive-summary.md) | A | Locked B0 decisions + anti-patterns + success criteria. |
+| [`2026-07-10-history-split-plan/02-swiftlint-policy-audit.md`](2026-07-10-history-split-plan/02-swiftlint-policy-audit.md) | A | Stock vs project length rules; process debt; why lint-only splits are hollow. |
+| [`2026-07-10-history-split-plan/06-d4-design.md`](2026-07-10-history-split-plan/06-d4-design.md) | A | D4 measure-first + `onEvent` transport + correctness traps. |
+| [`2026-07-10-history-split-plan/08-ordered-execution-plan.md`](2026-07-10-history-split-plan/08-ordered-execution-plan.md) | A | Numbered S0–S7 commits/PRs. |
+| [`2026-07-10-history-split-grilling/00-decision.md`](2026-07-10-history-split-grilling/00-decision.md) | A | Short B0 decision seed (adversarial panel). Expanded by `history-split-plan/`. |
 
 ### 独立文档
 

@@ -3,8 +3,9 @@
 | Field | Value |
 |-------|-------|
 | **Role** | The single forward-looking roadmap: what to do after Wave A, in order, with dependencies and decision forks. Supersedes the design-audit playbook (`2026-07-09-design-structure-audit/19-master-playbook.md`) priority order using the verification's recalibration + Wave A completion. |
-| **Baseline** | post-Wave-A master (HEAD after `7fb08bd`). |
+| **Baseline** | post-Wave-A master (HEAD after `7fb08bd` / docs through `bfcf671`). |
 | **Inputs** | [`2026-07-09-design-audit-verification/`](2026-07-09-design-audit-verification/) (verified findings + 19 new issues), [`2026-07-09-design-structure-audit/19-master-playbook.md`](2026-07-09-design-structure-audit/19-master-playbook.md) (waves), [`../2026-06-27-memory-floor-and-retention/`](2026-06-27-memory-floor-and-retention/) (memory track). |
+| **History-split detail** | B0 frozen in [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/): **defer split**; D4 measure-first; DS-022-standalone hollow; SwiftLint policy audit. Prefer that suite over Wave B table rows when they conflict on sequencing. |
 | **Constraint** | No local toolchain; one small step + TDD + CI per change; structure ≠ behavior in the same PR; don't change user-visible behavior unless required. |
 
 ---
@@ -49,7 +50,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 
 | # | Step | Closes | Effort | Risk | Notes |
 |---|------|--------|--------|------|-------|
-| B0 | **History split design** (doc-only) | DS-001 | S | — | Decide facade name (`History`) + the 5–7 partition types (ListState / StoreProjector / SearchSession / Mutations / LegacyWriter + UIEffectPort). Output = an ADR. |
+| B0 | **History split design** (doc-only) | DS-001 | S | — | **DONE** → [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/): **defer** file/type split; D4-first (measure); DS-022 not standalone; forcing-gate in plan `07`. |
 | B1 | **UIEffectPort (DEFERRED — tried & reverted 2026-07-10)** | DS-007 | — | — | A protocol+adapter that wraps `AppState.shared` only *relocates* the coupling — the adapter still calls `AppState.shared` in every method, so runtime is unchanged and testability isn't unblocked ("脱裤子放屁"). The real fix is **inversion** (History publishes effect intents; UI subscribes), which belongs with the projection split (B2), not a standalone port. Defer. |
 | B2 | **History file split** (no behavior) | DS-001, DS-022 | M–L | M | One file per commit (`refactor(history): split … no behavior change`). Also routes all store IO through one port (closes the dual persistence channel). Order: Legacy → Search → Reconcile → Mutations. |
 | B3 | **Migrate tests off `add`** | DS-003 | M–L | M | `seedViaConsume` helper; quarantine sessionLog-only tests. 45 `history.add` call sites across 5 test files. |
@@ -128,7 +129,7 @@ E4 (dead subtree) needs your delete/keep decision
 
 1. **D0 — Load:** wire `VisibleWindowLoader`, delete it, or keep test-only + fix the docstring? (The biggest memory lever; also kills the false "production calls this" claim.)
 2. **E4 — Dead paste-stack / multi-select subtree (~250 LOC):** delete it, or is multi-select a staged feature being kept warm?
-3. **B0 — History split granularity:** the full 5–7 types, or a smaller first cut (e.g., just peel `LegacyWriter` + `UIEffectPort`)?
+3. **B0 — History split granularity:** ~~the full 5–7 types, or a smaller first cut?~~ **CLOSED** — defer split entirely until forcing-gate; see [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/).
 4. **C6 — ItemID:** keep the derived `String(describing:)` form (Low risk, document it), or invest in a stored UUID column now?
 5. **C2 — SignatureIndex delete-sync:** `noteRemoved` on the actor, dirty-rebuild on next ingest, or wait for unified events (Wave B's event model)?
 6. **D3 — Ingest coalesce:** latest-wins mailbox, or keep one-Task-per-change (accept storm cost)?
