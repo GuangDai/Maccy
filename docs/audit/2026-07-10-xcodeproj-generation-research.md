@@ -287,6 +287,28 @@ The work is complete only when all of the following are proven on current state:
 - PR/push validation is read-only; release also performs generation/drift verification.
 - Direct pbxproj editing is documented as generated-output drift and rejected by CI.
 
+## M0 completion evidence (2026-07-11)
+
+M0 is complete at `d632790`. The read-only capture workflow is
+`.github/workflows/xcodeproj-contract.yml`, backed by
+`scripts/capture-xcodeproj-contract.sh`.
+
+- The successful contract run is [GitHub Actions run 29125075137](https://github.com/GuangDai/Maccy/actions/runs/29125075137). Its `xcodeproj-contract-29125075137-1` artifact contains 23 files; both `git-status-before.txt` and `git-status-after.txt` are empty, the clean Debug build ends in `BUILD SUCCEEDED`, and the log contains no `warning:`, `error:`, `TEST FAILED`, or `BUILD FAILED` lines.
+- The default-branch semantic gate is [macOS 26 ARM CI run 29125209517](https://github.com/GuangDai/Maccy/actions/runs/29125209517): lint, unit, `ui-1`, `ui-2`, `perf-text`, and `perf-image` all passed. `ui-2` required the single permitted failed-job rerun after the documented runner-contention `testPin` flake; no product or test change was made for it.
+- The runner was macOS 26.4 arm64 with Xcode 26.5 (`17F42`). The captured project lists Debug/Release, targets `Maccy`, `MaccyTests`, and `MaccyUITests`, and shared project scheme `Maccy` (plus package schemes reported by Xcode).
+- All six target/configuration build-setting captures retain deployment target 14.0, Swift 6.0, and `SWIFT_STRICT_CONCURRENCY=complete`. The app and unit-test targets resolve `CLANG_CXX_LANGUAGE_STANDARD=gnu++17`; the UI-test target retains its `gnu++14` override. App plist, entitlements, bridging header, hosted-unit-test path, and UI-test target name match the legacy project.
+- The app target has four build phases and ten direct package-product dependencies; both test targets have three build phases and one app dependency. The resolved graph has 11 pins because `swift-collections` is a transitive dependency.
+- The first capture run exposed a real stale-lock invariant: Xcode 26.5 added `swift-collections` 1.6.0 and changed `Package.resolved`'s `originHash`. Commit `d632790` records that canonical graph; the successful capture proves a subsequent clean build leaves the repository unchanged.
+- The test plan still references app UUID `DAEE38421E3DBEB100DD2966`, unit UUID `DA360DAF1E3DF137005C6F6B`, and UI UUID `DA0EE7B5204657830025FC60`, and retains the `enable-testing` argument. The shared scheme uses Debug for test/run/analyze and Release for profile/archive as before.
+- The filesystem contains 41 source languages, while the built app has exactly the existing 31 top-level localization directories. The ten intentionally unshipped languages remain `bn`, `ca`, `el`, `eo`, `fa`, `hi`, `id`, `pt`, `sv`, and `ta`. The bundle inventory contains 442 files and confirms `README.md`, `Write.caf`, `Assets.car`, and App Intents metadata.
+- Permanent captured-input hashes for M1 comparison are:
+  - `project.pbxproj`: `dbb4df2a5f4aa15beec1fe55b2bbde7935afcd3a65028a74a6e1b4168b39e9e3`
+  - shared `Maccy.xcscheme`: `0cb88c0244fc46bf27ab280aa0b41c742b6d4814cc4adda0fb53b51799b16761`
+  - `Maccy.xctestplan`: `42ea0871439f07c208b72173402714ecf2875861f96ff6502ae56d8dbe6ca2c6`
+  - `Package.resolved`: `b876894d2ffb9a9f73fea94ce070ddf555f80bb5e2486ea0c3e6ee7798385144`
+
+M1 may now generate a side-by-side project. It must use this captured semantic inventory rather than line-diffing generated UUID/order against the legacy pbxproj.
+
 ## Primary sources
 
 - [XcodeGen 2.45.4 README and installation/CI overview](https://github.com/yonaskolb/XcodeGen/tree/2.45.4#readme)

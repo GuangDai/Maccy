@@ -29,7 +29,7 @@
 - Consumes: optional `PROJECT`, `SCHEME`, `CONFIGURATION`, `DESTINATION`, `DERIVED_DATA`, and `OUTPUT_DIR` environment variables.
 - Produces: a fresh directory containing diagnostics, project/target build settings, source project inputs, a Debug build log, bundle inventories, and SHA-256 checksums.
 
-- [ ] **Step 1: Add the read-only capture script**
+- [x] **Step 1: Add the read-only capture script**
 
 ```bash
 #!/usr/bin/env bash
@@ -108,13 +108,13 @@ shasum -a 256 \
 git status --short > "$OUTPUT_DIR/git-status-after.txt"
 ```
 
-- [ ] **Step 2: Mark executable and verify shell syntax locally**
+- [x] **Step 2: Mark executable and verify shell syntax locally**
 
 Run: `chmod +x scripts/capture-xcodeproj-contract.sh && bash -n scripts/capture-xcodeproj-contract.sh`
 
 Expected: exit 0 with no output. Do not execute the script locally because Xcode is unavailable.
 
-- [ ] **Step 3: Commit the capture script**
+- [x] **Step 3: Commit the capture script**
 
 ```bash
 git add scripts/capture-xcodeproj-contract.sh
@@ -132,7 +132,7 @@ git commit -m "ci(xcodegen-m0): capture current Xcode project contract"
 - Consumes: any branch selected through `workflow_dispatch`.
 - Produces: `xcodeproj-contract-${{ github.run_id }}-${{ github.run_attempt }}` artifact and a hard failure if capture mutates the repository.
 
-- [ ] **Step 1: Add the manual read-only workflow**
+- [x] **Step 1: Add the manual read-only workflow**
 
 ```yaml
 name: Capture Xcode Project Contract
@@ -154,8 +154,6 @@ jobs:
     timeout-minutes: 30
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      OUTPUT_DIR: ${{ runner.temp }}/xcodeproj-contract
-      DERIVED_DATA: ${{ runner.temp }}/ContractDerivedData
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -169,6 +167,9 @@ jobs:
 
       - name: Capture project contract
         shell: bash
+        env:
+          OUTPUT_DIR: ${{ runner.temp }}/xcodeproj-contract
+          DERIVED_DATA: ${{ runner.temp }}/ContractDerivedData
         run: bash scripts/capture-xcodeproj-contract.sh
 
       - name: Verify capture is read-only
@@ -185,30 +186,30 @@ jobs:
           retention-days: 30
 ```
 
-- [ ] **Step 2: Commit the workflow**
+- [x] **Step 2: Commit the workflow**
 
 ```bash
 git add .github/workflows/xcodeproj-contract.yml
 git commit -m "ci(xcodegen-m0): upload Xcode project contract"
 ```
 
-- [ ] **Step 3: Push and dispatch M0 on the branch**
+- [x] **Step 3: Push and dispatch M0**
 
 Run:
 
 ```bash
-git push -u origin xcodegen-m0-contract
-gh workflow run "Capture Xcode Project Contract" --ref xcodegen-m0-contract
+git push origin master
+gh workflow run .github/workflows/xcodeproj-contract.yml --ref master
 ```
 
-Expected: one run starts on `macos-26`; do not dispatch a second run concurrently.
+Expected: one run starts on `macos-26`; do not dispatch a second run concurrently. GitHub requires a new `workflow_dispatch` definition to exist on the default branch before it can be dispatched, so the passive workflow landed on `master` before the first run.
 
-- [ ] **Step 4: Verify the runner result and artifact**
+- [x] **Step 4: Verify the runner result and artifact**
 
 Run:
 
 ```bash
-run_id=$(gh run list --workflow "Capture Xcode Project Contract" --branch xcodegen-m0-contract \
+run_id=$(gh run list --workflow "Capture Xcode Project Contract" --branch master \
   --limit 1 --json databaseId -q '.[0].databaseId')
 gh run view "$run_id" --json status,conclusion,jobs
 gh run download "$run_id" -n "xcodeproj-contract-$run_id-1" \
@@ -224,6 +225,6 @@ Expected:
 - app bundle and localization inventories present;
 - scheme, test plan, package lock, pbxproj JSON, build log, and checksums present.
 
-- [ ] **Step 5: Record M0 evidence before M1**
+- [x] **Step 5: Record M0 evidence before M1**
 
 Append the run URL and artifact inventory to `docs/audit/2026-07-10-xcodeproj-generation-research.md`. Do not begin `project.yml` until the artifact proves the legacy contract is captured.
