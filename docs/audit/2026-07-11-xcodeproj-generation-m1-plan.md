@@ -114,7 +114,7 @@ Commit as `build(xcodegen-m1): describe side-by-side project`.
 
 - Create: `scripts/compare-xcodeproj-contracts.sh`
 
-- [ ] **Step 1: Compare project graph and build membership**
+- [x] **Step 1: Compare project graph and build membership**
 
 Convert both pbxproj files to JSON and compare normalized sets for:
 
@@ -126,15 +126,15 @@ Convert both pbxproj files to JSON and compare normalized sets for:
 
 Allow only intentional structural differences: project name/path, generated UUIDs/order, project format/object version, and removal of the empty Embed Frameworks phase.
 
-- [ ] **Step 2: Compare resolved build settings**
+- [x] **Step 2: Compare resolved build settings**
 
 For all three targets and Debug/Release, call `xcodebuild -showBuildSettings -json` for legacy and generated projects. Normalize project-root/output-path values, then compare the M0-critical allowlist: deployment/SDK, Swift/concurrency, C/C++/ObjC, optimization/config conditions, plist/entitlements/bridging header, bundle/product/version, signing/hardened runtime, runpaths/framework paths, test host/loader/target, asset catalog, dead stripping, modules/ARC, and warning settings.
 
-- [ ] **Step 3: Emit actionable evidence**
+- [x] **Step 3: Emit actionable evidence**
 
 Write normalized JSON and unified diffs into a caller-provided output directory. Any non-allowlisted semantic difference exits nonzero.
 
-- [ ] **Step 4: Verify Bash syntax and commit**
+- [x] **Step 4: Verify Bash syntax and commit**
 
 Run `bash -n` and commit as `test(xcodegen-m1): compare generated project contract`.
 
