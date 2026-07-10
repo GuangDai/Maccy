@@ -603,9 +603,15 @@ class MaccyUITests: XCTestCase {
     usleep(1_500_000)
   }
 
-  /// Pins the item with the given title via the option-P shortcut.
+  /// Selects the item with the keyboard, then pins it via the option-P shortcut.
   private func pin(_ title: String) {
-    hover(items[title].firstMatch)
+    guard let index = itemTitles.firstIndex(of: title) else {
+      XCTFail("Unable to find history item titled \(title)")
+      return
+    }
+    for _ in 0..<index {
+      app.typeKey(.downArrow, modifierFlags: [])
+    }
     app.typeKey("p", modifierFlags: [.option])
     usleep(1_500_000)
   }
