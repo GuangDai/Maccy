@@ -13,6 +13,12 @@ extension Storage {
   /// has no `automaticallyMergesChangesFromParent` (unlike Core Data's
   /// `NSManagedObjectContext`); SwiftData propagates committed changes through
   /// the shared store rather than via per-context merge events.
+  ///
+  /// Status: **test-only.** The production ingest actor builds its context
+  /// inline (`DefaultSerialModelExecutor(modelContext: ModelContext(modelContainer))`
+  /// in `BackgroundClipboardIngestor.init`); this helper's only callers are in
+  /// `StorageBackgroundContextTests`. Kept as the scaffolding a windowed-load
+  /// (D1) would use; wiring it is gated on the Load ADR (`docs/audit/`).
   @MainActor
   func newBackgroundContext() -> ModelContext {
     let context = ModelContext(container)
@@ -37,13 +43,16 @@ extension Storage {
 /// on the projected snapshots, preserving the existing two-pass sort result.
 ///
 /// Synchronous `throws` rather than `async`: the fetch runs on whatever thread
-/// owns the injected context. Production calls this from a background `Task`
-/// holding a `Storage.newBackgroundContext()`, so the work stays off-main
-/// without the primitive itself being async.
+/// owns the injected context; a caller that wants it off-main runs it on a
+/// background `Task` holding its own context (the primitive itself need not be
+/// async).
 ///
-/// Status: not yet wired into the live read path — `History.load()` fetches
-/// directly rather than through `fetchWindow`. Colocated in this file (rather
-/// than its own `VisibleWindowLoader.swift`) to avoid hand-editing the
+/// Status: **test-only** — not wired into the live read path. `History.load()`
+/// fetches directly (an unbounded `FetchDescriptor`) rather than through
+/// `fetchWindow`; `newBackgroundContext()` (its intended context source) is
+/// likewise test-only today. Wiring this into `load()` is the windowed-load
+/// work (D1), gated on the Load ADR (`docs/audit/`). Colocated in this file
+/// (rather than its own `VisibleWindowLoader.swift`) to avoid hand-editing the
 /// non-synced pbxproj; promoting to a dedicated file is housekeeping for a
 /// later batched pbxproj edit.
 enum VisibleWindowLoader {
