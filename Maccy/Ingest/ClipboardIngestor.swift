@@ -7,6 +7,7 @@ import SwiftData
 /// Off-main clipboard ingest contract.
 protocol ClipboardIngestor: Sendable {
   func ingest(_ request: IngestRequest) async -> IngestResult
+  func synchronizeStoreEvents(_ events: [StoreEvent]) async
 }
 
 /// `ClipboardIngestor` adapter that performs the ingest on the main actor via the
@@ -19,6 +20,10 @@ final class MainActorIngestorAdapter: ClipboardIngestor {
       return IngestResult(event: nil, metrics: .zero)
     }
   }
+
+  /// The legacy adapter owns no dedup index, so committed store events require
+  /// no additional synchronization.
+  func synchronizeStoreEvents(_ events: [StoreEvent]) async {}
 
   @MainActor
   static func historyItem(from request: IngestRequest) -> HistoryItem {
@@ -168,6 +173,34 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     self.now = now
     self.onEvent = onEvent
     modelExecutor = DefaultSerialModelExecutor(modelContext: ModelContext(modelContainer))
+  }
+
+  /// Applies committed main-actor store events to the actor-owned dedup index.
+  ///
+  /// `History` sends one batch after a successful UI delete/clear operation, so
+  /// stale candidate and persistent-ID bridge entries do not accumulate. A full
+  /// clear leaves the index uninitialized: if an actor ingest raced the clear,
+  /// the next ingest rebuilds from the committed store instead of assuming it is
+  /// still empty.
+  func synchronizeStoreEvents(_ events: [StoreEvent]) async {
+    for event in events {
+      switch event {
+      case .added(let item), .merged(let item):
+        signatureIndex.register(item.signature, id: item.id)
+        if let persistentID = item.persistentID {
+          persistentIDByItemID[item.id] = persistentID
+        }
+      case .removed(let itemID):
+        unregisterFromDedupIndex(itemID: itemID)
+      case .cleared:
+        signatureIndex = SignatureIndex()
+        persistentIDByItemID.removeAll()
+        dedupIndexInitialized = false
+        dedupInitConsecutiveFailures = 0
+        dedupInitNextAttemptCall = 1
+        dedupInitCallNumber = 0
+      }
+    }
   }
 
   /// Ingests one clipboard copy off the main thread.

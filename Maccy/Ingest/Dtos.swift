@@ -182,7 +182,7 @@ func contentDTOs(of item: HistoryItem) -> [ContentDTO] {
 }
 
 /// Derives the stable `ItemID` for a `@Model HistoryItem` from its `persistentModelID`.
-private func itemID(for item: HistoryItem) -> ItemID {
+func itemID(for item: HistoryItem) -> ItemID {
   itemID(from: String(describing: item.persistentModelID))
 }
 

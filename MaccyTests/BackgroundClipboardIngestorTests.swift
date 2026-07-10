@@ -123,6 +123,27 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
     }
   }
 
+  /// A committed UI-removal event drops the actor's candidate before the next
+  /// ingest, rather than retaining a stale dedup-index/bridge entry forever.
+  func testSynchronizeRemovedEventDropsDedupCandidate() async {
+    let ingestor = BackgroundClipboardIngestor(
+      modelContainer: Storage.shared.container,
+      image: PassthroughImageProcessor(),
+      now: { Date(timeIntervalSince1970: 1_700_000_000) },
+      onEvent: { _, _ in }
+    )
+    let first = await ingestor.ingest(request(text: "removed candidate"))
+    guard case .added(let snapshot)? = first.event else {
+      XCTFail("Expected the first ingest to add a snapshot")
+      return
+    }
+
+    await ingestor.synchronizeStoreEvents([.removed(snapshot.id)])
+    let second = await ingestor.ingest(request(text: "removed candidate"))
+
+    XCTAssertEqual(second.metrics.dedupHits, 0)
+  }
+
   // MARK: - Filter-out paths
 
   /// Content exceeding the per-value size cap is dropped: no event, nothing persisted.

@@ -11,7 +11,7 @@ actor IngestorSpy: ClipboardIngestor {
     return result
   }
 
-  func synchronizeStoreEvents(_ events: [StoreEvent]) {
+  func synchronizeStoreEvents(_ events: [StoreEvent]) async {
     storeEvents.append(contentsOf: events)
   }
 }

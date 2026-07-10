@@ -53,4 +53,6 @@ private struct StubIngestor: ClipboardIngestor {
   func ingest(_ request: IngestRequest) async -> IngestResult {
     IngestResult(event: nil, metrics: .zero)
   }
+
+  func synchronizeStoreEvents(_ events: [StoreEvent]) async {}
 }

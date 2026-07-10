@@ -528,6 +528,7 @@ class History: ItemsContainer {
   /// doesn't pile them up.
   func clear() {
     invalidateInFlightSearch()
+    let removedStoreIDs = all.filter(\.isUnpinned).map { itemID(for: $0.item) }
 
     do {
       try withLogging("Clearing history") {
@@ -548,6 +549,7 @@ class History: ItemsContainer {
       items = all
       let actor = searchActor
       Task { await actor.remove(removedIDs) }
+      synchronizeIngestor(with: removedStoreIDs.map(StoreEvent.removed))
     } catch {
       recordPersistenceError("Failed to clear history", error)
       return
@@ -578,6 +580,7 @@ class History: ItemsContainer {
       items = all
       let actor = searchActor
       Task { await actor.clearCorpus() }
+      synchronizeIngestor(with: [.cleared])
     } catch {
       recordPersistenceError("Failed to clear all history", error)
       return
@@ -596,6 +599,7 @@ class History: ItemsContainer {
     guard let item else { return }
 
     invalidateInFlightSearch()
+    let removedStoreID = itemID(for: item.item)
     do {
       try withLogging("Removing history item") {
         try persistence.delete(item.item)
@@ -613,6 +617,7 @@ class History: ItemsContainer {
 
     let actor = searchActor
     Task { await actor.remove([removedID]) }
+    synchronizeIngestor(with: [.removed(removedStoreID)])
     updateUnpinnedShortcuts()
     Task {
       AppState.shared.popup.needsResize = true
@@ -622,6 +627,14 @@ class History: ItemsContainer {
   /// Invalidates a decorator, releasing its transient images.
   private func cleanup(_ item: HistoryItemDecorator) {
     item.invalidate()
+  }
+
+  /// Forwards committed main-context deletions to the actor-owned dedup index
+  /// in one asynchronous batch. Capturing the current ingestor before creating
+  /// the task keeps test/runtime replacement deterministic.
+  private func synchronizeIngestor(with events: [StoreEvent]) {
+    guard !events.isEmpty, let ingestor = Clipboard.shared.ingestor else { return }
+    Task { await ingestor.synchronizeStoreEvents(events) }
   }
 
   /// The current event's relevant modifier flags (device-independent, caps/num/fn stripped).
