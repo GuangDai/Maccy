@@ -148,6 +148,7 @@
 | [`2026-07-10-history-split-plan/06-d4-design.md`](2026-07-10-history-split-plan/06-d4-design.md) | A | D4 measure-first + `onEvent` transport + correctness traps. |
 | [`2026-07-10-history-split-plan/08-ordered-execution-plan.md`](2026-07-10-history-split-plan/08-ordered-execution-plan.md) | A | Numbered S0–S7 commits/PRs. |
 | [`2026-07-10-history-split-grilling/00-decision.md`](2026-07-10-history-split-grilling/00-decision.md) | A | Short B0 decision seed (adversarial panel). Expanded by `history-split-plan/`. |
+| [`2026-07-10-xcodeproj-generation-research.md`](2026-07-10-xcodeproj-generation-research.md) | A | XcodeGen recommendation, current-project parity inventory, pinned generator + zero-diff CI design, migration gates, and test-plan/package/localization traps. |
 
 ### 独立文档
 
