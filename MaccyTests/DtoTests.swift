@@ -33,6 +33,27 @@ class DtoTests: XCTestCase {
     )
   }
 
+  /// The standalone signature projection is the exact value carried by a full
+  /// item snapshot, including both unhashed small data and fingerprinted large
+  /// data. Candidate lookup can therefore reuse it without a parallel mapping.
+  @MainActor
+  func testSignatureProjectionMatchesSnapshotSignature() {
+    let largeValue = Data(repeating: 0x41, count: 16 * 1_024)
+    let item = HistoryItem(contents: [
+      HistoryItemContent(type: "public.utf8-plain-text", value: Data("small".utf8)),
+      HistoryItemContent(type: "public.png", value: largeValue)
+    ])
+
+    let signature = signatureDTO(of: item)
+
+    XCTAssertEqual(signature, snapshot(of: item).signature)
+    XCTAssertEqual(signature.entries.count, 2)
+    XCTAssertEqual(
+      signature.entries.first { $0.type == "public.png" }?.fingerprint,
+      ClipboardDataProcessor.fingerprintIfLarge(largeValue)
+    )
+  }
+
   /// `IngestResult` carries its event and metrics through to the caller.
   func testIngestResultCarriesEventAndMetrics() {
     let itemID = UUID()
