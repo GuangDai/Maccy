@@ -1,4 +1,5 @@
 import Defaults
+import SwiftData
 import XCTest
 @testable import Maccy
 
@@ -149,6 +150,85 @@ final class ImageDecodePerformanceTests: PerformanceTestCase {
       "|perCopyMs=[\(perCopy)]|perCopyAvgMs=\(String(format: "%.2f", avg))" +
       "|perCopyMaxMs=\(String(format: "%.2f", maxCopy))" +
       "|mainThread_maxGap_s=\(gap))")
+  }
+
+  // MARK: - G-ingest per-copy (actor commit), N=1000 (D5 measure-first)
+
+  /// D5 measure-first: the per-copy cost of the ingest ACTOR's `commit`, which
+  /// fetches + sorts every unpinned row each copy to find the size-trim
+  /// eviction tail (`NEW-ingest-dualpath-1`). This is the actor-side twin of D4
+  /// (which closed the main-side `syncAllToStore` O(rows) fetch). It runs off the
+  /// main thread, so its cost is ingest LATENCY (compounds under a copy storm),
+  /// not UI jank. Measures the full `ingest()` at n=1000 steady state.
+  ///
+  /// Prefill is a direct batch insert + save into the shared main context (O(n));
+  /// the actor's context sees it via the shared `ModelContainer` (the same
+  /// propagation the consume tests rely on), and its first ingest builds the
+  /// dedup index from it. The warmup ingest initializes that index (O(n) one-time)
+  /// and brings the store to the size cap, so each timed copy evicts the oldest.
+  func testGIngestPerCopy_N1000() async throws {
+    Defaults[.size] = 1000
+    History.shared.clearAll()
+    for index in 0..<1000 {
+      Storage.shared.context.insert(
+        HistoryBuilder()
+          .withContent(type: "public.utf8-plain-text", value: Data("prefill #\(index)".utf8))
+          .withCopiedAt(Date(timeIntervalSince1970: 1_700_000_000 + Double(index)))
+          .build()
+      )
+    }
+    try Storage.shared.context.save()
+
+    let ingestor = BackgroundClipboardIngestor(
+      modelContainer: Storage.shared.container,
+      image: PassthroughImageProcessor(),
+      now: { Date(timeIntervalSince1970: 1_700_001_000) },
+      onEvent: { _, _ in }
+    )
+
+    // Warmup: a distinct copy that initializes the dedup index (O(n) one-time)
+    // and establishes steady state at the size cap. Not timed.
+    _ = await ingestor.ingest(Self.ingestRequest(text: "warmup"))
+
+    // Sanity: the actor must have seen the 1000 prefilled rows (shared-store
+    // propagation). If it did, the warmup ingest (1001 > cap 1000) evicted the
+    // oldest, leaving exactly 1000 — if not, propagation failed and this whole
+    // measurement is invalid (fail loudly rather than report a misleading number).
+    let storeCount = (try? Storage.shared.context.fetchCount(FetchDescriptor<HistoryItem>())) ?? -1
+    XCTAssertEqual(storeCount, 1000, "Actor must see the prefilled store for a valid D5 measurement")
+
+    let clock = ContinuousClock()
+    var perCopyMs: [Double] = []
+    probe.start()
+    for index in 0..<20 {
+      let start = clock.now
+      _ = await ingestor.ingest(Self.ingestRequest(text: "copy #\(index)"))
+      perCopyMs.append(Self.milliseconds(start.duration(to: clock.now)))
+    }
+    let gap = await probe.maxGapAsync()
+    probe.stop()
+
+    let avg = perCopyMs.reduce(0, +) / Double(perCopyMs.count)
+    let maxCopy = perCopyMs.max() ?? 0
+    let perCopy = perCopyMs.map { String(format: "%.2f", $0) }.joined(separator: ",")
+    print("PERF|gate=G-ingest|method=A|op=ingest|n=1000|items=\(perCopyMs.count)" +
+      "|perCopyMs=[\(perCopy)]|perCopyAvgMs=\(String(format: "%.2f", avg))" +
+      "|perCopyMaxMs=\(String(format: "%.2f", maxCopy))" +
+      "|mainThread_maxGap_s=\(gap))")
+  }
+
+  /// Builds a single-text `IngestRequest` (mirrors BackgroundClipboardIngestorTests'
+  /// `request(text:)`, which is private to that class).
+  private static func ingestRequest(text: String) -> IngestRequest {
+    let data = Data(text.utf8)
+    return IngestRequest(
+      source: CopyOrigin(changeCount: 0, name: "perf"),
+      contents: [
+        ContentDTO(type: "public.utf8-plain-text", value: data, fingerprint: nil, size: data.count)
+      ],
+      application: nil,
+      now: Date(timeIntervalSince1970: 1_700_002_000)
+    )
   }
 
   // MARK: - Probe self-test (foundation check)
