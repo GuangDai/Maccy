@@ -294,6 +294,49 @@ class HistoryTests: XCTestCase {
     XCTAssertEqual(history.items, [bar])
   }
 
+  func testRemovingSynchronizesIngestorIndex() async {
+    let foo = history.add(historyItem("foo"))
+    let expectedID = itemID(for: foo.item)
+    let spy = IngestorSpy()
+    let savedIngestor = Clipboard.shared.ingestor
+    Clipboard.shared.ingestor = spy
+    defer { Clipboard.shared.ingestor = savedIngestor }
+
+    history.delete(foo)
+
+    let events = await waitForStoreEvents(in: spy, count: 1)
+    XCTAssertEqual(events, [.removed(expectedID)])
+  }
+
+  func testClearingUnpinnedSynchronizesOnlyRemovedItems() async {
+    let pinned = history.add(historyItem("pinned"))
+    history.togglePin(pinned)
+    let unpinned = history.add(historyItem("unpinned"))
+    let expectedID = itemID(for: unpinned.item)
+    let spy = IngestorSpy()
+    let savedIngestor = Clipboard.shared.ingestor
+    Clipboard.shared.ingestor = spy
+    defer { Clipboard.shared.ingestor = savedIngestor }
+
+    history.clear()
+
+    let events = await waitForStoreEvents(in: spy, count: 1)
+    XCTAssertEqual(events, [.removed(expectedID)])
+  }
+
+  func testClearingAllSynchronizesIngestorIndex() async {
+    history.add(historyItem("foo"))
+    let spy = IngestorSpy()
+    let savedIngestor = Clipboard.shared.ingestor
+    Clipboard.shared.ingestor = spy
+    defer { Clipboard.shared.ingestor = savedIngestor }
+
+    history.clearAll()
+
+    let events = await waitForStoreEvents(in: spy, count: 1)
+    XCTAssertEqual(events, [.cleared])
+  }
+
   /// Builds a single-string-content `HistoryItem` inserted into the shared context, with title derived from its content.
   private func historyItem(_ value: String) -> HistoryItem {
     let contents = [
@@ -309,6 +352,17 @@ class HistoryTests: XCTestCase {
     item.title = item.generateTitle()
 
     return item
+  }
+
+  private func waitForStoreEvents(in spy: IngestorSpy, count: Int) async -> [StoreEvent] {
+    for _ in 0..<100 {
+      let events = await spy.storeEvents
+      if events.count >= count {
+        return events
+      }
+      try? await Task.sleep(for: .milliseconds(5))
+    }
+    return await spy.storeEvents
   }
 }
 
