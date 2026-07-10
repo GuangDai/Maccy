@@ -1,0 +1,48 @@
+name: Capture Xcode Project Contract
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xcodeproj-contract-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    name: Capture current project contract
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      OUTPUT_DIR: ${{ runner.temp }}/xcodeproj-contract
+      DERIVED_DATA: ${{ runner.temp }}/ContractDerivedData
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Enforce macOS 26 ARM runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(sw_vers -productVersion)" == 26.* ]]
+          [[ "$(uname -m)" == arm64 ]]
+
+      - name: Capture project contract
+        shell: bash
+        run: bash scripts/capture-xcodeproj-contract.sh
+
+      - name: Verify capture is read-only
+        shell: bash
+        run: git diff --exit-code
+
+      - name: Upload project contract
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xcodeproj-contract-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/xcodeproj-contract
+          if-no-files-found: error
+          retention-days: 30
