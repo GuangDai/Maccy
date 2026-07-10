@@ -17,8 +17,6 @@ jobs:
     timeout-minutes: 30
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      OUTPUT_DIR: ${{ runner.temp }}/xcodeproj-contract
-      DERIVED_DATA: ${{ runner.temp }}/ContractDerivedData
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -32,6 +30,9 @@ jobs:
 
       - name: Capture project contract
         shell: bash
+        env:
+          OUTPUT_DIR: ${{ runner.temp }}/xcodeproj-contract
+          DERIVED_DATA: ${{ runner.temp }}/ContractDerivedData
         run: bash scripts/capture-xcodeproj-contract.sh
 
       - name: Verify capture is read-only
