@@ -4,7 +4,7 @@
 >
 > Repository baseline: `7da8ac6` (`c1-single-filter-source`)
 >
-> Scope: replace routine hand-editing of `Maccy.xcodeproj/project.pbxproj` with a declarative source and GitHub Actions generation/verification. This document does not implement the migration.
+> Scope: replace routine hand-editing of `Maccy.xcodeproj/project.pbxproj` with a declarative source and GitHub Actions generation/verification. M0 contract capture and M1 side-by-side generation evidence are recorded below; production cutover remains future work.
 
 ## Executive decision
 
@@ -66,10 +66,10 @@ The migration spec must express the current semantics, not merely make a project
 | SDK frameworks | Explicit `sdk: Carbon.framework` and `sdk: AppIntents.framework` dependencies with current target membership. Do not rely on imports to produce implicit framework links. |
 | Swift packages | Declare all ten URLs and the same requirement kinds: Sauce, SwiftHEXColors, KeyboardShortcuts, Sparkle, Settings, LaunchAtLogin-Modern, Defaults, fuse-swift, swift-async-algorithms, and swift-log. Link the correct product names (`LaunchAtLogin`, `Fuse`, `AsyncAlgorithms`, `Logging`, etc.) only to the app. XcodeGen supports major/minor/exact/range/branch/revision requirements. [XcodeGen Swift packages](https://github.com/yonaskolb/XcodeGen/blob/2.45.4/Docs/ProjectSpec.md#swift-package) |
 | Package lock | Continue committing `Maccy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`. It is SwiftPM-owned state, not XcodeGen-owned output, and must survive regeneration. Apple recommends resolving dependencies in CI and describes using the resolved versions for reproducibility. [Apple: packages in CI](https://developer.apple.com/documentation/xcode/building-swift-packages-or-apps-that-use-them-in-continuous-integration-workflows) |
-| Scheme | Generate the shared `Maccy` scheme from the spec with the existing build/run/test/profile/analyze/archive configurations and the test-plan reference. Schemes define those build actions, so parity is part of the migration contract. [Apple scheme documentation](https://developer.apple.com/documentation/xcode/customizing-the-build-schemes-for-a-project), [XcodeGen schemes](https://github.com/yonaskolb/XcodeGen/blob/2.45.4/Docs/ProjectSpec.md#scheme) |
-| Test plan | Keep `Maccy.xctestplan` committed. XcodeGen explicitly **does not generate test-plan files**; it only references them, and target add/remove/rename can require an Xcode update. First generation must update/verify the app/unit/UI target identifiers and retain the `enable-testing` argument. [XcodeGen test-plan limitation](https://github.com/yonaskolb/XcodeGen/blob/2.45.4/Docs/ProjectSpec.md#test-plan), [Apple test-plan documentation](https://developer.apple.com/documentation/xcode/organizing-tests-to-improve-feedback) |
+| Scheme | Generate the shared `Maccy` scheme from the spec with the existing build/run/profile/analyze/archive configurations. M1 proves those actions without attaching the legacy-ID test plan; M2 adds a side-by-side generated-target test-plan copy and proves test-action parity. Schemes define those build actions, so parity is part of the migration contract. [Apple scheme documentation](https://developer.apple.com/documentation/xcode/customizing-the-build-schemes-for-a-project), [XcodeGen schemes](https://github.com/yonaskolb/XcodeGen/blob/2.45.4/Docs/ProjectSpec.md#scheme) |
+| Test plan | Keep `Maccy.xctestplan` committed and byte-identical during M1. XcodeGen explicitly **does not generate test-plan files**; it only references them, and target add/remove/rename can require an Xcode update. Before semantic test equivalence, M2 must create a side-by-side copy with generated app/unit/UI target identifiers and retain the `enable-testing` argument. [XcodeGen test-plan limitation](https://github.com/yonaskolb/XcodeGen/blob/2.45.4/Docs/ProjectSpec.md#test-plan), [Apple test-plan documentation](https://developer.apple.com/documentation/xcode/organizing-tests-to-improve-feedback) |
 | Build phases | Preserve compile sources, link frameworks, and copy resources membership. The current empty `Embed Frameworks` phase can be intentionally dropped only if the migration commit records that it is semantically empty. XcodeGen supports pre-build, post-compile, and post-build scripts if future phases are needed. [XcodeGen build scripts](https://github.com/yonaskolb/XcodeGen/blob/2.45.4/Docs/ProjectSpec.md#build-script), [Apple build phases](https://developer.apple.com/documentation/xcode/customizing-the-build-phases-of-a-target) |
-| App resources | Preserve Assets.xcassets, the Core Data model, `Write.caf`, all eight localization variant groups, and the unusual root `README.md in Resources` membership. Do not let a broad source glob silently omit README or add unrelated files. |
+| App resources | Preserve Assets.xcassets, `Write.caf`, `Knock.caf`, all eight localization variant groups, and the unusual root `README.md`, `LICENSE`, and `appcast.xml` resource membership. Keep the two unreferenced legacy `.xcdatamodeld` directories visible but out of build phases; do not let a broad source glob silently add them. |
 | Test fixtures | `MaccyTests/Fixtures/guy.jpeg` is currently a bundle resource. `heavy_text.txt` is deliberately loaded by `#filePath`-relative `FixtureLoader` and is not currently in Copy Bundle Resources. A broad `MaccyTests` source declaration must explicitly preserve that distinction. |
 | File visibility vs build membership | Plists, entitlements, the bridging header, `.hpp` files, audit/config files, and source-only fixtures need explicit `buildPhase: none`, `fileGroups`, or exclusions as appropriate. "Visible in Xcode" and "compiled/copied" are separate requirements. |
 
@@ -229,8 +229,8 @@ Explicitly resolve the known exceptions:
 - all ten package requirements/products match and all locked revisions remain;
 - AppIntents/Carbon target membership matches;
 - only the current 31 shipping languages are included;
-- scheme actions and the `enable-testing` test-plan argument match;
-- test-plan target identifiers point at the generated targets.
+- scheme build/run/profile/analyze/archive actions match; M1 deliberately leaves the generated scheme's test-plan attachment to M2;
+- the canonical test plan and its `enable-testing` argument remain byte-identical until M2 creates a generated-target copy with valid identifiers.
 
 ### M2 — semantic CI equivalence
 
@@ -308,6 +308,22 @@ M0 is complete at `d632790`. The read-only capture workflow is
   - `Package.resolved`: `b876894d2ffb9a9f73fea94ce070ddf555f80bb5e2486ea0c3e6ee7798385144`
 
 M1 may now generate a side-by-side project. It must use this captured semantic inventory rather than line-diffing generated UUID/order against the legacy pbxproj.
+
+## M1 completion evidence (2026-07-11)
+
+M1's implementation is represented by `project.yml`, the checked `Config/*.xcconfig` files,
+the pinned `scripts/generate-xcodeproj.sh` entry point, the semantic comparator, and the
+manual read-only `.github/workflows/xcodeproj-generated.yml` workflow. The generated project
+remains an untracked side-by-side artifact; the legacy project is still the production input.
+
+- [GitHub Actions run 29128236363](https://github.com/GuangDai/Maccy/actions/runs/29128236363) passed every M1 gate at commit `d0bd888`. Its `xcodeproj-generated-29128236363-1` artifact contains the generated project, normalized legacy/generated graphs, all legacy/generated raw and normalized build-setting captures, bundle and language inventories, package pins, generator logs, and the build log.
+- Two uncached XcodeGen 2.45.4 generations were byte-for-byte identical. The downloaded official archive matched SHA-256 `090ec29491aad50aec10631bf6e62253fed733c50f3aab0f5ffc86bc170bdbef` on both invocations.
+- Normalized target types/dependencies, non-empty source/resource/framework phases, known regions, ten package requirements/products, and all six target/configuration critical build-setting sets matched the legacy project. Every parity and repeatability diff in the artifact is empty.
+- `xcodebuild -list -json` parsed the generated project with exactly targets `Maccy`, `MaccyTests`, and `MaccyUITests` and the project-owned shared `Maccy` scheme. The clean Debug app build completed with `BUILD SUCCEEDED`; its log has no `warning:`, `error:`, `BUILD FAILED`, or `TEST FAILED` lines.
+- The generated app retained the frozen 31-language set and the key M0 resources: `README.md`, `LICENSE`, `appcast.xml`, `Write.caf`, `Knock.caf`, and `Assets.car`. Its resolved package pins exactly matched the canonical 11-pin lock.
+- The workflow's repository check found no tracked changes to `Maccy.xcodeproj`, `Maccy.xctestplan`, or canonical `Package.resolved`. The sole status entry was the expected untracked `Maccy-Generated.xcodeproj/` evidence artifact.
+
+M2 is now the next generator milestone: give a side-by-side test-plan copy valid generated target identifiers, then run the full unit/UI/performance matrix and release-packaging dry run against the generated project. Production still builds the legacy project until M2 proves those gates and M3 performs the isolated replacement.
 
 ## Primary sources
 

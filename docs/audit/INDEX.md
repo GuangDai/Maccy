@@ -150,6 +150,7 @@
 | [`2026-07-10-history-split-grilling/00-decision.md`](2026-07-10-history-split-grilling/00-decision.md) | A | Short B0 decision seed (adversarial panel). Expanded by `history-split-plan/`. |
 | [`2026-07-10-xcodeproj-generation-research.md`](2026-07-10-xcodeproj-generation-research.md) | A | XcodeGen recommendation, current-project parity inventory, pinned generator + zero-diff CI design, migration gates, and test-plan/package/localization traps. |
 | [`2026-07-10-xcodeproj-generation-m0-plan.md`](2026-07-10-xcodeproj-generation-m0-plan.md) | A | Completed M0 implementation record: read-only runner capture script/workflow, checked task board, artifact contract, and handoff gate into side-by-side XcodeGen M1. |
+| [`2026-07-11-xcodeproj-generation-m1-plan.md`](2026-07-11-xcodeproj-generation-m1-plan.md) | A | Side-by-side XcodeGen implementation and acceptance record: pinned/checksummed generator, declarative three-target spec + xcconfigs, semantic parity comparator, and warning-free generated app build evidence. Legacy production project remains authoritative until M2/M3. |
 
 ### 独立文档
 

@@ -4,7 +4,7 @@
 
 **Goal:** Generate a deterministic `Maccy-Generated.xcodeproj` beside the legacy project and prove its project graph, resolved build settings, package graph, resources, and app build match the M0 contract without changing any production build entry point.
 
-**Architecture:** `project.yml` and repository-owned `.xcconfig` files describe the three-target graph. A single shell entry point downloads the exact reviewed XcodeGen release, verifies its official SHA-256 digest, and generates uncached output. A manual read-only workflow generates twice under `runner.temp`, compares both outputs, compares the generated project against the live legacy project, clean-builds the generated app, and uploads all evidence. The committed legacy project remains authoritative until M2/M3.
+**Architecture:** `project.yml` and repository-owned `.xcconfig` files describe the three-target graph. A single shell entry point downloads the exact reviewed XcodeGen release, verifies its official SHA-256 digest, and generates uncached output. A manual read-only workflow generates twice beside the legacy project (required so project-relative build inputs resolve identically), snapshots the first output under `runner.temp`, compares both outputs, compares the generated project against the live legacy project, clean-builds the generated app, and uploads all evidence. The committed legacy project remains authoritative until M2/M3.
 
 **Tech Stack:** XcodeGen 2.45.4, YAML, xcconfig, Bash, jq/plutil, GitHub Actions, Xcode 26.5 on macOS 26 arm64.
 
@@ -150,7 +150,7 @@ Run `bash -n` and commit as `test(xcodegen-m1): compare generated project contra
 
 The `workflow_dispatch` job runs on `macos-26`, arm64, with `contents: read`. It must:
 
-1. generate into two fresh runner-temp directories;
+1. generate twice into a fresh side-by-side workspace path, snapshotting the first project under `runner.temp` for comparison;
 2. seed both generated workspaces with canonical `Package.resolved`;
 3. compare both full project directories for repeatability;
 4. run the parity verifier against the first project;
@@ -160,11 +160,11 @@ The `workflow_dispatch` job runs on `macos-26`, arm64, with `contents: read`. It
 8. capture generated pbxproj JSON, six build-setting JSON files, bundle/resource/localization inventories, generator version/checksum, and all parity diffs;
 9. upload the evidence artifact even on failure.
 
-- [ ] **Step 2: Commit and register the workflow**
+- [x] **Step 2: Commit and register the workflow**
 
 Commit as `ci(xcodegen-m1): validate side-by-side project`. Because GitHub only dispatches workflows registered on the default branch, land the passive workflow before its first dispatch.
 
-- [ ] **Step 3: Dispatch once and iterate from runner evidence**
+- [x] **Step 3: Dispatch once and iterate from runner evidence**
 
 Do not overlap runs. On failure, inspect job status first and the log tail second. Fix one semantic category per commit; preserve the generated artifact from each run for comparison.
 
@@ -172,14 +172,16 @@ Do not overlap runs. On failure, inspect job status first and the log tail secon
 
 ### Task 5: M1 acceptance and handoff
 
-- [ ] Two uncached generations are byte-for-byte identical.
-- [ ] The generated project has exactly the three expected targets and one shared `Maccy` scheme.
-- [ ] Normalized source/resource/framework/package/target-dependency membership matches M0.
-- [ ] All six critical resolved build-setting comparisons pass.
-- [ ] A clean generated `Maccy` app build succeeds with no warnings/errors.
-- [ ] The built app retains the 31-language set and key resources from M0.
-- [ ] `Maccy.xcodeproj`, `Maccy.xctestplan`, and canonical `Package.resolved` remain unchanged.
+- [x] Two uncached generations are byte-for-byte identical.
+- [x] The generated project has exactly the three expected targets and one shared `Maccy` scheme.
+- [x] Normalized source/resource/framework/package/target-dependency membership matches M0.
+- [x] All six critical resolved build-setting comparisons pass.
+- [x] A clean generated `Maccy` app build succeeds with no warnings/errors.
+- [x] The built app retains the 31-language set and key resources from M0.
+- [x] `Maccy.xcodeproj`, `Maccy.xctestplan`, and canonical `Package.resolved` remain unchanged.
 - [ ] Full legacy macOS 26 ARM CI remains green.
-- [ ] Record run/artifact evidence in the research document and index this plan.
+- [x] Record run/artifact evidence in the research document and index this plan.
+
+Runner evidence: [Validate Generated Xcode Project run 29128236363](https://github.com/GuangDai/Maccy/actions/runs/29128236363), artifact `xcodeproj-generated-29128236363-1`, implementation commit `d0bd888`. All repeatability, graph, six settings, language, and package-pin diffs are empty; the generated Debug app build is warning/error-free. The remaining checkbox is intentionally held for the post-merge default-branch legacy CI run.
 
 M2 begins only after every checkbox above is supported by runner evidence. M2 owns generated test-plan identifiers, full unit/UI/performance execution on the generated project, and release packaging parity.
