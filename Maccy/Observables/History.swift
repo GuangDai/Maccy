@@ -725,13 +725,14 @@ class History: ItemsContainer {
     }
   }
 
-  /// Reloads the history after a Defaults change that affects ordering/display.
+  /// Reloads the history after a Defaults change that affects ordering/display
+  /// (`.sortBy` / `.pinTo`). Routes through `reconcileWithStore` — which re-sorts
+  /// and re-seeds the search corpus while REUSING decorators by `persistentID`
+  /// — instead of a full `load()`, so decoded/cached images survive the reload
+  /// rather than being discarded and re-decoded (NEW-history-spine-1).
   private func loadAfterDefaultsChange() async {
-    do {
-      try await load()
-    } catch {
-      recordPersistenceError("Failed to reload history", error)
-    }
+    invalidateInFlightSearch()
+    reconcileWithStore()
   }
 
   /// Stores `error` on `lastPersistError` and logs it when enabled.
