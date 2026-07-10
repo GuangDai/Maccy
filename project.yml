@@ -1,0 +1,211 @@
+name: Maccy-Generated
+
+options:
+  minimumXcodeGenVersion: 2.45.4
+  settingPresets: none
+  developmentLanguage: en
+  xcodeVersion: "15.2"
+  projectFormat: xcode14_0
+  defaultConfig: Debug
+  createIntermediateGroups: true
+  groupSortPosition: bottom
+  transitivelyLinkDependencies: false
+  useBaseInternationalization: false
+  deploymentTarget:
+    macOS: "14.0"
+  groupOrdering:
+    - order:
+        - Maccy
+        - MaccyTests
+        - MaccyUITests
+        - Resources
+        - Config
+        - Products
+        - Frameworks
+
+attributes:
+  LastSwiftUpdateCheck: "0920"
+  LastUpgradeCheck: "1520"
+  BuildIndependentTargetsInParallel: YES
+  ORGANIZATIONNAME: p0deje
+
+configs:
+  Debug: debug
+  Release: release
+
+configFiles:
+  Debug: Config/Project-Debug.xcconfig
+  Release: Config/Project-Release.xcconfig
+
+fileGroups:
+  - Config
+  - Maccy.xctestplan
+  - Maccy/Maccy-Bridging-Header.h
+  - Maccy/Maccy.entitlements
+  - Maccy/History.xcdatamodeld
+  - Maccy/Storage.xcdatamodeld
+  - Maccy/Processor/ClipboardByteProcessor.hpp
+  - Maccy/Processor/MaccyTextProcessor.h
+  - Maccy/Processor/third_party/LICENSE-xxhash.txt
+  - Maccy/Processor/third_party/xxhash.h
+  - MaccyTests/Fixtures/heavy_text.txt
+
+packages:
+  Sauce:
+    url: https://github.com/Clipy/Sauce
+    minorVersion: 2.4.1
+  SwiftHEXColors:
+    url: https://github.com/thii/SwiftHEXColors
+    minorVersion: 1.4.1
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    minorVersion: 2.0.2
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    majorVersion: 2.6.3
+  Settings:
+    url: https://github.com/sindresorhus/Settings.git
+    majorVersion: 3.1.1
+  LaunchAtLoginModern:
+    url: https://github.com/sindresorhus/LaunchAtLogin-Modern
+    minorVersion: 1.1.0
+  Defaults:
+    url: https://github.com/sindresorhus/Defaults
+    minorVersion: 8.2.0
+  FuseSwift:
+    url: https://github.com/krisk/fuse-swift
+    majorVersion: 1.4.0
+  SwiftAsyncAlgorithms:
+    url: https://github.com/apple/swift-async-algorithms
+    majorVersion: 1.0.0
+  SwiftLog:
+    url: https://github.com/apple/swift-log
+    majorVersion: 1.6.4
+
+targets:
+  Maccy:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    configFiles:
+      Debug: Config/Maccy-Debug.xcconfig
+      Release: Config/Maccy-Release.xcconfig
+    sources:
+      - path: Maccy
+        excludes:
+          - History.xcdatamodeld/**
+          - Storage.xcdatamodeld/**
+          - Maccy-Bridging-Header.h
+          - Maccy.entitlements
+          - Processor/**/*.h
+          - Processor/**/*.hpp
+          - Processor/third_party/LICENSE-xxhash.txt
+          - bn.lproj/**
+          - ca.lproj/**
+          - el.lproj/**
+          - eo.lproj/**
+          - fa.lproj/**
+          - hi.lproj/**
+          - id.lproj/**
+          - pt.lproj/**
+          - sv.lproj/**
+          - ta.lproj/**
+          - Settings/bn.lproj/**
+          - Settings/ca.lproj/**
+          - Settings/el.lproj/**
+          - Settings/eo.lproj/**
+          - Settings/fa.lproj/**
+          - Settings/hi.lproj/**
+          - Settings/id.lproj/**
+          - Settings/pt.lproj/**
+          - Settings/sv.lproj/**
+          - Settings/ta.lproj/**
+          - Views/bn.lproj/**
+          - Views/ca.lproj/**
+          - Views/el.lproj/**
+          - Views/eo.lproj/**
+          - Views/fa.lproj/**
+          - Views/hi.lproj/**
+          - Views/id.lproj/**
+          - Views/pt.lproj/**
+          - Views/sv.lproj/**
+          - Views/ta.lproj/**
+      - path: README.md
+        group: Resources
+        buildPhase: resources
+      - path: LICENSE
+        group: Resources
+        buildPhase: resources
+      - path: appcast.xml
+        group: Resources
+        buildPhase: resources
+    dependencies:
+      - sdk: AppIntents.framework
+      - sdk: Carbon.framework
+      - package: Sauce
+      - package: SwiftHEXColors
+      - package: KeyboardShortcuts
+      - package: Sparkle
+      - package: Settings
+      - package: LaunchAtLoginModern
+        product: LaunchAtLogin
+      - package: Defaults
+      - package: FuseSwift
+        product: Fuse
+      - package: SwiftAsyncAlgorithms
+        product: AsyncAlgorithms
+      - package: SwiftLog
+        product: Logging
+
+  MaccyTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    configFiles:
+      Debug: Config/MaccyTests-Debug.xcconfig
+      Release: Config/MaccyTests-Release.xcconfig
+    sources:
+      - path: MaccyTests
+        excludes:
+          - Fixtures/heavy_text.txt
+    dependencies:
+      - target: Maccy
+      - sdk: AppIntents.framework
+
+  MaccyUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    deploymentTarget: "14.0"
+    configFiles:
+      Debug: Config/MaccyUITests-Debug.xcconfig
+      Release: Config/MaccyUITests-Release.xcconfig
+    sources:
+      - path: MaccyUITests
+    dependencies:
+      - target: Maccy
+      - sdk: AppIntents.framework
+
+schemes:
+  Maccy:
+    build:
+      targets:
+        Maccy: all
+      parallelizeBuild: true
+      buildImplicitDependencies: true
+    run:
+      config: Debug
+      executable: Maccy
+    test:
+      config: Debug
+      targets:
+        - MaccyTests
+        - MaccyUITests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+      revealArchiveInOrganizer: true
+    management:
+      shared: true

@@ -74,34 +74,35 @@ Commit as `ci(xcodegen-m1): pin project generator toolchain`.
 - Create: `Config/MaccyUITests-Debug.xcconfig`
 - Create: `Config/MaccyUITests-Release.xcconfig`
 
-- [ ] **Step 1: Encode project/configuration options explicitly**
+- [x] **Step 1: Encode project/configuration options explicitly**
 
 Use `name: Maccy-Generated`, Debug/Release types, `defaultConfig: Debug`, `developmentLanguage: en`, macOS 14.0, explicit Xcode/project format, stable group ordering, and `minimumXcodeGenVersion: 2.45.4`. Disable setting presets and transitive implicit linking; every setting relied on by M0 must come from the checked spec/xcconfigs or the SDK.
 
-- [ ] **Step 2: Encode the package graph exactly**
+- [x] **Step 2: Encode the package graph exactly**
 
 Declare all ten direct packages with the same URL and requirement kind/minimum as the legacy project. Link exactly these products to `Maccy`: `Sauce`, `SwiftHEXColors`, `KeyboardShortcuts`, `Sparkle`, `Settings`, `LaunchAtLogin`, `Defaults`, `Fuse`, `AsyncAlgorithms`, and `Logging`. Seed the generated workspace with the committed canonical `Package.resolved` before Xcode resolution.
 
-- [ ] **Step 3: Encode the three targets and framework dependencies**
+- [x] **Step 3: Encode the three targets and framework dependencies**
 
 Preserve target/product types, target dependencies, AppIntents membership on all three targets, Carbon membership only on the app, hosted unit-test settings, UI-test target settings, Swift 6 complete concurrency, ObjC bridging header, C++17/app+unit behavior, UI-test C++14 override, plist/entitlements paths, versions, signing/hardened-runtime settings, and bundle identifiers.
 
-- [ ] **Step 4: Encode source/resource membership without localization expansion**
+- [x] **Step 4: Encode source/resource membership without localization expansion**
 
 Use directory discovery only with explicit exclusions. Preserve:
 
 - app Swift/C++/ObjC++ sources and headers;
-- Assets, model, `Write.caf`, `Knock.caf`, all eight variant groups, root `README.md`, `LICENSE`, and `appcast.xml` resources;
+- Assets, `Write.caf`, `Knock.caf`, all eight variant groups, root `README.md`, `LICENSE`, and `appcast.xml` resources;
+- the unreferenced legacy `History.xcdatamodeld`, `Storage.xcdatamodeld`, and `Processor/third_party/LICENSE-xxhash.txt` as visible non-build files, not newly copied resources;
 - `guy.jpeg` as a unit-test resource;
 - `heavy_text.txt` as tracked/source-relative only, not a bundle resource;
 - plist, entitlements, bridging header, and configuration files as visible non-build files;
 - exactly the current 31 shipping app languages, excluding `bn`, `ca`, `el`, `eo`, `fa`, `hi`, `id`, `pt`, `sv`, and `ta` in all three localization subtrees.
 
-- [ ] **Step 5: Encode the shared scheme without mutating the canonical test plan**
+- [x] **Step 5: Encode the shared scheme without mutating the canonical test plan**
 
 Generate shared `Maccy` build/run/profile/analyze/archive actions. M1 may initially omit the test-plan reference from the generated scheme; valid generated-target identifiers and a side-by-side test-plan copy are a dedicated M2 prerequisite. The canonical `Maccy.xctestplan` must remain byte-identical in M1.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Commit as `build(xcodegen-m1): describe side-by-side project`.
 
