@@ -12,13 +12,9 @@
 		2F0EC77B2E772899003E2EA9 /* PinsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC77A2E772899003E2EA9 /* PinsView.swift */; };
 		2F0EC77D2E773314003E2EA9 /* Selection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC77C2E773314003E2EA9 /* Selection.swift */; };
 		2F0EC77F2E773DBA003E2EA9 /* MultipleSelectionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC77E2E773DBA003E2EA9 /* MultipleSelectionListView.swift */; };
-		2F0EC7812E773F1D003E2EA9 /* PasteStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC7802E773F1D003E2EA9 /* PasteStack.swift */; };
-		2F0EC7852E774083003E2EA9 /* PasteStackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC7842E77407C003E2EA9 /* PasteStackView.swift */; };
-		2F0EC7872E774099003E2EA9 /* PasteStackItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC7862E774093003E2EA9 /* PasteStackItemView.swift */; };
 		2F0EC7892E7743D9003E2EA9 /* HoverSelectionModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC7882E7743D9003E2EA9 /* HoverSelectionModifier.swift */; };
 		2F1091D72F2B6E8400F5C454 /* AsyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F1091D62F2B6E8100F5C454 /* AsyncView.swift */; };
 		2F12271E2E5C932200A1592A /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 2F12271D2E5C932200A1592A /* Logging */; };
-		2F162E802F1E7B30001FBAFF /* PasteStackPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F162E7F2F1E7B28001FBAFF /* PasteStackPreviewView.swift */; };
 		2F1A79C02C6DFB7800C98EBD /* SearchVisibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F1A79BF2C6DFB7800C98EBD /* SearchVisibility.swift */; };
 		2F39CB042AD9A93C00B749FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2F39CB032AD9A93C00B749FD /* Sparkle */; };
 		2F39CB0A2AD9AE1F00B749FD /* Settings in Frameworks */ = {isa = PBXBuildFile; productRef = 2F39CB092AD9AE1F00B749FD /* Settings */; };
@@ -131,7 +127,6 @@
 		DA3BCB8E2C3E015000B01BC1 /* ModifierFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3BCB8D2C3E015000B01BC1 /* ModifierFlags.swift */; };
 		DA3BCB922C3EEC3C00B01BC1 /* History.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3BCB912C3EEC3C00B01BC1 /* History.swift */; };
 		DA7E1A2C3B4D5E6F00000002 /* HistoryPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA7E1A2C3B4D5E6F00000001 /* HistoryPersistence.swift */; };
-		DA0806C22D4C31A10000000C /* History+PasteStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0806C12D4C31A10000000B /* History+PasteStack.swift */; };
 		DA3BCB942C3EECBB00B01BC1 /* HistoryItemDecorator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3BCB932C3EECBB00B01BC1 /* HistoryItemDecorator.swift */; };
 		DA3CE8001E44A62500B3AA98 /* ClipboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3CE7FF1E44A62500B3AA98 /* ClipboardTests.swift */; };
 		DA3CE8021E44A62500B3AA98 /* CollectionSurroundingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3CE8011E44A62500B3AA98 /* CollectionSurroundingTests.swift */; };
@@ -259,12 +254,8 @@
 		2F0EC77A2E772899003E2EA9 /* PinsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinsView.swift; sourceTree = "<group>"; };
 		2F0EC77C2E773314003E2EA9 /* Selection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Selection.swift; sourceTree = "<group>"; };
 		2F0EC77E2E773DBA003E2EA9 /* MultipleSelectionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipleSelectionListView.swift; sourceTree = "<group>"; };
-		2F0EC7802E773F1D003E2EA9 /* PasteStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteStack.swift; sourceTree = "<group>"; };
-		2F0EC7842E77407C003E2EA9 /* PasteStackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteStackView.swift; sourceTree = "<group>"; };
-		2F0EC7862E774093003E2EA9 /* PasteStackItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteStackItemView.swift; sourceTree = "<group>"; };
 		2F0EC7882E7743D9003E2EA9 /* HoverSelectionModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverSelectionModifier.swift; sourceTree = "<group>"; };
 		2F1091D62F2B6E8100F5C454 /* AsyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncView.swift; sourceTree = "<group>"; };
-		2F162E7F2F1E7B28001FBAFF /* PasteStackPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteStackPreviewView.swift; sourceTree = "<group>"; };
 		2F1A79BF2C6DFB7800C98EBD /* SearchVisibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchVisibility.swift; sourceTree = "<group>"; };
 		2F578C3C2EFFE8400088B759 /* ItemsProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemsProtocol.swift; sourceTree = "<group>"; };
 		2F578C3E2EFFE8720088B759 /* SlideoutController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlideoutController.swift; sourceTree = "<group>"; };
@@ -420,7 +411,6 @@
 		DA3BCB8D2C3E015000B01BC1 /* ModifierFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModifierFlags.swift; sourceTree = "<group>"; };
 		DA3BCB912C3EEC3C00B01BC1 /* History.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = History.swift; sourceTree = "<group>"; };
 		DA7E1A2C3B4D5E6F00000001 /* HistoryPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPersistence.swift; sourceTree = "<group>"; };
-		DA0806C12D4C31A10000000B /* History+PasteStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "History+PasteStack.swift"; sourceTree = "<group>"; };
 		DA3BCB932C3EECBB00B01BC1 /* HistoryItemDecorator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryItemDecorator.swift; sourceTree = "<group>"; };
 		DA3CE7FF1E44A62500B3AA98 /* ClipboardTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ClipboardTests.swift; sourceTree = "<group>"; };
 		DA3EAE0B2AE30F7500F39108 /* NSApplication+Windows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSApplication+Windows.swift"; sourceTree = "<group>"; };
@@ -866,9 +856,6 @@
 				DAA072E22C41D1D5006DDFD2 /* ListItemView.swift */,
 				DA5078982CF2676400215488 /* MouseMovedViewModifer.swift */,
 				2F0EC77E2E773DBA003E2EA9 /* MultipleSelectionListView.swift */,
-				2F0EC7862E774093003E2EA9 /* PasteStackItemView.swift */,
-				2F162E7F2F1E7B28001FBAFF /* PasteStackPreviewView.swift */,
-				2F0EC7842E77407C003E2EA9 /* PasteStackView.swift */,
 				2F0EC77A2E772899003E2EA9 /* PinsView.swift */,
 				DA5E627E2C39E53F00F4C710 /* PreviewItemView.strings */,
 				DA1969132C3F11D600258481 /* PreviewItemView.swift */,
@@ -973,7 +960,6 @@
 				DAA072DA2C41C5DD006DDFD2 /* FooterItem.swift */,
 				DA3BCB912C3EEC3C00B01BC1 /* History.swift */,
 				DA7E1A2C3B4D5E6F00000001 /* HistoryPersistence.swift */,
-				DA0806C12D4C31A10000000B /* History+PasteStack.swift */,
 				DA3BCB932C3EECBB00B01BC1 /* HistoryItemDecorator.swift */,
 				DA3BCB8D2C3E015000B01BC1 /* ModifierFlags.swift */,
 				DAE8F5D32C43262B00851CA9 /* Popup.swift */,
@@ -1082,7 +1068,6 @@
 		DAEE38451E3DBEB100DD2966 /* Maccy */ = {
 			isa = PBXGroup;
 			children = (
-				2F0EC7802E773F1D003E2EA9 /* PasteStack.swift */,
 				E00000012F50000000000001 /* Core */,
 				E000000C2F5000000000000C /* Engine */,
 				2FBB7A252B5FECBB00C65BBE /* Extensions */,
@@ -1439,7 +1424,6 @@
 				DA3CE8141E44A62500B3AA98 /* SignatureIndex.swift in Sources */,
 				2B6F1A2B4C6D000000000002 /* PerfRecorder.swift in Sources */,
 				2B6F1A2B4C6D000000000009 /* PerfFixtures.swift in Sources */,
-				2F0EC7812E773F1D003E2EA9 /* PasteStack.swift in Sources */,
 				DA5078992CF2676B00215488 /* MouseMovedViewModifer.swift in Sources */,
 				DA19690E2C3EEFA900258481 /* KeyboardShortcutView.swift in Sources */,
 				DA243D122C2F64830012A27F /* ContentView.swift in Sources */,
@@ -1495,7 +1479,6 @@
 				DAA54BFA2C3C951900B7FDD8 /* FloatingPanel.swift in Sources */,
 				DA3BCB922C3EEC3C00B01BC1 /* History.swift in Sources */,
 				DA7E1A2C3B4D5E6F00000002 /* HistoryPersistence.swift in Sources */,
-				DA0806C22D4C31A10000000C /* History+PasteStack.swift in Sources */,
 				DA689FCA2C1D18890009B887 /* HighlightMatch.swift in Sources */,
 				DA6491B029ABCF2400837D93 /* NSScreen+ForPopup.swift in Sources */,				DA05B5112C234CB2006980FE /* MaccyApp.swift in Sources */,
 				2F0EC77F2E773DBA003E2EA9 /* MultipleSelectionListView.swift in Sources */,
@@ -1504,7 +1487,6 @@
 				2F8B9DE62C5D6E5D0046EF69 /* NSPoint+DefaultsSerializable.swift in Sources */,
 				DAA072D72C41C574006DDFD2 /* AppState.swift in Sources */,
 				DA9C3C5E2C20E1190056795D /* IgnoreApplicationsSettingsView.swift in Sources */,
-				2F0EC7872E774099003E2EA9 /* PasteStackItemView.swift in Sources */,
 				DA20FA722B082DD600056DD5 /* Notifier.swift in Sources */,
 				2F578C3F2EFFE8720088B759 /* SlideoutController.swift in Sources */,
 				DAA072DB2C41C5DD006DDFD2 /* FooterItem.swift in Sources */,
@@ -1512,7 +1494,6 @@
 				DA49EE7528B59468002752E0 /* NSRect+Centered.swift in Sources */,
 				DA9C3C602C20E1890056795D /* IgnorePasteboardTypesSettingsView.swift in Sources */,
 				DA083A6E2C42E8E8004259A0 /* NSImage+Resized.swift in Sources */,
-				2F162E802F1E7B30001FBAFF /* PasteStackPreviewView.swift in Sources */,
 				DAA072E12C41C6E8006DDFD2 /* FooterView.swift in Sources */,
 				2F1A79C02C6DFB7800C98EBD /* SearchVisibility.swift in Sources */,
 				DAA072DD2C41C61F006DDFD2 /* FooterItemView.swift in Sources */,
@@ -1532,7 +1513,6 @@
 				DA3BCB942C3EECBB00B01BC1 /* HistoryItemDecorator.swift in Sources */,
 				DAE28500232257D20080E394 /* ColorImage.swift in Sources */,
 				DA7A753E26A52F0F00DC16EF /* NSImage+Names.swift in Sources */,
-				2F0EC7852E774083003E2EA9 /* PasteStackView.swift in Sources */,
 				DA20FA782B082E1A00056DD5 /* NSSound+Named.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

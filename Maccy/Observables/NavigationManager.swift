@@ -25,9 +25,9 @@ class NavigationManager {
     }
   }
 
-  /// The decorator (or footer item, or paste stack) the view should scroll to.
+  /// The decorator (or footer item) the view should scroll to.
   var scrollTarget: UUID?
-  /// The id of the current lead (a history item, footer item, or paste stack).
+  /// The id of the current lead (a history item or footer item).
   var leadSelection: UUID? {
     if let item = leadHistoryItem {
       return item.id
@@ -35,7 +35,7 @@ class NavigationManager {
     if let footerItem = footer.selectedItem {
       return footerItem.id
     }
-    return history.pasteStack?.id
+    return nil
   }
   private(set) var leadHistoryItem: HistoryItemDecorator? {
     didSet {
@@ -67,22 +67,11 @@ class NavigationManager {
     }
   }
 
-  /// Whether the active paste stack is the current lead selection.
-  var pasteStackSelected: Bool {
-    return leadSelection != nil && leadSelection == history.pasteStack?.id
-  }
-
-  var isManualMultiSelect: Bool = false
-  /// Whether a multi-select is active (manually toggled or more than one selected).
-  var isMultiSelectInProgress: Bool {
-    return isManualMultiSelect || selection.count > 1
-  }
-
   /// A hover-pending id to apply once keyboard navigation ends.
   var hoverSelectionWhileKeyboardNavigating: UUID?
   var isKeyboardNavigating: Bool = true {
     didSet {
-      if !isKeyboardNavigating && !isMultiSelectInProgress,
+      if !isKeyboardNavigating,
          let hoverSelection = hoverSelectionWhileKeyboardNavigating {
         hoverSelectionWhileKeyboardNavigating = nil
         // Mouse hover selects an already-visible cell — do NOT programatically
@@ -119,69 +108,10 @@ class NavigationManager {
     }
   }
 
-  /// Toggles `item` in the selection (toggling manual multi-select when going
-  /// from a single-item selection) and makes it the lead.
-  func addToSelection(item: HistoryItemDecorator) {
-    var newSelectionState = selection
-
-    if item.isSelected {
-      if newSelectionState.count <= 1 {
-        isManualMultiSelect = !isManualMultiSelect
-      } else {
-        newSelectionState.remove(item)
-      }
-    } else {
-      newSelectionState.add(item)
-    }
-
-    withTransaction(Transaction()) {
-      selection = newSelectionState
-      leadHistoryItem = item
-      scrollTarget = leadSelection
-    }
-  }
-
-  /// Extends the selection from `fromItem` to `toItem` — a contiguous range when
-  /// `isRange`, otherwise a single add/remove at `toItem`.
-  func extendSelection(
-    from fromItem: HistoryItemDecorator,
-    to toItem: HistoryItemDecorator,
-    isRange: Bool
-  ) {
-    var newSelectionState = selection
-
-    if isRange {
-      if let itemRange = history.visibleItems.between(
-        from: fromItem,
-        to: toItem,
-        inOrder: false
-      ) {
-        newSelectionState = Selection(items: itemRange)
-      }
-    } else {
-      if toItem.isSelected {
-        newSelectionState.remove(fromItem)
-      } else {
-        newSelectionState.add(toItem)
-      }
-    }
-
-    withTransaction(Transaction()) {
-      selection = newSelectionState
-      leadHistoryItem = toItem
-      scrollTarget = leadSelection
-    }
-  }
-
   /// Selects by id without disturbing the scroll position (for hover).
   func selectWithoutScrolling(id: UUID) {
-    if let stack = history.pasteStack,
-       stack.id == id {
-      selectWithoutScrolling(item: nil, footerItem: nil)
-    } else if let item = history.items.first(where: { $0.id == id }) {
-      if !isMultiSelectInProgress {
-        selectWithoutScrolling(item: item, footerItem: nil)
-      }
+    if let item = history.items.first(where: { $0.id == id }) {
+      selectWithoutScrolling(item: item, footerItem: nil)
     } else if let item = footer.items.first(where: { $0.id == id }) {
       selectWithoutScrolling(item: nil, footerItem: item)
     } else {
@@ -215,9 +145,7 @@ class NavigationManager {
   /// Sets a footer item as selected, clearing the history lead.
   private func selectInFooter(_ item: FooterItem) {
     leadHistoryItem = nil
-    if !isMultiSelectInProgress {
-      selection = .init()
-    }
+    selection = .init()
     footer.selectedItem = item
   }
 
@@ -227,18 +155,7 @@ class NavigationManager {
     footerItem: FooterItem? = nil
   ) {
     isKeyboardNavigating = true
-    isManualMultiSelect = false
     select(item: item, footerItem: footerItem)
-  }
-
-  /// Marks keyboard navigation active and extends the selection to `toItem`.
-  private func extendHistorySelectionFromKeyboardNavigation(
-    from fromItem: HistoryItemDecorator,
-    to toItem: HistoryItemDecorator,
-    isRange: Bool
-  ) {
-    isKeyboardNavigating = true
-    extendSelection(from: fromItem, to: toItem, isRange: isRange)
   }
 
   /// Highlights the first visible history item (or clears if none).
@@ -257,8 +174,6 @@ class NavigationManager {
     if let historyItem = history.firstVisibleItem(where: { $0.id == lead }) {
       if let nextItem = history.visibleItem(before: historyItem) {
         selectFromKeyboardNavigation(item: nextItem)
-      } else if history.pasteStack != nil {
-        selectWithoutScrolling(item: nil)
       } else {
         highlightFirst()
       }
@@ -274,11 +189,6 @@ class NavigationManager {
   /// Moves the highlight one step forward (down), crossing into the footer at the bottom.
   func highlightNext(allowCycle: Bool = false) {
     guard let lead = leadSelection else { return }
-
-    if leadSelection == history.pasteStack?.id {
-      highlightFirst()
-      return
-    }
 
     if let historyItem = history.firstVisibleItem(where: { $0.id == lead }) {
       if let nextItem = history.visibleItem(after: historyItem) {
@@ -315,50 +225,6 @@ class NavigationManager {
       selectFromKeyboardNavigation(footerItem: footer.lastVisibleItem)
     } else {
       selectFromKeyboardNavigation(footerItem: footer.firstVisibleItem)
-    }
-  }
-
-  /// Extends the highlight one step forward, or highlights the next item if no lead.
-  func extendHighlightToNext() {
-    if let leadSelection,
-       let leadItem = history.firstVisibleItem(where: {$0.id == leadSelection}) {
-      guard let nextItem = history.visibleItem(after: leadItem) else { return }
-      extendHistorySelectionFromKeyboardNavigation(from: leadItem, to: nextItem, isRange: false)
-    } else {
-      highlightNext()
-    }
-  }
-
-  /// Extends the highlight one step backward, or highlights the previous item if no lead.
-  func extendHighlightToPrevious() {
-    if let leadSelection,
-       let leadItem = history.firstVisibleItem(where: {$0.id == leadSelection}) {
-      guard let nextItem = history.visibleItem(before: leadItem) else { return }
-      extendHistorySelectionFromKeyboardNavigation(from: leadItem, to: nextItem, isRange: false)
-    } else {
-      highlightPrevious()
-    }
-  }
-
-  /// Extends the highlight as a range to the first item, or highlights first if no lead.
-  func extendHighlightToFirst() {
-    if let leadSelection,
-       let leadItem = history.firstVisibleItem(where: {$0.id == leadSelection}) {
-      guard let nextItem = history.firstVisibleItem else { return }
-      extendHistorySelectionFromKeyboardNavigation(from: leadItem, to: nextItem, isRange: true)
-    } else {
-      highlightFirst()
-    }
-  }
-
-  /// Extends the highlight as a range to the last item, or highlights first if no lead.
-  func extendHighlightToLast() {
-    if let leadSelection,
-       let leadItem = history.firstVisibleItem(where: {$0.id == leadSelection}) {
-      guard let nextItem = history.lastVisibleItem else { return }
-      extendHistorySelectionFromKeyboardNavigation(from: leadItem, to: nextItem, isRange: true)
-    } else {
-      highlightFirst()
     }
   }
 

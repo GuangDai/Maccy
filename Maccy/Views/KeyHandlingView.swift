@@ -22,7 +22,7 @@ struct KeyHandlingView<Content: View>: View {
           }
         }
 
-        switch KeyChord(NSApp.currentEvent, multiSelectionEnabled: appState.multiSelectionEnabled) {
+        switch KeyChord(NSApp.currentEvent) {
         case .clearHistory:
           if let item = appState.footer.items.first(where: { $0.title == "clear" }),
              item.confirmation != nil,
@@ -53,11 +53,7 @@ struct KeyHandlingView<Content: View>: View {
           searchQuery = ""
           return .handled
         case .deleteCurrentItem:
-          if appState.navigator.pasteStackSelected {
-            appState.removePasteStack()
-          } else {
-            appState.deleteSelection()
-          }
+          appState.deleteSelection()
           return .handled
         case .deleteOneCharFromSearch:
           searchFocused = true
@@ -100,42 +96,6 @@ struct KeyHandlingView<Content: View>: View {
           }
 
           appState.navigator.highlightFirst()
-          return .handled
-        case .extendToNext:
-          guard NSApp.characterPickerWindow == nil else {
-            return .ignored
-          }
-          guard AppState.shared.multiSelectionEnabled else {
-            return .ignored
-          }
-          appState.navigator.extendHighlightToNext()
-          return .handled
-        case .extendToLast:
-          guard NSApp.characterPickerWindow == nil else {
-            return .ignored
-          }
-          guard AppState.shared.multiSelectionEnabled else {
-            return .ignored
-          }
-          appState.navigator.extendHighlightToLast()
-          return .handled
-        case .extendToPrevious:
-          guard NSApp.characterPickerWindow == nil else {
-            return .ignored
-          }
-          guard AppState.shared.multiSelectionEnabled else {
-            return .ignored
-          }
-          appState.navigator.extendHighlightToPrevious()
-          return .handled
-        case .extendToFirst:
-          guard NSApp.characterPickerWindow == nil else {
-            return .ignored
-          }
-          guard AppState.shared.multiSelectionEnabled else {
-            return .ignored
-          }
-          appState.navigator.extendHighlightToFirst()
           return .handled
         case .openPreferences:
           appState.openPreferences()

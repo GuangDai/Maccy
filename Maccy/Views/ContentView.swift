@@ -40,10 +40,6 @@ struct ContentView: View {
             // measurably worsens the image-heavy peak main-thread stall, so it is
             // deliberately kept.
             .animation(.default.speed(3), value: appState.history.items)
-            .animation(
-              .default.speed(3),
-              value: appState.history.pasteStack?.id
-            )
             .padding(.horizontal, Popup.horizontalPadding)
             .onAppear {
               searchFocused = true

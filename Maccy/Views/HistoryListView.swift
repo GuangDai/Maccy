@@ -27,14 +27,6 @@ struct HistoryListView: View {
     return !pinnedItems.isEmpty
   }
 
-  private var pasteStackVisible: Bool {
-    if let stack = appState.history.pasteStack,
-       !stack.items.isEmpty {
-      return true
-    }
-    return false
-  }
-
   private var topPadding: CGFloat {
     return Popup.verticalSeparatorPadding
   }
@@ -68,21 +60,12 @@ struct HistoryListView: View {
   var body: some View {
     let topPinsVisible = pinTo == .top && pinsVisible
     let bottomPinsVisible = pinTo == .bottom && pinsVisible
-    let topSeparatorVisible = topPinsVisible || pasteStackVisible
+    let topSeparatorVisible = topPinsVisible
     let bottomSeparatorVisible = bottomPinsVisible
     let scrollTopPadding = topSeparatorVisible ? Popup.verticalSeparatorPadding : topPadding
     let scrollBottomPadding = bottomSeparatorVisible ? Popup.verticalSeparatorPadding : bottomPadding
 
     VStack(spacing: 0) {
-      if let stack = appState.history.pasteStack,
-         !stack.items.isEmpty {
-        PasteStackView(stack: stack)
-
-        if topPinsVisible {
-          separator()
-        }
-      }
-
       if topPinsVisible {
         PinsView(items: pinnedItems)
       }

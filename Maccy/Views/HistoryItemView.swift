@@ -7,14 +7,6 @@ struct HistoryItemView: View {
   var next: HistoryItemDecorator?
   var index: Int
 
-  /// The index shown during multi-selection, otherwise `nil`.
-  private var visualIndex: Int? {
-    if appState.navigator.isMultiSelectInProgress && item.selectionIndex >= 0 {
-      return item.selectionIndex
-    }
-    return nil
-  }
-
   /// The connection appearance derived from whether the adjacent rows are also selected.
   private var selectionAppearance: SelectionAppearance {
     let previousSelected = previous?.isSelected ?? false
@@ -43,7 +35,7 @@ struct HistoryItemView: View {
       attributedTitle: item.attributedTitle,
       shortcuts: item.shortcuts,
       isSelected: item.isSelected,
-      selectionIndex: visualIndex,
+      selectionIndex: nil,
       selectionAppearance: selectionAppearance
     ) {
       Text(verbatim: item.title)
@@ -57,11 +49,7 @@ struct HistoryItemView: View {
       VisibilityTracker.shared.unregister(item)
     }
     .onTapGesture {
-      if NSEvent.modifierFlags.contains(.command) && appState.multiSelectionEnabled {
-        appState.navigator.addToSelection(item: item)
-      } else {
-        appState.history.select(item)
-      }
+      appState.history.select(item)
     }
   }
 }

@@ -201,11 +201,6 @@ class Clipboard {
 
     changeCount = pasteboard.changeCount
 
-    if pasteboard.pasteboardItems?.contains(where: { $0.types.contains(.fromMaccy) }) != true {
-      // External copy occurred. Stop the current paste stack.
-      AppState.shared.history.interruptPasteStack()
-    }
-
     if Defaults[.ignoreEvents] {
       if Defaults[.ignoreOnlyNextEvent] {
         Defaults[.ignoreEvents] = false

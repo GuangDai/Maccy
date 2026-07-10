@@ -43,10 +43,6 @@ enum KeyChord: CaseIterable {
   case moveToLast
   case moveToPrevious
   case moveToFirst
-  case extendToNext
-  case extendToLast
-  case extendToPrevious
-  case extendToFirst
   case openPreferences
   case pinOrUnpin
   case selectCurrentItem
@@ -54,9 +50,8 @@ enum KeyChord: CaseIterable {
   case togglePreview
   case unknown
 
-  /// Resolves a key-down event into a chord, accounting for the active keyboard
-  /// layout and whether multi-selection is enabled.
-  init(_ event: NSEvent?, multiSelectionEnabled: Bool) {
+  /// Resolves a key-down event into a chord, accounting for the active keyboard layout.
+  init(_ event: NSEvent?) {
     guard let event, event.type == .keyDown else {
       self = .unknown
       return
@@ -78,12 +73,12 @@ enum KeyChord: CaseIterable {
       return
     }
 
-    self.init(key, modifierFlags, multiSelectionEnabled: multiSelectionEnabled)
+    self.init(key, modifierFlags)
   }
 
   // Resolves an already-decoded key and modifier set into a chord.
   // swiftlint:disable:next cyclomatic_complexity
-  init(_ key: Key, _ modifierFlags: NSEvent.ModifierFlags, multiSelectionEnabled: Bool) {
+  init(_ key: Key, _ modifierFlags: NSEvent.ModifierFlags) {
     switch (key, modifierFlags) {
     case (.delete, [.command, .option]):
       self = .clearHistory
@@ -99,7 +94,7 @@ enum KeyChord: CaseIterable {
       self = .deleteLastWordFromSearch
     case (.downArrow, [.shift]),
          (.n, [.control, .shift]):
-      self = multiSelectionEnabled ? .extendToNext : .moveToNext
+      self = .moveToNext
     case (.downArrow, []),
          (.n, [.control]),
          (.j, [.control]):
@@ -107,14 +102,14 @@ enum KeyChord: CaseIterable {
     case (.downArrow, [.command, .shift]),
          (.downArrow, [.option, .shift]),
          (.n, [.control, .option, .shift]):
-      self = multiSelectionEnabled ? .extendToLast : .moveToLast
+      self = .moveToLast
     case (.downArrow, _) where modifierFlags.contains(.command) || modifierFlags.contains(.option),
          (.n, [.control, .option]),
          (.pageDown, []):
       self = .moveToLast
     case (.upArrow, [.shift]),
          (.p, [.control, .shift]):
-      self = multiSelectionEnabled ? .extendToPrevious : .moveToPrevious
+      self = .moveToPrevious
     case (.upArrow, []),
          (.p, [.control]),
          (.k, [.control]):
@@ -122,7 +117,7 @@ enum KeyChord: CaseIterable {
     case (.upArrow, [.command, .shift]),
          (.upArrow, [.option, .shift]),
          (.p, [.control, .option, .shift]):
-      self = multiSelectionEnabled ? .extendToFirst : .moveToFirst
+      self = .moveToFirst
     case (.upArrow, _) where modifierFlags.contains(.command) || modifierFlags.contains(.option),
          (.p, [.control, .option]),
          (.pageUp, []):

@@ -129,13 +129,6 @@ struct ToolbarView: View {
         )
       }
 
-      if appState.navigator.pasteStackSelected {
-        ToolbarButton {
-          appState.removePasteStack()
-        } label: {
-          Image(systemName: "stop")
-        }
-      }
     }
   }
 }

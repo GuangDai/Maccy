@@ -149,10 +149,9 @@ class SlideoutController {
   func togglePreview(trigger: SlideoutToggleTrigger = .manual) {
     if !state.isOpen {
       let navigator = AppState.shared.navigator
-      guard navigator.leadHistoryItem != nil || navigator.pasteStackSelected else { return }
-      // Bind the pane to the current lead on open. Nil for the pasteStack case
-      // (SlideoutContentView falls through to its pasteStack branch). Auto-open
-      // already set this via scheduleRetarget; this covers the manual path.
+      guard navigator.leadHistoryItem != nil else { return }
+      // Bind the pane to the current lead on open. Auto-open already set this
+      // via scheduleRetarget; this covers the manual path.
       previewedItem = navigator.leadHistoryItem
     }
 
@@ -236,7 +235,7 @@ class SlideoutController {
       previewedItem = lead
       if !state.isOpen {
         let navigator = AppState.shared.navigator
-        guard navigator.leadHistoryItem != nil || navigator.pasteStackSelected else { return }
+        guard navigator.leadHistoryItem != nil else { return }
         togglePreview(trigger: .autoOpen)
       }
     }

@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Right-hand content of the slideout pane: a toolbar plus either the preview
-/// of the currently previewed item, a paste-stack preview, or nothing.
+/// Right-hand content of the slideout pane: a toolbar plus the preview of the
+/// currently previewed item (or nothing).
 struct SlideoutContentView: View {
   @Environment(AppState.self) var appState
 
@@ -19,9 +19,6 @@ struct SlideoutContentView: View {
         // stay stuck on the first item.
         PreviewItemView(item: item)
           .id(item.id)
-      } else if let pasteStack = appState.history.pasteStack,
-        appState.navigator.pasteStackSelected {
-        PasteStackPreviewView(pasteStack: pasteStack)
       } else {
         EmptyView()
       }

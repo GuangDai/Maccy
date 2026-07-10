@@ -12,8 +12,6 @@ import SwiftUI
 class AppState {
   static let shared = AppState(history: History.shared, footer: Footer())
 
-  nonisolated let multiSelectionEnabled = false
-
   var appDelegate: AppDelegate?
   var popup: Popup
   var history: History
@@ -62,19 +60,13 @@ class AppState {
     preview.slideoutWidth = Defaults[.previewWidth]
   }
 
-  /// Resolves the current selection into an action: a multi-select starts a
-  /// paste stack, a single history item is selected (copy/paste), a footer item
-  /// runs its action (optionally after confirmation), and an empty selection
-  /// with a search query copies the query text.
+  /// Resolves the current selection into an action: a single history item is
+  /// selected (copy/paste), a footer item runs its action (optionally after
+  /// confirmation), and an empty selection with a search query copies the query.
   @MainActor
   func select() {
-    if !navigator.selection.isEmpty {
-      if navigator.isMultiSelectInProgress {
-        navigator.isManualMultiSelect = false
-        history.startPasteStack(selection: &navigator.selection)
-      } else {
-        history.select(navigator.selection.first)
-      }
+    if let item = navigator.selection.first {
+      history.select(item)
     } else if let item = footer.selectedItem {
       // item.suppressConfirmation is not yet wired to the live checkbox state.
       if item.confirmation != nil, Defaults[.suppressClearAlert] == false {
@@ -110,13 +102,6 @@ class AppState {
         history.togglePin(item)
       }
     }
-  }
-
-  /// Aborts an in-progress paste stack and re-highlights the first item.
-  @MainActor
-  func removePasteStack() {
-    history.interruptPasteStack()
-    navigator.highlightFirst()
   }
 
   /// Deletes every selected history item and moves selection to the nearest

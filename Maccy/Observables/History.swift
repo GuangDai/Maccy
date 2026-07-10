@@ -18,7 +18,6 @@ class History: ItemsContainer {
   let logger = Logger(label: "org.p0deje.Maccy")
 
   var items: [HistoryItemDecorator] = []
-  var pasteStack: PasteStack?
   var lastPersistError: Error?
 
   /// Pinned decorators only.
@@ -376,7 +375,7 @@ class History: ItemsContainer {
       removeDecorators(forPersistentIDs: Set(trimmedPersistentIDs))
     }
     refreshVisibleItems()
-    if searchQuery.isEmpty && !AppState.shared.navigator.isMultiSelectInProgress {
+    if searchQuery.isEmpty {
       AppState.shared.navigator.select(item: unpinnedItems.first ?? pinnedItems.first)
     }
     AppState.shared.popup.needsResize = true
@@ -442,7 +441,7 @@ class History: ItemsContainer {
     let entries = all.map { corpusEntry(for: $0) }
     Task { await actor.replaceCorpus(entries) }
     refreshVisibleItems()
-    if searchQuery.isEmpty && !AppState.shared.navigator.isMultiSelectInProgress {
+    if searchQuery.isEmpty {
       AppState.shared.navigator.select(item: unpinnedItems.first ?? pinnedItems.first)
     }
     AppState.shared.popup.needsResize = true
@@ -623,6 +622,14 @@ class History: ItemsContainer {
   /// Invalidates a decorator, releasing its transient images.
   private func cleanup(_ item: HistoryItemDecorator) {
     item.invalidate()
+  }
+
+  /// The current event's relevant modifier flags (device-independent, caps/num/fn stripped).
+  /// Relocated from the removed `History+PasteStack.swift` (its only live caller is `select`).
+  private func currentModifierFlags() -> NSEvent.ModifierFlags {
+    return NSApp.currentEvent?.modifierFlags
+      .intersection(.deviceIndependentFlagsMask)
+      .subtracting([.capsLock, .numericPad, .function]) ?? []
   }
 
   /// Copies (and optionally pastes) the item, choosing the copy/paste variant
