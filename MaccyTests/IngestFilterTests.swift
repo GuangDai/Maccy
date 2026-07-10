@@ -3,7 +3,9 @@ import XCTest
 
 /// Pure, database-free, pasteboard-free tests for `filterContents(_:application:config:)`.
 ///
-/// Every test builds synthetic `ContentDTO` values and an `IngestConfig` snapshot, then asserts that `filterContents` replicates the pasteboard-filtering rules in `Clipboard` — `contents(from:)`, `filteredTypes`, `shouldIgnore(types)`, the `shouldIgnore(item)` regex check, `isEmptyString`, and `richText(_:)`. No `NSPasteboard`, SwiftData, or actor is touched.
+/// Every test builds synthetic `ContentDTO` values and an `IngestConfig`
+/// snapshot, then exercises the authoritative filter without touching
+/// `NSPasteboard`, SwiftData, or the ingest actor.
 class IngestFilterTests: XCTestCase {
   /// Standard pasteboard type raw values (UTIs). See `NSPasteboard.PasteboardType`.
   private let stringType = "public.utf8-plain-text"
@@ -81,13 +83,13 @@ class IngestFilterTests: XCTestCase {
     XCTAssertEqual(Set(result.map(\.type)), Set([stringType, pngType]))
   }
 
-  // MARK: - shouldIgnore(types) parity
+  // MARK: - Global type gate
 
   func testTypeNotInEnabledTypesIsFilteredOut() {
     // Only png enabled; a string content should be dropped entirely because the
     // global type set becomes disjoint from enabledTypes after filtering the string
-    // — replicating `shouldIgnore(types)` returning true when the remaining type set
-    // is disjoint from enabledTypes.
+    // — the global type gate returns true when the remaining type set is
+    // disjoint from enabledTypes.
     var config = defaultConfig
     config.enabledTypes = [pngType]
 
@@ -110,8 +112,8 @@ class IngestFilterTests: XCTestCase {
   }
 
   func testIgnoredBuiltInTypeCollapsesToEmpty() {
-    // A transient type is in the ignored set; `shouldIgnore(types)` returns true
-    // because the type set is not disjoint from ignoredTypes.
+    // A transient type is in the ignored set, so the type set is not disjoint
+    // from ignoredTypes.
     let result = filterContents(
       [dto(stringType, "hi"), dto(transientType, "x")],
       application: nil,
@@ -136,7 +138,7 @@ class IngestFilterTests: XCTestCase {
     XCTAssertTrue(result.isEmpty)
   }
 
-  // MARK: - filteredTypes prefixes
+  // MARK: - Filtered prefixes
 
   func testDynamicTypePrefixIsFiltered() {
     let dynType = "dyn.ah62d4qmxhk4d425try1g44pdsm11g55gsu1e82xnqzv"
@@ -190,11 +192,11 @@ class IngestFilterTests: XCTestCase {
     XCTAssertEqual(Set(result.map(\.type)), Set([stringType, microsoftLinkSource, pdfType]))
   }
 
-  // MARK: - filteredTypes unsupported-type parity
+  // MARK: - Unsupported types
 
   func testUnsupportedCustomTypeSurvivesAlongsideEnabledType() {
-    // `Clipboard.filteredTypes` removes only DISABLED types (supported minus
-    // enabled); unsupported/custom UTIs are KEPT for round-trip fidelity. A copy
+    // The filter removes only DISABLED types (supported minus enabled);
+    // unsupported/custom UTIs are KEPT for round-trip fidelity. A copy
     // with a standard enabled type plus a custom type keeps BOTH.
     let custom = "org.example.CustomPayload"
 
@@ -327,8 +329,8 @@ class IngestFilterTests: XCTestCase {
   }
 
   func testRtfOverRichTextParsingLimitIsTreatedAsRich() {
-    // richText(_:) early-returns true when the RTF payload exceeds the parsing
-    // limit, so a whitespace string with a huge RTF survives.
+    // Oversized rich text counts as present without parsing, so a whitespace
+    // string with a huge RTF survives.
     var config = defaultConfig
     config.richTextParsingLimit = 8
 
