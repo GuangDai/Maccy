@@ -135,4 +135,26 @@ D4 landed CI-green (all 6 jobs) on branch `d4-measure-baseline`. Implementation:
 
 **Status:** branch `d4-measure-baseline` (3 commits: `71dee34` baseline, `9c8728c` D4, `f04d1f9` test fix) is CI-green and ready to merge to master.
 
+---
+
+## 12. D6 landed + D5 measure finding (commits `947f88b`, `bd49ff3`; master CI green)
+
+- **D6 landed** (`947f88b`, merged to master): `loadAfterDefaultsChange` → `reconcileWithStore` (+ `invalidateInFlightSearch`) — a Settings sort/pin toggle no longer discards decoded images.
+- **D5 measure-first** (`bd49ff3`, `testGIngestPerCopy_N1000`, CI run `29061409815`, all green): the ingest actor's per-copy cost at n=1000 is **51.90 ms avg / 83.93 ms max** (`mainThread_maxGap` 0.080 s → ~48 ms is OFF-main, in `commit()`'s full-row fetch+sort of all unpinned rows every copy). **This overturns the "D5 is off-main/ignorable" assumption** — at n=1000 a copy takes ~55 ms total (52 actor + 3.3 main), and copy storms compound. D5 is HIGHLY justified; the cost is the full-row *faulting* (D4's `fetchIdentifiers` was ids-only/cheap; this `fetch` faults 1000 `@Model`s).
+- **D5 implementation risk:** `commit()`'s trim logic is correctness-critical (eviction = potential data loss), and the actor gets **no notification of main-side pin changes** → an incremental/in-memory "tail" could evict a just-pinned item. A design+verify workflow (`_workflow-d5-design.js`) is evaluating 3 approaches (incremental-tail / bounded-fetch / minimal-or-defer) against the trim invariants + pin-drift before any code change.
+
+---
+
+## 13. D5 landed — per-copy O(n) story closed (commits `592bae6` + `01493f9`; master)
+
+The D5 design workflow (`_workflow-d5-design.js`, 6 agents) **converged**: all 3 lenses picked **bounded-fetch** (`fetchCount` no-fault + `fetchLimit` tail), and the **incremental in-memory tail was rejected as hollow (B1)** — once pin-safety forces per-candidate revalidation via `fetchLimit`+predicate, the in-memory structure is 100% redundant and only adds a drift surface. One verifier's refinement: delete the dup (pending) *before* the fetches so both honor the live `pin == nil` predicate and exclude it (no dup flag, no arithmetic subtraction, no cached-fault divergence).
+
+**Implemented** (`592bae6` + compile-fix `01493f9`): `commit()`'s transaction body now does `delete(dup)` (pending) → `fetchCount(pin==nil)` (no-fault SQL COUNT, excludes the pending dup) → `fetchLimit`-bounded read of only the oldest `toEvict` rows (steady-state ~1) → `insert`. Single transaction + single save preserved; no in-memory state; predicate fresh per copy → **provably cannot evict a pinned item**.
+
+**Measured (CI run `29063084679`, perf-text, all 6 jobs green):** actor ingest per-copy at n=1000 = **51.90 → 4.40 ms avg (−91.5%, 11.8×), max 83.93 → 6.04 ms**, `mainThread_maxGap` 0.080 → 0.004 s. The dup-before-count test + existing trim tests + the new `testCommitDoesNotEvictPinnedItemWhenTrimming` (data-loss guard) all pass → `fetchCount` honors the pending dup-delete inside the transaction, and pin-exclusion works.
+
+**Per-copy O(n) at n=1000 is now closed:** D4 (main) 6.50→3.33 ms + D5 (actor) 51.90→4.40 ms ⇒ **total per-copy ~55 ms → ~8 ms**. The residual ~4.4 ms (actor) + ~3.3 ms (main) is the floor (MainActor hop, `model(for:)`, binary insert, corpus update, save, `refreshVisibleItems`) — not O(rows) fetches.
+
+
+
 
