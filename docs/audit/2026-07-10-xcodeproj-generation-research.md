@@ -322,6 +322,7 @@ remains an untracked side-by-side artifact; the legacy project is still the prod
 - `xcodebuild -list -json` parsed the generated project with exactly targets `Maccy`, `MaccyTests`, and `MaccyUITests` and the project-owned shared `Maccy` scheme. The clean Debug app build completed with `BUILD SUCCEEDED`; its log has no `warning:`, `error:`, `BUILD FAILED`, or `TEST FAILED` lines.
 - The generated app retained the frozen 31-language set and the key M0 resources: `README.md`, `LICENSE`, `appcast.xml`, `Write.caf`, `Knock.caf`, and `Assets.car`. Its resolved package pins exactly matched the canonical 11-pin lock.
 - The workflow's repository check found no tracked changes to `Maccy.xcodeproj`, `Maccy.xctestplan`, or canonical `Package.resolved`. The sole status entry was the expected untracked `Maccy-Generated.xcodeproj/` evidence artifact.
+- After M1 merged at `b719303`, [default-branch macOS 26 ARM CI run 29128474149](https://github.com/GuangDai/Maccy/actions/runs/29128474149) passed strict lint, unit, `ui-1`, `ui-2`, `perf-text`, and `perf-image`, proving the still-authoritative legacy build/test entry point remained green.
 
 M2 is now the next generator milestone: give a side-by-side test-plan copy valid generated target identifiers, then run the full unit/UI/performance matrix and release-packaging dry run against the generated project. Production still builds the legacy project until M2 proves those gates and M3 performs the isolated replacement.
 

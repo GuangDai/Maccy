@@ -37,3 +37,14 @@
 - `test(c2.1): define UI deletion index synchronization`
 - `fix(c2.1): synchronize dedup index after UI deletions`
 - `docs(c2.1): record signature-index synchronization evidence`
+
+## Completion evidence (2026-07-11)
+
+C2.1 is complete at `c6afcbe`.
+
+- The first runner attempt, [29128817532](https://github.com/GuangDai/Maccy/actions/runs/29128817532), correctly exposed a test-construction mistake (`itemID(for:)` is private). It was cancelled after the common compile failure was identified; `c228557` changed the tests to derive the same stable ID through `snapshot(of:).id`.
+- The valid red run, [29128988480](https://github.com/GuangDai/Maccy/actions/runs/29128988480), compiled and ran the suite. Exactly the three new `HistoryTests` failed with actual `[]` versus expected `.removed`, `.removed`, and `.cleared`; the other 307 unit tests passed. The remaining matrix was cancelled once the intended red evidence was captured.
+- The green run, [29129247034](https://github.com/GuangDai/Maccy/actions/runs/29129247034), passed strict SwiftLint, unit, `ui-1`, `ui-2`, `perf-text`, and `perf-image`. It includes the three UI-forwarding tests plus the actor-level regression proving a synchronized removal eliminates the next ingest's stale dedup hit.
+- `History` computes stable IDs before deletion and sends one post-commit batch only on success. `clear()` sends only unpinned removals, `clearAll()` sends `.cleared`, and `delete()` sends its one removal. The actor updates both candidate and persistent-ID maps; a full clear marks the index uninitialized so a racing ingest is recovered by the next store rebuild.
+
+Residual work intentionally remains separate: C2.2 removes duplicate signature-entry derivation in `findDuplicate`; C2.3 decides how pre-migration fingerprint backfill should commit without an unrelated later ingest.

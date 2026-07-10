@@ -179,9 +179,9 @@ Do not overlap runs. On failure, inspect job status first and the log tail secon
 - [x] A clean generated `Maccy` app build succeeds with no warnings/errors.
 - [x] The built app retains the 31-language set and key resources from M0.
 - [x] `Maccy.xcodeproj`, `Maccy.xctestplan`, and canonical `Package.resolved` remain unchanged.
-- [ ] Full legacy macOS 26 ARM CI remains green.
+- [x] Full legacy macOS 26 ARM CI remains green.
 - [x] Record run/artifact evidence in the research document and index this plan.
 
-Runner evidence: [Validate Generated Xcode Project run 29128236363](https://github.com/GuangDai/Maccy/actions/runs/29128236363), artifact `xcodeproj-generated-29128236363-1`, implementation commit `d0bd888`. All repeatability, graph, six settings, language, and package-pin diffs are empty; the generated Debug app build is warning/error-free. The remaining checkbox is intentionally held for the post-merge default-branch legacy CI run.
+Runner evidence: [Validate Generated Xcode Project run 29128236363](https://github.com/GuangDai/Maccy/actions/runs/29128236363), artifact `xcodeproj-generated-29128236363-1`, implementation commit `d0bd888`. All repeatability, graph, six settings, language, and package-pin diffs are empty; the generated Debug app build is warning/error-free. After M1 merged at `b719303`, default-branch [macOS 26 ARM CI run 29128474149](https://github.com/GuangDai/Maccy/actions/runs/29128474149) passed lint, unit, both UI shards, and both performance shards. Every M1 checkbox is now evidence-backed.
 
 M2 begins only after every checkbox above is supported by runner evidence. M2 owns generated test-plan identifiers, full unit/UI/performance execution on the generated project, and release packaging parity.

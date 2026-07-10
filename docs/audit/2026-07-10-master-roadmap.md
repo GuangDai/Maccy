@@ -25,7 +25,9 @@
 
 **What this closed:** the entire **silent-failure cluster** (4 distinct swallow sites — now all surface to `lastPersistError`) and the **search-generation bug class** (3 sites now bump generation like their siblings). The most dangerous correctness defects in the verification are gone.
 
-**What remains:** structure debt (the god object), measured perf walls on the hot path, domain-consistency cleanup, and ~250 LOC of dead feature subtree.
+**Post-roadmap progress (through 2026-07-11):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), and C2.1 (`c6afcbe`) have landed or reached a green branch gate. The XcodeGen M0/M1 cross-cut also completed through `b719303`; it does not change the production project yet.
+
+**What remains:** structure debt (the deferred god-object split), load/memory work, C2's two residual dedup details, single search-engine/domain cleanup, Intent boundaries, and progressive dependency injection.
 
 ---
 
@@ -62,7 +64,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 | # | Step | Closes | Effort | Risk |
 |---|------|--------|--------|------|
 | C1 | Single filter source | DS-008, `NEW-clipboard-filter-1/2/3` | M | M | Shared UTI constants; delete 4 dead Clipboard helpers + the dead `supportedTypes`/`disabledTypes` cascade; fix `contents(from:)` doc rot. |
-| C2 | `SignatureIndex` sync on UI delete | DS-009 | M | M | **No rebuild trigger exists today** (verification-sharpened). Prefer dirty-rebuild, or `ingestor.noteRemoved`. Correctness currently held by `supersedes` containment — Low severity, but the stale-candidate growth is unbounded. |
+| C2 | `SignatureIndex` consistency | DS-009 | M | M | **C2.1 DONE** (`c6afcbe`, green run 29129247034): successful UI delete/clear sends one batched removal/reset to the actor, updating candidate + bridge maps. C2.2 signature re-derivation and C2.3 lazy-backfill commit semantics remain separate small steps. |
 | C3 | Single `MatchEngine` + empty short-circuit | DS-010, DS-012, DS-029 | M | M | Merge legacy `Search` (217 LOC) into `SearchActor`; O(1) decorator-id resolve (`[UUID: HistoryItemDecorator]`); pin the one-item corpus-lag. |
 | C4 | Batch limit deletes | DS-014 | S | M | One transaction for `limitHistorySize` trim (matches the actor's batched trim). |
 | C5 | Pin query off the entity | DS-015 | S | L | `HistoryItem.availablePins` reads `Storage.shared` — move to a PinService. |
@@ -112,11 +114,11 @@ E4 (dead subtree) needs your delete/keep decision
 | `NEW-history-spine-3` load no gen bump | Low | **A** | ✅ done |
 | `NEW-history-spine-4` select no invalidate | Low | **A** | ✅ done |
 | `NEW-ingest-dualpath-1` commit O(n)/copy | Med | D5 | open |
-| `NEW-ingest-dualpath-2` read mutates candidates | Low | C2 | open |
+| `NEW-ingest-dualpath-2` read mutates candidates | Low | C2.3 | open |
 | `NEW-ingest-dualpath-3` adapter fully dead | Low | B4 | open (B4 removes it) |
 | `NEW-ingest-dualpath-4` result discarded | Low | **A** | ✅ done |
-| `NEW-dedup-ids-2` findDuplicate re-derives signature | Low | C2 | open |
-| `NEW-dedup-ids-3` backfill cross-ingest commit | Low | C2 | open |
+| `NEW-dedup-ids-2` findDuplicate re-derives signature | Low | C2.2 | open |
+| `NEW-dedup-ids-3` backfill cross-ingest commit | Low | C2.3 | open |
 | `NEW-clipboard-filter-1/2/3` dead helpers + doc rot | Low | C1 | open |
 | `NEW-storage-load-models-1` dead newBackgroundContext + false doc | Med | D0 | open |
 | `NEW-storage-load-models-2` init self-assigns timestamps | Low | C (hygiene) | open |
@@ -131,19 +133,20 @@ E4 (dead subtree) needs your delete/keep decision
 2. **E4 — Dead paste-stack / multi-select subtree (~250 LOC):** delete it, or is multi-select a staged feature being kept warm?
 3. **B0 — History split granularity:** ~~the full 5–7 types, or a smaller first cut?~~ **CLOSED** — defer split entirely until forcing-gate; see [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/).
 4. **C6 — ItemID:** keep the derived `String(describing:)` form (Low risk, document it), or invest in a stored UUID column now?
-5. **C2 — SignatureIndex delete-sync:** `noteRemoved` on the actor, dirty-rebuild on next ingest, or wait for unified events (Wave B's event model)?
+5. **C2.1 — SignatureIndex delete-sync:** ~~`noteRemoved`, dirty-rebuild, or unified events?~~ **CLOSED** — successful UI mutations send batched `.removed`/`.cleared` events to the actor; full clear forces a safe next-ingest rebuild (`c6afcbe`).
 6. **D3 — Ingest coalesce:** latest-wins mailbox, or keep one-Task-per-change (accept storm cost)?
 
 ---
 
 ## 6. Near-term plan (the next 3–5 concrete moves)
 
-1. **Push `7fb08bd`** (Wave A Step 3b) once Step 4 greens → Wave A fully landed.
-2. ~~Commit the verification doc suite~~ — **done** (`876de39`).
-3. **Resolve D0 (Load ADR) + E4 (dead subtree)** — two quick decisions that unblock D1 and a big cleanup.
-4. **D4 — `syncAllToStore` O(n)→O(deleted)** — concrete, measured perf win on every copy (have the ingest actor return the `deletedItemIDs` it already computes instead of re-fetching all identifiers). The right kind of next step: concrete value, not ceremony. (B1 UIEffectPort was reverted — hollow; see §3 Wave B.)
+1. ~~D4/D5/D6 hot-path fixes~~ — **done** (`9c8728c`, `592bae6` + `01493f9`, `947f88b`).
+2. ~~Resolve D0 and E4~~ — **done** (`7852ea8`: keep loader test-only/correct docs; `9849d00`: delete dead paste-stack subtree).
+3. ~~C1 and C2.1 domain cleanup~~ — **done** (`2ac325f`, `c6afcbe`).
+4. **C2.2 — stop re-deriving the incoming signature entries** in `findDuplicate`; reuse the already-built `SignatureDTO` without changing authoritative comparison behavior.
+5. **C2.3 — isolate lazy fingerprint backfill persistence semantics**, then continue to C3/E1 while the History split remains deferred behind its forcing gate.
 
-Parallel-safe: C1 (filter cleanup — different files) and E1 (Intent port) can run alongside B without conflict.
+Parallel-safe: E1 (Intent port) remains independent of C2's actor internals. XcodeGen M2 is a separate infrastructure track.
 
 ---
 
