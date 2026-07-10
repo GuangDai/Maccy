@@ -1,0 +1,221 @@
+name: Validate Generated Xcode Project
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xcodeproj-generated-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate side-by-side project
+    runs-on: macos-26
+    timeout-minutes: 35
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Enforce macOS 26 ARM runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(sw_vers -productVersion)" == 26.* ]]
+          [[ "$(uname -m)" == arm64 ]]
+
+      - name: Generate twice with pinned XcodeGen
+        id: generate
+        continue-on-error: true
+        shell: bash
+        env:
+          OUTPUT_ROOT: ${{ runner.temp }}/generated
+          XCODEGEN_HOME: ${{ runner.temp }}/xcodegen-2.45.4
+          EVIDENCE: ${{ runner.temp }}/xcodeproj-generated-evidence
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE"
+
+          seed_package_lock() {
+            local project="$OUTPUT_ROOT/Maccy-Generated.xcodeproj"
+            local destination="$project/project.xcworkspace/xcshareddata/swiftpm"
+            mkdir -p "$destination"
+            cp \
+              Maccy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved \
+              "$destination/Package.resolved"
+          }
+
+          bash scripts/generate-xcodeproj.sh 2>&1 | tee "$EVIDENCE/generate-first.log"
+          seed_package_lock
+          cp -R \
+            "$OUTPUT_ROOT/Maccy-Generated.xcodeproj" \
+            "${{ runner.temp }}/first-generated.xcodeproj"
+
+          bash scripts/generate-xcodeproj.sh 2>&1 | tee "$EVIDENCE/generate-second.log"
+          seed_package_lock
+
+      - name: Verify repeatable generation
+        id: repeatability
+        if: steps.generate.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          EVIDENCE: ${{ runner.temp }}/xcodeproj-generated-evidence
+        run: |
+          set -euo pipefail
+          diff -ru \
+            "${{ runner.temp }}/first-generated.xcodeproj" \
+            "${{ runner.temp }}/generated/Maccy-Generated.xcodeproj" \
+            | tee "$EVIDENCE/repeatability.diff"
+
+      - name: Compare legacy and generated contracts
+        id: parity
+        if: steps.generate.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          GENERATED_PROJECT: ${{ runner.temp }}/generated/Maccy-Generated.xcodeproj
+          OUTPUT_DIR: ${{ runner.temp }}/xcodeproj-generated-evidence/parity
+        run: bash scripts/compare-xcodeproj-contracts.sh
+
+      - name: List generated project
+        id: project_list
+        if: steps.generate.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          EVIDENCE: ${{ runner.temp }}/xcodeproj-generated-evidence
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -list \
+            -json \
+            -project "${{ runner.temp }}/generated/Maccy-Generated.xcodeproj" \
+            > "$EVIDENCE/generated-project-list.json"
+
+      - name: Clean build generated app
+        id: build
+        if: steps.generate.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          EVIDENCE: ${{ runner.temp }}/xcodeproj-generated-evidence
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "${{ runner.temp }}/generated/Maccy-Generated.xcodeproj" \
+            -scheme Maccy \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "${{ runner.temp }}/GeneratedDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build \
+            2>&1 | tee "$EVIDENCE/generated-build.log"
+
+      - name: Verify generated bundle contract
+        id: bundle
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          EVIDENCE: ${{ runner.temp }}/xcodeproj-generated-evidence
+        run: |
+          set -euo pipefail
+          app="${{ runner.temp }}/GeneratedDerivedData/Build/Products/Debug/Maccy.app"
+          resources="$app/Contents/Resources"
+
+          test -f "$resources/README.md"
+          test -f "$resources/LICENSE"
+          test -f "$resources/appcast.xml"
+          test -f "$resources/Write.caf"
+          test -f "$resources/Knock.caf"
+          test -f "$resources/Assets.car"
+
+          find "$app" -type f -print | sed "s#^$app/##" | LC_ALL=C sort \
+            > "$EVIDENCE/generated-app-bundle-files.txt"
+          find "$resources" -mindepth 1 -maxdepth 1 -type d -name '*.lproj' -print \
+            | sed "s#^$resources/##; s/\\.lproj$//" | LC_ALL=C sort \
+            > "$EVIDENCE/generated-app-languages.txt"
+
+          printf '%s\n' \
+            ar be bs ckb cs de en es fr he hr hu it ja ko lt lv nb nl pl \
+            pt-BR ro ru sl th tr uk uz vi zh-Hans zh-Hant \
+            | LC_ALL=C sort > "$EVIDENCE/expected-app-languages.txt"
+
+          diff -u \
+            "$EVIDENCE/expected-app-languages.txt" \
+            "$EVIDENCE/generated-app-languages.txt" \
+            > "$EVIDENCE/app-languages.diff"
+
+          if rg -n 'warning:|error:|BUILD FAILED|TEST FAILED' "$EVIDENCE/generated-build.log"; then
+            exit 1
+          fi
+
+          generated_lock="${{ runner.temp }}/generated/Maccy-Generated.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          canonical_lock="Maccy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          jq --sort-keys '.pins' "$canonical_lock" > "$EVIDENCE/canonical-package-pins.json"
+          jq --sort-keys '.pins' "$generated_lock" > "$EVIDENCE/generated-package-pins.json"
+          diff -u \
+            "$EVIDENCE/canonical-package-pins.json" \
+            "$EVIDENCE/generated-package-pins.json" \
+            > "$EVIDENCE/package-pins.diff"
+
+      - name: Verify repository inputs are unchanged
+        id: readonly
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          git diff --exit-code -- \
+            Maccy.xcodeproj \
+            Maccy.xctestplan \
+            Maccy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+      - name: Capture generated project artifact
+        if: always()
+        shell: bash
+        env:
+          EVIDENCE: ${{ runner.temp }}/xcodeproj-generated-evidence
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE"
+          if [[ -d "${{ runner.temp }}/generated/Maccy-Generated.xcodeproj" ]]; then
+            cp -R \
+              "${{ runner.temp }}/generated/Maccy-Generated.xcodeproj" \
+              "$EVIDENCE/Maccy-Generated.xcodeproj"
+          fi
+          git status --short > "$EVIDENCE/git-status-after.txt"
+          xcodebuild -version > "$EVIDENCE/xcode-version.txt"
+          sw_vers > "$EVIDENCE/macos-version.txt"
+          uname -m > "$EVIDENCE/architecture.txt"
+
+      - name: Upload generated project evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xcodeproj-generated-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/xcodeproj-generated-evidence
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce all M1 gates
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          outcomes=(
+            "${{ steps.generate.outcome }}"
+            "${{ steps.repeatability.outcome }}"
+            "${{ steps.parity.outcome }}"
+            "${{ steps.project_list.outcome }}"
+            "${{ steps.build.outcome }}"
+            "${{ steps.bundle.outcome }}"
+            "${{ steps.readonly.outcome }}"
+          )
+          for outcome in "${outcomes[@]}"; do
+            [[ "$outcome" == success ]]
+          done

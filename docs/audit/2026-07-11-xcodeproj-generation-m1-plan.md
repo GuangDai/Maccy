@@ -146,7 +146,7 @@ Run `bash -n` and commit as `test(xcodegen-m1): compare generated project contra
 
 - Create: `.github/workflows/xcodeproj-generated.yml`
 
-- [ ] **Step 1: Add manual read-only workflow**
+- [x] **Step 1: Add manual read-only workflow**
 
 The `workflow_dispatch` job runs on `macos-26`, arm64, with `contents: read`. It must:
 
