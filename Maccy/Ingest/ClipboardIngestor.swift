@@ -512,7 +512,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
       // not all of them — the steady-state copy evicts ~1, so this faults ~1 row
       // instead of ~1000. Excludes the pending dup.
       if toEvict > 0 {
-        let tailDescriptor = FetchDescriptor<HistoryItem>(
+        var tailDescriptor = FetchDescriptor<HistoryItem>(
           predicate: #Predicate { $0.pin == nil },
           sortBy: [SortDescriptor(\.lastCopiedAt, order: .forward)]
         )
