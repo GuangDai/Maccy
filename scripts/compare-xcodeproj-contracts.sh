@@ -80,6 +80,7 @@ normalize_graph() {
                       kind: $phase.isa,
                       files: phase_files($phase)
                     }
+                  | select(.files | length > 0)
                 ]
                 | sort_by(.kind)
               )

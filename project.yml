@@ -100,6 +100,8 @@ targets:
           - Processor/**/*.h
           - Processor/**/*.hpp
           - Processor/third_party/LICENSE-xxhash.txt
+          - cs.lproj/Preview.strings
+          - pt-BR.lproj/Preview.strings
           - bn.lproj/**
           - ca.lproj/**
           - el.lproj/**

@@ -33,7 +33,7 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          OUTPUT_ROOT: ${{ runner.temp }}/generated
+          OUTPUT_ROOT: ${{ github.workspace }}
           XCODEGEN_HOME: ${{ runner.temp }}/xcodegen-2.45.4
           EVIDENCE: ${{ runner.temp }}/xcodeproj-generated-evidence
         run: |
@@ -69,7 +69,7 @@ jobs:
           set -euo pipefail
           diff -ru \
             "${{ runner.temp }}/first-generated.xcodeproj" \
-            "${{ runner.temp }}/generated/Maccy-Generated.xcodeproj" \
+            "${{ github.workspace }}/Maccy-Generated.xcodeproj" \
             | tee "$EVIDENCE/repeatability.diff"
 
       - name: Compare legacy and generated contracts
@@ -78,7 +78,7 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          GENERATED_PROJECT: ${{ runner.temp }}/generated/Maccy-Generated.xcodeproj
+          GENERATED_PROJECT: ${{ github.workspace }}/Maccy-Generated.xcodeproj
           OUTPUT_DIR: ${{ runner.temp }}/xcodeproj-generated-evidence/parity
         run: bash scripts/compare-xcodeproj-contracts.sh
 
@@ -94,7 +94,7 @@ jobs:
           xcodebuild \
             -list \
             -json \
-            -project "${{ runner.temp }}/generated/Maccy-Generated.xcodeproj" \
+            -project "${{ github.workspace }}/Maccy-Generated.xcodeproj" \
             > "$EVIDENCE/generated-project-list.json"
 
       - name: Clean build generated app
@@ -107,7 +107,7 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild \
-            -project "${{ runner.temp }}/generated/Maccy-Generated.xcodeproj" \
+            -project "${{ github.workspace }}/Maccy-Generated.xcodeproj" \
             -scheme Maccy \
             -configuration Debug \
             -destination 'platform=macOS,arch=arm64' \
@@ -155,7 +155,7 @@ jobs:
             exit 1
           fi
 
-          generated_lock="${{ runner.temp }}/generated/Maccy-Generated.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          generated_lock="${{ github.workspace }}/Maccy-Generated.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
           canonical_lock="Maccy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
           jq --sort-keys '.pins' "$canonical_lock" > "$EVIDENCE/canonical-package-pins.json"
           jq --sort-keys '.pins' "$generated_lock" > "$EVIDENCE/generated-package-pins.json"
@@ -183,9 +183,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE"
-          if [[ -d "${{ runner.temp }}/generated/Maccy-Generated.xcodeproj" ]]; then
+          if [[ -d "${{ github.workspace }}/Maccy-Generated.xcodeproj" ]]; then
             cp -R \
-              "${{ runner.temp }}/generated/Maccy-Generated.xcodeproj" \
+              "${{ github.workspace }}/Maccy-Generated.xcodeproj" \
               "$EVIDENCE/Maccy-Generated.xcodeproj"
           fi
           git status --short > "$EVIDENCE/git-status-after.txt"
