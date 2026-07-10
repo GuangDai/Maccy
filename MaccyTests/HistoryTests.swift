@@ -18,10 +18,11 @@ class HistoryTests: XCTestCase {
   }
 
   override func tearDown() async throws {
-    try await super.tearDown()
+    history.clearAll()
     history.searchQuery = ""
     Defaults[.size] = savedSize
     Defaults[.sortBy] = savedSortBy
+    try await super.tearDown()
   }
 
   func testDefaultIsEmpty() {
