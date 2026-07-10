@@ -469,6 +469,16 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// the main-actor `Defaults[.size]` snapshot (oldest first), insert the new
   /// item, then one `processPendingChanges` plus `save`.
   ///
+  /// D5 (`NEW-ingest-dualpath-1`): instead of faulting every unpinned `@Model`
+  /// each copy (measured ~52 ms at n=1000), this counts unpinned with a no-fault
+  /// `fetchCount` and fetches only the oldest `toEvict` rows via a bounded
+  /// `fetchLimit`. The duplicate is deleted (pending) before the fetches so both
+  /// honor the live `pin == nil` predicate and exclude it — no in-memory dup
+  /// flag, no arithmetic subtraction, no cached-fault divergence from a
+  /// concurrent main-side pin change. The predicate is fresh per copy, so a
+  /// just-pinned item is excluded by construction (no in-memory pin cache to go
+  /// stale → cannot evict a pinned item).
+  ///
   /// Returns the deletions (dedup-index `ItemID`s plus the fetchable persistent
   /// IDs) so the caller can keep the dedup index in sync and hand the main
   /// observer the exact set of decorators to drop — captured from each item
@@ -478,29 +488,43 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     var deletedItemIDs: [ItemID] = []
     var deletedPersistentIDs: [PersistentIdentifier] = []
     try modelContext.transaction {
-      // Sort unpinned by lastCopiedAt descending so `dropFirst(limit - 1)` is the
-      // oldest tail — exactly what `History.limitHistorySize` deletes. The dup is
-      // removed from the count before trimming (mirroring `History.add`, where
-      // the merge removes the dup before `limitHistorySize` runs — net zero for
-      // a merge).
-      let descriptor = FetchDescriptor<HistoryItem>(
-        predicate: #Predicate { $0.pin == nil },
-        sortBy: [SortDescriptor(\.lastCopiedAt, order: .reverse)]
-      )
-      var unpinned = (try? modelContext.fetch(descriptor)) ?? []
+      // Delete the duplicate first (pending) so the count and tail fetches below
+      // exclude it via the live `pin == nil` predicate — no dup-membership flag
+      // and no arithmetic subtraction (which would read `dup.pin` from the
+      // actor's cached fault and could diverge from the store under a concurrent
+      // main-side pin change on the dup).
       if let dup {
-        unpinned.removeAll { $0 == dup }
         deletedItemIDs.append(snapshot(of: dup).id)
         deletedPersistentIDs.append(dup.persistentModelID)
         modelContext.delete(dup)
       }
-      if unpinned.count > limit - 1 {
-        for excess in unpinned.dropFirst(limit - 1) {
+
+      // Count unpinned WITHOUT faulting any @Model (SELECT COUNT(*) WHERE
+      // pin IS NULL). Honors the pending dup delete above, so it excludes the
+      // dup. `limit - 1` leaves room for the new item (mirrors the legacy
+      // `History.add` net-zero-on-merge trim target).
+      let unpinnedCount = (try? modelContext.fetchCount(
+        FetchDescriptor<HistoryItem>(predicate: #Predicate { $0.pin == nil })
+      )) ?? 0
+      let toEvict = max(0, unpinnedCount - max(0, limit - 1))
+
+      // Fetch only the oldest `toEvict` unpinned rows (ascending sort, bounded),
+      // not all of them — the steady-state copy evicts ~1, so this faults ~1 row
+      // instead of ~1000. Excludes the pending dup.
+      if toEvict > 0 {
+        let tailDescriptor = FetchDescriptor<HistoryItem>(
+          predicate: #Predicate { $0.pin == nil },
+          sortBy: [SortDescriptor(\.lastCopiedAt, order: .forward)]
+        )
+        tailDescriptor.fetchLimit = toEvict
+        let tail = (try? modelContext.fetch(tailDescriptor)) ?? []
+        for excess in tail {
           deletedItemIDs.append(snapshot(of: excess).id)
           deletedPersistentIDs.append(excess.persistentModelID)
           modelContext.delete(excess)
         }
       }
+
       modelContext.insert(item)
     }
     modelContext.processPendingChanges()

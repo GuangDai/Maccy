@@ -196,6 +196,55 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
     XCTAssertEqual(titles, ["second", "third"], "Trim must evict the oldest item ('first')")
   }
 
+  // MARK: - D5: eviction uses the live `pin == nil` predicate (pin-drift guard)
+
+  /// D5 data-loss guard: the actor's eviction must use the live `pin == nil`
+  /// predicate, so an item pinned on main is NEVER evicted — even when it is the
+  /// oldest (a naive "evict oldest" would target it). size=2; seed a(oldest,
+  /// PINNED), b, c (unpinned); ingest one more distinct copy. The actor counts
+  /// only unpinned (b, c) and evicts the oldest UNPINNED ("b"); "a" survives.
+  func testCommitDoesNotEvictPinnedItemWhenTrimming() async {
+    Defaults[.size] = 2
+    let context = Storage.shared.context
+    var seeded: [HistoryItem] = []
+    for (index, title) in ["a", "b", "c"].enumerated() {
+      let item = HistoryItem(
+        contents: [HistoryItemContent(type: stringType, value: title.data(using: .utf8)!)]
+      )
+      item.title = title
+      let timestamp = Date(timeIntervalSince1970: 1_700_000_000 + Double(index))
+      item.firstCopiedAt = timestamp
+      item.lastCopiedAt = timestamp
+      context.insert(item)
+      seeded.append(item)
+    }
+    try? context.save()
+
+    // Pin "a" (the oldest) on main — a non-predicate eviction would target it.
+    seeded[0].pin = "1"
+    try? context.save()
+
+    let collector = EventCollector()
+    let ingestor = BackgroundClipboardIngestor(
+      modelContainer: Storage.shared.container,
+      image: PassthroughImageProcessor(),
+      now: { Date(timeIntervalSince1970: 1_700_000_100) },
+      onEvent: { event, _ in collector.append(event) }
+    )
+    _ = await ingestor.ingest(request(text: "new"))
+
+    let stored = (try? context.fetch(FetchDescriptor<HistoryItem>())) ?? []
+    let titles = Set(stored.map(\.title))
+    XCTAssertTrue(
+      titles.contains("a"),
+      "A pinned item must survive ingest-driven eviction (data-loss guard)"
+    )
+    XCTAssertFalse(
+      titles.contains("b"),
+      "The oldest UNPINNED item is evicted in the pinned item's place"
+    )
+  }
+
   // MARK: - Metrics sanity
 
   /// The reported parse time is finite and non-negative on a text ingest.
