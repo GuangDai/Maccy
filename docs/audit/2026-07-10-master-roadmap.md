@@ -86,7 +86,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 
 | # | Step | Closes | Effort | Risk |
 |---|------|--------|--------|------|
-| E1 | Intent port | DS-018, `NEW-singletons-intents-misc-2/3` | M | L | `HistoryCommandService` protocol; de-duplicate the 1-based index logic; resolve intents against `all` (not search-filtered `items`). |
+| E1 | **Intent port — done** (`cd368ea`) | DS-018, `NEW-singletons-intents-misc-2/3` | M | L | `HistoryCommandService` is the single Intent application port; one resolver owns 1-based bounds and indexes `all`, not search-filtered `items`. |
 | E2 | Package moves (no behavior) | DS-026, DS-034 | M | L | `CompositionRoot` + `DebugHooks` split; colocate `Search*` under `Search/`. |
 | E3 | Timer / multiSelect | DS-024, DS-028 | S | L | Timer `tolerance` + `.common`; decide the dead `multiSelectionEnabled` subtree. |
 | E4 | **Delete dead paste-stack subtree** | `NEW-singletons-intents-misc-1` | S | L | ~250 LOC unreachable (PasteStack model + extension + 3 views + KeyChord/KeyHandling branches), gated by always-false `multiSelectionEnabled`. **Needs your decision** (§5). |
@@ -123,7 +123,7 @@ E4 (dead subtree) needs your delete/keep decision
 | `NEW-storage-load-models-1` dead newBackgroundContext + false doc | Med | D0 | open |
 | `NEW-storage-load-models-2` init self-assigns timestamps | Low | C (hygiene) | open |
 | `NEW-singletons-intents-misc-1` dead paste-stack subtree | Med (cleanup value) | E4 | open (decision) |
-| `NEW-singletons-intents-misc-2/3` intent dup + filtered-index ambiguity | Low/Med-Low | E1 | open |
+| `NEW-singletons-intents-misc-2/3` intent dup + filtered-index ambiguity | Low/Med-Low | E1 | ✅ done (`cd368ea`) |
 
 ---
 
@@ -144,9 +144,10 @@ E4 (dead subtree) needs your delete/keep decision
 2. ~~Resolve D0 and E4~~ — **done** (`7852ea8`: keep loader test-only/correct docs; `9849d00`: delete dead paste-stack subtree).
 3. ~~C1 and C2.1 domain cleanup~~ — **done** (`2ac325f`, `c6afcbe`).
 4. ~~C2.2 — stop re-deriving incoming signature entries~~ — **done** (`10f8d90`; shared `signatureDTO(of:)`).
-5. ~~C2.3 — isolate lazy fingerprint backfill persistence semantics~~ — **done/refined** (`f9f0e85`; cross-ingest timing refuted, read-side mutation removed). Next: E1, then C3 when its History seam is safe.
+5. ~~C2.3 — isolate lazy fingerprint backfill persistence semantics~~ — **done/refined** (`f9f0e85`; cross-ingest timing refuted, read-side mutation removed).
+6. ~~E1 — route App Intents through a stable full-history command port~~ — **done** (`cd368ea`; duplicated 1-based bounds removed, no `AppState.shared` remains under `Intents`). Next: E3's remaining Timer work, then C3 when its History seam is safe.
 
-Parallel-safe: E1 (Intent port) remains independent of C2's actor internals. XcodeGen M2 is a separate infrastructure track.
+Parallel-safe: XcodeGen M2 remains a separate infrastructure track.
 
 ---
 

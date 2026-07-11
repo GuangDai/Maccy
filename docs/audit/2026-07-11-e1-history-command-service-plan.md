@@ -37,3 +37,12 @@
 - `test(e1): define stable history command positions`
 - `refactor(e1): route intents through HistoryCommandService`
 - `docs(e1): record intent port evidence`
+
+## Evidence
+
+- Red: workflow `29144262259` reached the intended compile boundary with exactly the three missing `AppHistoryCommandService` references from the new characterization tests.
+- Green implementation: `967c00b` added the tests and `1f9f71c` added the port, registry, composition wiring, and Intent migrations. Workflow `29144397392` compiled and passed all three new tests; its self-scan then correctly rejected three unused-result warnings in the expected-throw assertions.
+- Warning fix: `cd368ea` explicitly consumes the throwing expressions. Workflow `29144528919` passed strict lint/diagnostics, the complete unit shard, `perf-text`, `perf-image`, and `ui-2`. Its first `ui-1` attempt failed only the repository-known `testClear` 3-second asynchronous wait under runner contention; the succeeding test and all other 21 tests in that shard passed. Per the standing no-flake-rerun policy, the isolated rerun was cancelled rather than used as correctness evidence.
+- Static boundary proof: `rg -n 'AppState\.shared|positionOffset|number -' Maccy/Intents` returns no matches. All four Intents now enter through `HistoryCommandService`, and the one-based resolver exists only in `AppHistoryCommandService`.
+
+E1 is complete. The temporary placement in `AppIntentError.swift` remains intentional until the generated Xcode project becomes authoritative; it avoids another manual legacy `pbxproj` source entry.

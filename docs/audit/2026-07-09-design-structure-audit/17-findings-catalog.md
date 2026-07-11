@@ -188,6 +188,8 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-018 — App Intents hit `AppState.shared`
 
+> **Resolved 2026-07-11 (`cd368ea`):** App Intents now depend on the main-actor `HistoryCommandService` port configured at composition time. No `AppState.shared` reference remains under `Maccy/Intents`.
+
 | | |
 |--|--|
 | **Evidence** | `Intents/Get.swift`, `Select.swift`, `Delete.swift`, `Clear.swift` |

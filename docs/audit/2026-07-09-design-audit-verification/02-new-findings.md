@@ -67,6 +67,8 @@ Severity convention matches the design audit: **Medium** = real defect worth sch
 
 ### `NEW-singletons-intents-misc-3` — App Intents index into search-filtered `items`; "item N" is ambiguous under a query
 
+> **Resolved 2026-07-11 (`cd368ea`):** `AppHistoryCommandService` is now the single positional boundary and resolves against `History.all`. Characterization coverage holds `items` filtered while proving position 1 still addresses the first full-history item.
+
 | | |
 |--|--|
 | **Location** | `Intents/Select.swift:26-33`, `Delete.swift:22-28`, `Get.swift:49-50`; filter reassignment `History.swift:920` |
@@ -167,6 +169,8 @@ Severity convention matches the design audit: **Medium** = real defect worth sch
 | **Mechanism** | The init body runs `self.firstCopiedAt = firstCopiedAt` / `self.lastCopiedAt = lastCopiedAt`, but the signature has only a `contents` parameter — each RHS resolves to the instance property itself (default `Date.now` @88-89). Both lines are no-op self-assignments. Harmless (callers overwrite timestamps), but misleading dead code suggesting injection that doesn't happen. |
 
 ### `NEW-singletons-intents-misc-2` — duplicated 1-based index + bounds + notFound across 3 Intents
+
+> **Resolved 2026-07-11 (`cd368ea`):** Get, Select, and Delete delegate to one private one-based resolver in `AppHistoryCommandService`; zero, negative, and out-of-range positions share the same `notFound` behavior.
 
 | | |
 |--|--|
