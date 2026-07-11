@@ -110,8 +110,6 @@ class HistoryItem {
   var contents: [HistoryItemContent] = []
 
   init(contents: [HistoryItemContent] = []) {
-    self.firstCopiedAt = firstCopiedAt
-    self.lastCopiedAt = lastCopiedAt
     self.contents = contents
   }
 
