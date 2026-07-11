@@ -337,6 +337,42 @@ class HistoryTests: XCTestCase {
     XCTAssertEqual(events, [.cleared])
   }
 
+  func testHistoryCommandServiceUsesFullHistoryWhileItemsAreFiltered() throws {
+    let older = history.add(historyItem("older"))
+    let newer = history.add(historyItem("newer"))
+    history.items = [older]
+    let service = AppHistoryCommandService(
+      history: history,
+      navigator: AppState.shared.navigator
+    )
+
+    XCTAssertTrue(try service.item(at: 1) === newer.item)
+    XCTAssertTrue(try service.item(at: 2) === older.item)
+  }
+
+  func testHistoryCommandServiceRejectsInvalidPositions() {
+    history.add(historyItem("only"))
+    let service = AppHistoryCommandService(
+      history: history,
+      navigator: AppState.shared.navigator
+    )
+
+    assertNotFound { try service.item(at: 0) }
+    assertNotFound { try service.item(at: -1) }
+    assertNotFound { try service.item(at: 2) }
+  }
+
+  func testHistoryCommandServiceResolvesNavigatorSelection() throws {
+    let item = history.add(historyItem("selected"))
+    AppState.shared.navigator.selectWithoutScrolling(item: item)
+    let service = AppHistoryCommandService(
+      history: history,
+      navigator: AppState.shared.navigator
+    )
+
+    XCTAssertTrue(try service.selectedItem() === item.item)
+  }
+
   /// Builds a single-string-content `HistoryItem` inserted into the shared context, with title derived from its content.
   private func historyItem(_ value: String) -> HistoryItem {
     let contents = [
@@ -363,6 +399,15 @@ class HistoryTests: XCTestCase {
       try? await Task.sleep(for: .milliseconds(5))
     }
     return await spy.storeEvents
+  }
+
+  private func assertNotFound(_ operation: () throws -> Void) {
+    XCTAssertThrowsError(try operation()) { error in
+      guard case .some(.notFound) = error as? AppIntentError else {
+        XCTFail("Expected AppIntentError.notFound, got \(error)")
+        return
+      }
+    }
   }
 }
 
