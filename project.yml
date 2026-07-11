@@ -39,6 +39,7 @@ configFiles:
 
 fileGroups:
   - Config
+  - Maccy-Generated.xctestplan
   - Maccy.xctestplan
   - Maccy/Maccy-Bridging-Header.h
   - Maccy/Maccy.entitlements
@@ -202,6 +203,9 @@ schemes:
       targets:
         - MaccyTests
         - MaccyUITests
+      testPlans:
+        - path: Maccy-Generated.xctestplan
+          defaultPlan: true
     profile:
       config: Release
     analyze:
