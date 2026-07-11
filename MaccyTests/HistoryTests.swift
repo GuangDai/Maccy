@@ -357,9 +357,9 @@ class HistoryTests: XCTestCase {
       navigator: AppState.shared.navigator
     )
 
-    assertNotFound { try service.item(at: 0) }
-    assertNotFound { try service.item(at: -1) }
-    assertNotFound { try service.item(at: 2) }
+    assertNotFound { _ = try service.item(at: 0) }
+    assertNotFound { _ = try service.item(at: -1) }
+    assertNotFound { _ = try service.item(at: 2) }
   }
 
   func testHistoryCommandServiceResolvesNavigatorSelection() throws {
