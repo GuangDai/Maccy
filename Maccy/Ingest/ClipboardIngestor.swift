@@ -95,6 +95,13 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     let historyLimit: Int
   }
 
+  /// Actor-internal duplicate-search result. Candidate models stay on this
+  /// actor and are mutated only later inside the matching ingest transaction.
+  private struct DuplicateSearchResult {
+    let duplicate: HistoryItem?
+    let backfillCandidates: [HistoryItem]
+  }
+
   /// The deletions one `commit` applied, for two consumers: the dedup-index keys
   /// (`ItemID`, for `maintainDedupIndex`) and the fetchable persistent IDs the
   /// main-thread observer needs to drop the corresponding decorators in O(deleted)
@@ -151,14 +158,29 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     case forced
   }
 
+  /// Error injected immediately before save to verify failed transactions do
+  /// not leak pending changes into the next ingest.
+  private enum ForcedCommitFailure: Error {
+    case forced
+  }
+
   /// Test-only: when set, the dedup-index init fetch fails until cleared,
   /// simulating a transient store error so the retry path is exercisable.
   /// Compiled out of Release; production is always false.
   private var forceInitFetchFailure = false
 
+  /// Test-only: fail `commit` after pending changes are processed but before
+  /// save, reproducing the cross-ingest pending-change leak deterministically.
+  private var forceCommitFailure = false
+
   /// Test-only setter for `forceInitFetchFailure`.
   func setDedupInitFetchFailureForTesting(_ enabled: Bool) {
     forceInitFetchFailure = enabled
+  }
+
+  /// Test-only setter for `forceCommitFailure`.
+  func setCommitFailureForTesting(_ enabled: Bool) {
+    forceCommitFailure = enabled
   }
   #endif
 
@@ -262,7 +284,8 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
       title: mainWork.title, searchText: mainWork.searchText
     )
     ensureDedupIndexInitialized()
-    let dup = findDuplicate(of: item)
+    let duplicateSearch = findDuplicate(of: item)
+    let dup = duplicateSearch.duplicate
     if let dup {
       mergeFields(from: dup, into: item, timestamp: timestamp)
     }
@@ -272,8 +295,14 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
 
     let commitResult: CommitDeletes
     do {
-      commitResult = try commit(item, deleting: dup, limit: mainWork.historyLimit)
+      commitResult = try commit(
+        item,
+        deleting: dup,
+        backfilling: duplicateSearch.backfillCandidates,
+        limit: mainWork.historyLimit
+      )
     } catch {
+      modelContext.rollback()
       logger.error("Failed to commit ingest: \(String(describing: error))")
       return IngestResult(
         event: nil,
@@ -365,25 +394,29 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// the O(1) fast path. `model(for:)` returning an un-faulted shell for an id it
   /// no longer knows (a stale index entry) is harmless: such a shell has no
   /// contents, so `supersedes` returns false and it is skipped.
-  private func findDuplicate(of item: HistoryItem) -> HistoryItem? {
+  private func findDuplicate(of item: HistoryItem) -> DuplicateSearchResult {
     let signature = item.duplicateSignature
     let indexSignature = signatureDTO(of: item)
+    var backfillCandidates: [HistoryItem] = []
     for candidateID in signatureIndex.candidates(forEntries: indexSignature.entries) {
       guard let candidatePID = persistentIDByItemID[candidateID],
             let candidate = modelContext.model(for: candidatePID) as? HistoryItem,
             candidate != item else {
         continue
       }
-      // Persist any nil fingerprint column on the candidate before the
-      // authoritative confirm, so this comparison — and every future one —
-      // reads the column instead of re-hashing. See `backfillMissingFingerprints`.
-      backfillMissingFingerprints(in: candidate)
+      backfillCandidates.append(candidate)
       guard candidate.supersedes(signature) else {
         continue
       }
-      return candidate
+      return DuplicateSearchResult(
+        duplicate: candidate,
+        backfillCandidates: backfillCandidates
+      )
     }
-    return nil
+    return DuplicateSearchResult(
+      duplicate: nil,
+      backfillCandidates: backfillCandidates
+    )
   }
 
   /// Persists the fingerprint column for any of `item`'s large content entries
@@ -392,15 +425,12 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// Rows that existed before the fingerprint column was added migrate in with
   /// a nil column, so the dedup containment check falls back to a full byte
   /// comparison on every ingest that touches them. Computing and storing the
-  /// fingerprint once — here, on the actor's isolated context, with the row
-  /// already faulted in as a dedup candidate — lets later ingests read the
-  /// column. The write is idempotent (entries that already have a fingerprint,
-  /// or fall below the fingerprint threshold, are skipped) and piggybacks on
-  /// the caller's single-transaction commit: the mutation is a pending change
-  /// saved by `commit`'s `save()`, so it adds no extra transaction. A candidate
-  /// that turns out to be the duplicate is deleted by `commit`, which takes its
-  /// backfilled contents with it — harmless — while a non-matching candidate
-  /// keeps its fingerprint for future ingests.
+  /// fingerprint once — inside the ingest transaction, after duplicate search
+  /// has returned its candidates — lets later ingests read the column. The write
+  /// is idempotent (entries that already have a fingerprint, or fall below the
+  /// threshold, are skipped) and adds no transaction. A candidate that is about
+  /// to be deleted as the duplicate is skipped by `commit`; surviving candidates
+  /// persist their backfill atomically with the new item.
   private func backfillMissingFingerprints(in item: HistoryItem) {
     for content in item.contents {
       guard content.fingerprint == nil,
@@ -511,10 +541,19 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// observer the exact set of decorators to drop — captured from each item
   /// before it is deleted, since a post-save snapshot of a deleted `@Model`
   /// would fault a torn row.
-  private func commit(_ item: HistoryItem, deleting dup: HistoryItem?, limit: Int) throws -> CommitDeletes {
+  private func commit(
+    _ item: HistoryItem,
+    deleting dup: HistoryItem?,
+    backfilling candidates: [HistoryItem],
+    limit: Int
+  ) throws -> CommitDeletes {
     var deletedItemIDs: [ItemID] = []
     var deletedPersistentIDs: [PersistentIdentifier] = []
     try modelContext.transaction {
+      for candidate in candidates where candidate != dup {
+        backfillMissingFingerprints(in: candidate)
+      }
+
       // Delete the duplicate first (pending) so the count and tail fetches below
       // exclude it via the live `pin == nil` predicate — no dup-membership flag
       // and no arithmetic subtraction (which would read `dup.pin` from the
@@ -555,6 +594,11 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
       modelContext.insert(item)
     }
     modelContext.processPendingChanges()
+    #if DEBUG
+    if forceCommitFailure {
+      throw ForcedCommitFailure.forced
+    }
+    #endif
     try modelContext.save()
     return CommitDeletes(dedupIDs: deletedItemIDs, persistentIDs: deletedPersistentIDs)
   }

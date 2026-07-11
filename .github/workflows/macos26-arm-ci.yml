@@ -266,6 +266,8 @@ jobs:
           # tests — these exercise an *expected* error path, not a regression:
           #   - testTransientInitFetchFailure… -> BackgroundClipboardIngestor's
           #     dedup-index init retry ("Dedup index init failed; retry …")
+          #   - testFailedCommitDoesNotLeakBackfillIntoLaterIngest -> forced
+          #     pre-save rollback ("Failed to commit ingest: …ForcedCommitFailure")
           #   - testSyncAllToStoreDoesNotWipeAllOnFetchFailure -> History's
           #     syncAllToStore no-wipe path ("syncAllToStore identifier fetch
           #     failed …")
@@ -273,7 +275,7 @@ jobs:
           #     load path ("History load failed …")
           # Exclude these from the scan (see macos26-arm-ci history).
           matches=$(grep -Ein '(^|[^[:alpha:]])(warning:|error:|\*\* TEST FAILED \*\*|Fatal error|[Ff]ailed)([^[:alpha:]]|$)' "$LOG_DIR/${{ matrix.shard }}.log" \
-                    | grep -vE 'HDRImageConverter.*falling back to SIMD|MTLCompiler.*XPC_ERROR_CONNECTION_INVALID|Compiler failed with XPC_ERROR_CONNECTION_INVALID|Dedup index init failed; retry|syncAllToStore identifier fetch failed|History load failed' || true)
+                    | grep -vE 'HDRImageConverter.*falling back to SIMD|MTLCompiler.*XPC_ERROR_CONNECTION_INVALID|Compiler failed with XPC_ERROR_CONNECTION_INVALID|Dedup index init failed; retry|Failed to commit ingest:.*ForcedCommitFailure|syncAllToStore identifier fetch failed|History load failed' || true)
           if [[ -n "$matches" ]]; then
             echo "$matches"
             echo "Warnings, errors, or failures found in ${{ matrix.shard }}.log"
