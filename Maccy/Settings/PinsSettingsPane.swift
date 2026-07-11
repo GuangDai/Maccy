@@ -131,7 +131,7 @@ struct PinsSettingsPane: View {
         TableColumn(Text("Key", tableName: "PinsSettings")) { item in
           PinPickerView(item: item, availablePins: availablePins)
             .onChange(of: item.pin) {
-              availablePins = HistoryItem.availablePins
+              refreshAvailablePins()
             }
         }
         .width(60)
@@ -145,7 +145,7 @@ struct PinsSettingsPane: View {
         }
       }
       .onAppear {
-        availablePins = HistoryItem.availablePins
+        refreshAvailablePins()
       }
       .onDeleteCommand {
         guard let selection,
@@ -162,6 +162,11 @@ struct PinsSettingsPane: View {
     }
     .frame(minWidth: 500, minHeight: 400)
     .padding()
+  }
+
+  /// Re-queries available shortcuts through this view's model context.
+  private func refreshAvailablePins() {
+    availablePins = PinService(context: modelContext).availablePins
   }
 }
 
