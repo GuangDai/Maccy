@@ -5,6 +5,12 @@ import Sauce
 /// Observes the system pasteboard and dispatches copies to the off-main ingest actor.
 @MainActor
 class Clipboard {
+  struct TimerConfiguration {
+    let interval: TimeInterval
+    let tolerance: TimeInterval
+    let runLoopMode: RunLoop.Mode
+  }
+
   /// Shared clipboard observer instance.
   static let shared = Clipboard()
 
@@ -38,12 +44,25 @@ class Clipboard {
   /// Starts the pasteboard polling timer.
   func start() {
     timer?.invalidate()
-    timer = Timer.scheduledTimer(
-      timeInterval: max(0.1, Defaults[.clipboardCheckInterval]),
+    let configuration = Self.timerConfiguration(checkInterval: Defaults[.clipboardCheckInterval])
+    let timer = Timer(
+      timeInterval: configuration.interval,
       target: self,
       selector: #selector(checkForChangesInPasteboard),
       userInfo: nil,
       repeats: true
+    )
+    timer.tolerance = configuration.tolerance
+    self.timer = timer
+    RunLoop.main.add(timer, forMode: configuration.runLoopMode)
+  }
+
+  static func timerConfiguration(checkInterval: TimeInterval) -> TimerConfiguration {
+    let interval = max(0.1, checkInterval)
+    return TimerConfiguration(
+      interval: interval,
+      tolerance: interval * 0.1,
+      runLoopMode: .common
     )
   }
 
