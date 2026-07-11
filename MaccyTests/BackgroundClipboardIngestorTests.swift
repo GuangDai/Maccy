@@ -32,6 +32,22 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
   private var savedIgnoreRegexp: [String] = []
   private var savedMaxContentSize: Int = ClipboardContentSizeLimit.defaultMegabytes
 
+  /// Baseline policy input for pure ingest-routing tests.
+  private var defaultIngestConfig: IngestConfig {
+    IngestConfig(
+      supportedTypes: IngestFilterRules.supportedTypes,
+      enabledTypes: IngestFilterRules.supportedTypes,
+      ignoredTypes: IngestFilterRules.builtInIgnoredTypes,
+      maxValueSize: 10 * 1_024 * 1_024,
+      richTextParsingLimit: 512 * 1_024,
+      regularExpressionInputLimit: 2_000,
+      ignoreRegexp: [],
+      ignoredApps: [],
+      ignoreAllAppsExceptListed: false,
+      titlePreviewLimit: 1_000
+    )
+  }
+
   override func setUp() async throws {
     try await super.setUp()
     // `Storage.shared` is an in-memory singleton shared across every test in this
@@ -317,6 +333,52 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
   }
 
   // MARK: - RTF (regression guard for off-main NSAttributedString)
+
+  /// A large plain-text fixture must not enter either RTF/HTML parsing path.
+  func testHeavyPlainTextRequiresNoMainActorRichTextWork() throws {
+    let data = try Data(contentsOf: FixtureLoader.heavyTextURL)
+    let contents = [ContentDTO(type: stringType, value: data, fingerprint: nil, size: data.count)]
+
+    XCTAssertEqual(
+      IngestMainActorPlan(contents: contents, config: defaultIngestConfig),
+      []
+    )
+  }
+
+  /// RTF-only content needs safe main-actor title/search projection, but no
+  /// whitespace-string preservation check because no plain string is present.
+  func testRtfFixtureRequiresOnlyMainActorTextProjection() throws {
+    let data = try FixtureLoader.data(named: "rich_text.rtf")
+    let contents = [
+      ContentDTO(type: NSPasteboard.PasteboardType.rtf.rawValue,
+                 value: data,
+                 fingerprint: nil,
+                 size: data.count)
+    ]
+
+    XCTAssertEqual(
+      IngestMainActorPlan(contents: contents, config: defaultIngestConfig),
+      [.textProjection]
+    )
+  }
+
+  /// Whitespace plain text plus real RTF needs both AppKit-affine operations.
+  func testWhitespaceAndRtfRequireBothMainActorRichTextOperations() throws {
+    let whitespace = Data("  ".utf8)
+    let rtf = try FixtureLoader.data(named: "rich_text.rtf")
+    let contents = [
+      ContentDTO(type: stringType, value: whitespace, fingerprint: nil, size: whitespace.count),
+      ContentDTO(type: NSPasteboard.PasteboardType.rtf.rawValue,
+                 value: rtf,
+                 fingerprint: nil,
+                 size: rtf.count)
+    ]
+
+    XCTAssertEqual(
+      IngestMainActorPlan(contents: contents, config: defaultIngestConfig),
+      [.richTextPresence, .textProjection]
+    )
+  }
 
   /// RTF/HTML title generation parses via `NSAttributedString`, which is
   /// main-thread-affine (AppKit/WebKit). The actor runs that parsing on the main

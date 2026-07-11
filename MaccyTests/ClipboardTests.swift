@@ -157,6 +157,27 @@ final class ClipboardTests: XCTestCase {
     XCTAssertEqual(request?.source.changeCount, expectedChangeCount)
   }
 
+  /// Clipboard snapshots live ingest settings while it is already on the main
+  /// actor, so the background actor never reads Defaults or hops back merely to
+  /// obtain configuration.
+  func testRequestCarriesLiveIngestPolicySnapshot() async {
+    let savedSize = Defaults[.size]
+    let savedSymbols = Defaults[.showSpecialSymbols]
+    defer {
+      Defaults[.size] = savedSize
+      Defaults[.showSpecialSymbols] = savedSymbols
+    }
+    Defaults[.size] = 37
+    Defaults[.showSpecialSymbols] = false
+
+    setPasteboard(types: [.string], string: "policy", forType: .string)
+    let request = ingestRequestFromPasteboard()
+
+    XCTAssertEqual(request?.policy.historyLimit, 37)
+    XCTAssertFalse(try XCTUnwrap(request?.policy.showSpecialSymbols))
+    XCTAssertEqual(request?.policy.filter.ignoreRegexp, Defaults[.ignoreRegexp])
+  }
+
   // MARK: - ignoreEvents / ignoreOnlyNextEvent gating
 
   /// `ignoreEvents` skips dispatch and stays on (it is sticky until cleared).
