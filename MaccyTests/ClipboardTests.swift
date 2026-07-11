@@ -102,6 +102,29 @@ final class ClipboardTests: XCTestCase {
     XCTAssertTrue(requests.first?.contents.contains { $0.type == stringType.rawValue } == true)
   }
 
+  /// A burst uses one lossless FIFO drain: while the first ingest is suspended,
+  /// later requests remain queued instead of starting concurrent/reentrant actor
+  /// calls or being discarded by latest-wins coalescing.
+  func testIngestMailboxSerializesBurstWithoutDroppingRequests() async {
+    let blocking = BlockingIngestor()
+    let mailbox = IngestMailbox()
+
+    mailbox.submit(request(changeCount: 1), to: blocking) { _ in }
+    mailbox.submit(request(changeCount: 2), to: blocking) { _ in }
+    mailbox.submit(request(changeCount: 3), to: blocking) { _ in }
+
+    await waitForBlockingIngestor(blocking, expectedRequestCount: 1)
+    let blockedCount = await blocking.requestCount
+    XCTAssertEqual(blockedCount, 1)
+
+    await blocking.releaseFirstRequest()
+    await waitForBlockingIngestor(blocking, expectedRequestCount: 3)
+
+    let requests = await blocking.requests
+    let changeCounts = requests.map(\.source.changeCount)
+    XCTAssertEqual(changeCounts, [1, 2, 3])
+  }
+
   /// When `changeCount` hasn't advanced, no request is dispatched.
   func testNoChangeDoesNotDispatch() async {
     let spy = IngestorSpy()
@@ -329,6 +352,31 @@ final class ClipboardTests: XCTestCase {
     }
   }
 
+  private func waitForBlockingIngestor(
+    _ ingestor: BlockingIngestor,
+    expectedRequestCount: Int
+  ) async {
+    for _ in 0..<100 {
+      if await ingestor.requestCount >= expectedRequestCount {
+        return
+      }
+      try? await Task.sleep(nanoseconds: 10_000_000)
+    }
+  }
+
+  private func request(changeCount: Int) -> IngestRequest {
+    let data = Data("mailbox-\(changeCount)".utf8)
+    return IngestRequest(
+      source: CopyOrigin(changeCount: changeCount, name: "mailbox-test"),
+      contents: [
+        ContentDTO(type: stringType.rawValue, value: data, fingerprint: nil, size: data.count)
+      ],
+      application: nil,
+      now: Date(timeIntervalSince1970: Double(changeCount)),
+      policy: .standard
+    )
+  }
+
   private func temporaryFileURL() -> URL {
     let url = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString)
@@ -337,4 +385,29 @@ final class ClipboardTests: XCTestCase {
     XCTAssertTrue(FileManager.default.createFile(atPath: url.path, contents: contents))
     return url
   }
+}
+
+/// Suspends its first ingest so the mailbox's backpressure is observable.
+private actor BlockingIngestor: ClipboardIngestor {
+  private(set) var requests: [IngestRequest] = []
+  private var firstContinuation: CheckedContinuation<Void, Never>?
+
+  var requestCount: Int { requests.count }
+
+  func ingest(_ request: IngestRequest) async -> IngestResult {
+    requests.append(request)
+    if requests.count == 1 {
+      await withCheckedContinuation { continuation in
+        firstContinuation = continuation
+      }
+    }
+    return IngestResult(event: nil, metrics: .zero)
+  }
+
+  func releaseFirstRequest() {
+    firstContinuation?.resume()
+    firstContinuation = nil
+  }
+
+  func synchronizeStoreEvents(_ events: [StoreEvent]) async {}
 }
