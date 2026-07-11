@@ -1,4 +1,4 @@
-name: Validate Generated Xcode Project
+name: Regenerate and Validate Xcode Project
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate side-by-side project
+    name: Validate production generation
     runs-on: macos-26
     timeout-minutes: 35
     env:
@@ -28,35 +28,26 @@ jobs:
           [[ "$(sw_vers -productVersion)" == 26.* ]]
           [[ "$(uname -m)" == arm64 ]]
 
-      - name: Generate twice with pinned XcodeGen
+      - name: Regenerate twice with pinned XcodeGen
         id: generate
         continue-on-error: true
         shell: bash
         env:
-          OUTPUT_ROOT: ${{ github.workspace }}
           XCODEGEN_HOME: ${{ runner.temp }}/xcodegen-2.45.4
           EVIDENCE: ${{ runner.temp }}/xcodeproj-generated-evidence
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE"
+          cp -R Maccy.xcodeproj "${{ runner.temp }}/pre-generation.xcodeproj"
+          cp Maccy.xctestplan "${{ runner.temp }}/pre-generation.xctestplan"
 
-          seed_package_lock() {
-            local project="$OUTPUT_ROOT/Maccy-Generated.xcodeproj"
-            local destination="$project/project.xcworkspace/xcshareddata/swiftpm"
-            mkdir -p "$destination"
-            cp \
-              Maccy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved \
-              "$destination/Package.resolved"
-          }
+          bash scripts/regenerate-xcodeproj.sh \
+            2>&1 | tee "$EVIDENCE/generate-first.log"
+          cp -R Maccy.xcodeproj "${{ runner.temp }}/first-generated.xcodeproj"
+          cp Maccy.xctestplan "${{ runner.temp }}/first-generated.xctestplan"
 
-          bash scripts/generate-xcodeproj.sh 2>&1 | tee "$EVIDENCE/generate-first.log"
-          seed_package_lock
-          cp -R \
-            "$OUTPUT_ROOT/Maccy-Generated.xcodeproj" \
-            "${{ runner.temp }}/first-generated.xcodeproj"
-
-          bash scripts/generate-xcodeproj.sh 2>&1 | tee "$EVIDENCE/generate-second.log"
-          seed_package_lock
+          bash scripts/regenerate-xcodeproj.sh \
+            2>&1 | tee "$EVIDENCE/generate-second.log"
 
       - name: Verify repeatable generation
         id: repeatability
@@ -69,8 +60,12 @@ jobs:
           set -euo pipefail
           diff -ru \
             "${{ runner.temp }}/first-generated.xcodeproj" \
-            "${{ github.workspace }}/Maccy-Generated.xcodeproj" \
+            "${{ github.workspace }}/Maccy.xcodeproj" \
             | tee "$EVIDENCE/repeatability.diff"
+          diff -u \
+            "${{ runner.temp }}/first-generated.xctestplan" \
+            "${{ github.workspace }}/Maccy.xctestplan" \
+            | tee "$EVIDENCE/test-plan-repeatability.diff"
 
       - name: Verify generated test plan
         id: test_plan
@@ -78,8 +73,6 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          GENERATED_PROJECT: ${{ github.workspace }}/Maccy-Generated.xcodeproj
-          GENERATED_TEST_PLAN: ${{ github.workspace }}/Maccy-Generated.xctestplan
           EVIDENCE: ${{ runner.temp }}/xcodeproj-generated-evidence
         run: |
           set -euo pipefail
@@ -92,7 +85,8 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          GENERATED_PROJECT: ${{ github.workspace }}/Maccy-Generated.xcodeproj
+          LEGACY_PROJECT: ${{ runner.temp }}/pre-generation.xcodeproj
+          GENERATED_PROJECT: ${{ github.workspace }}/Maccy.xcodeproj
           OUTPUT_DIR: ${{ runner.temp }}/xcodeproj-generated-evidence/parity
         run: bash scripts/compare-xcodeproj-contracts.sh
 
@@ -108,7 +102,7 @@ jobs:
           xcodebuild \
             -list \
             -json \
-            -project "${{ github.workspace }}/Maccy-Generated.xcodeproj" \
+            -project "${{ github.workspace }}/Maccy.xcodeproj" \
             > "$EVIDENCE/generated-project-list.json"
 
       - name: Clean build generated app
@@ -121,7 +115,7 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild \
-            -project "${{ github.workspace }}/Maccy-Generated.xcodeproj" \
+            -project "${{ github.workspace }}/Maccy.xcodeproj" \
             -scheme Maccy \
             -configuration Debug \
             -destination 'platform=macOS,arch=arm64' \
@@ -169,8 +163,8 @@ jobs:
             exit 1
           fi
 
-          generated_lock="${{ github.workspace }}/Maccy-Generated.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
-          canonical_lock="Maccy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          generated_lock="${{ github.workspace }}/Maccy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          canonical_lock="${{ runner.temp }}/pre-generation.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
           jq --sort-keys '.pins' "$canonical_lock" > "$EVIDENCE/canonical-package-pins.json"
           jq --sort-keys '.pins' "$generated_lock" > "$EVIDENCE/generated-package-pins.json"
           diff -u \
@@ -178,17 +172,20 @@ jobs:
             "$EVIDENCE/generated-package-pins.json" \
             > "$EVIDENCE/package-pins.diff"
 
-      - name: Verify repository inputs are unchanged
-        id: readonly
+      - name: Verify committed generated output is current
+        id: drift
         if: always()
         continue-on-error: true
         shell: bash
+        env:
+          EVIDENCE: ${{ runner.temp }}/xcodeproj-generated-evidence
         run: |
+          set -euo pipefail
           git diff --exit-code -- \
             Maccy.xcodeproj \
-            Maccy-Generated.xctestplan \
             Maccy.xctestplan \
-            Maccy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+            Maccy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved \
+            | tee "$EVIDENCE/committed-output.diff"
 
       - name: Capture generated project artifact
         if: always()
@@ -198,11 +195,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE"
-          if [[ -d "${{ github.workspace }}/Maccy-Generated.xcodeproj" ]]; then
+          if [[ -d "${{ github.workspace }}/Maccy.xcodeproj" ]]; then
             cp -R \
-              "${{ github.workspace }}/Maccy-Generated.xcodeproj" \
-              "$EVIDENCE/Maccy-Generated.xcodeproj"
+              "${{ github.workspace }}/Maccy.xcodeproj" \
+              "$EVIDENCE/Maccy.xcodeproj"
           fi
+          cp "${{ github.workspace }}/Maccy.xctestplan" "$EVIDENCE/Maccy.xctestplan"
           git status --short > "$EVIDENCE/git-status-after.txt"
           xcodebuild -version > "$EVIDENCE/xcode-version.txt"
           sw_vers > "$EVIDENCE/macos-version.txt"
@@ -230,7 +228,7 @@ jobs:
             "${{ steps.project_list.outcome }}"
             "${{ steps.build.outcome }}"
             "${{ steps.bundle.outcome }}"
-            "${{ steps.readonly.outcome }}"
+            "${{ steps.drift.outcome }}"
           )
           failed=0
           for outcome in "${outcomes[@]}"; do
@@ -242,7 +240,7 @@ jobs:
           exit "$failed"
 
   test-shards:
-    name: generated shard (${{ matrix.shard }})
+    name: production-generated shard (${{ matrix.shard }})
     needs: validate
     runs-on: macos-26
     timeout-minutes: 30
@@ -270,7 +268,7 @@ jobs:
       NSUnbufferedIO: YES
       OS_ACTIVITY_MODE: disable
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      PROJECT: Maccy-Generated.xcodeproj
+      PROJECT: Maccy.xcodeproj
       SCHEME: Maccy
       CONFIGURATION: Debug
       DESTINATION: platform=macOS,arch=arm64
@@ -292,7 +290,7 @@ jobs:
         run: |
           set -euo pipefail
           test -f "$PROJECT/project.pbxproj"
-          test -f Maccy-Generated.xctestplan
+          test -f Maccy.xctestplan
           bash scripts/verify-generated-test-plan.sh
 
       - name: Prepare log and result directories
@@ -395,7 +393,7 @@ jobs:
     env:
       NSUnbufferedIO: YES
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      PROJECT: Maccy-Generated.xcodeproj
+      PROJECT: Maccy.xcodeproj
       SCHEME: Maccy
       CONFIGURATION: Release
       DESTINATION: platform=macOS,arch=arm64
