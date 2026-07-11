@@ -10,10 +10,11 @@ SPEC="${SPEC:-$PROJECT_ROOT/project.yml}"
 TEMP_ROOT="${TMPDIR:-/tmp}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-$TEMP_ROOT/MaccyGeneratedProject}"
 XCODEGEN_HOME="${XCODEGEN_HOME:-$TEMP_ROOT/xcodegen-$XCODEGEN_VERSION}"
+PROJECT_NAME="${PROJECT_NAME:-Maccy}"
 
 archive="$XCODEGEN_HOME/xcodegen.zip"
 binary="$XCODEGEN_HOME/xcodegen/bin/xcodegen"
-generated_project="$OUTPUT_ROOT/Maccy-Generated.xcodeproj/project.pbxproj"
+generated_project="$OUTPUT_ROOT/$PROJECT_NAME.xcodeproj/project.pbxproj"
 
 test -f "$SPEC"
 mkdir -p "$XCODEGEN_HOME" "$OUTPUT_ROOT"

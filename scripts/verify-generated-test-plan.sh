@@ -2,8 +2,8 @@
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
-GENERATED_PROJECT="${GENERATED_PROJECT:-$PROJECT_ROOT/Maccy-Generated.xcodeproj}"
-GENERATED_TEST_PLAN="${GENERATED_TEST_PLAN:-$PROJECT_ROOT/Maccy-Generated.xctestplan}"
+GENERATED_PROJECT="${GENERATED_PROJECT:-$PROJECT_ROOT/Maccy.xcodeproj}"
+GENERATED_TEST_PLAN="${GENERATED_TEST_PLAN:-$PROJECT_ROOT/Maccy.xctestplan}"
 GENERATED_SCHEME="${GENERATED_SCHEME:-$GENERATED_PROJECT/xcshareddata/xcschemes/Maccy.xcscheme}"
 
 test -f "$GENERATED_PROJECT/project.pbxproj"
@@ -31,6 +31,7 @@ app_id="$(target_id Maccy)"
 unit_id="$(target_id MaccyTests)"
 ui_id="$(target_id MaccyUITests)"
 container_path="container:$(basename "$GENERATED_PROJECT")"
+test_plan_reference="container:$(basename "$GENERATED_TEST_PLAN")"
 
 jq -e \
   --arg app_id "$app_id" \
@@ -65,7 +66,7 @@ jq -e \
     )
   ' "$GENERATED_TEST_PLAN" >/dev/null
 
-grep -Fq 'reference = "container:Maccy-Generated.xctestplan"' "$GENERATED_SCHEME"
+grep -Fq "reference = \"$test_plan_reference\"" "$GENERATED_SCHEME"
 grep -Fq 'default = "YES"' "$GENERATED_SCHEME"
 grep -Fq "BlueprintIdentifier = \"$app_id\"" "$GENERATED_SCHEME"
 grep -Fq "BlueprintIdentifier = \"$unit_id\"" "$GENERATED_SCHEME"

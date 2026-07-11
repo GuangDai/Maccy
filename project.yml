@@ -1,4 +1,4 @@
-name: Maccy-Generated
+name: Maccy
 
 options:
   minimumXcodeGenVersion: 2.45.4
@@ -39,7 +39,6 @@ configFiles:
 
 fileGroups:
   - Config
-  - Maccy-Generated.xctestplan
   - Maccy.xctestplan
   - Maccy/Maccy-Bridging-Header.h
   - Maccy/Maccy.entitlements
@@ -204,7 +203,7 @@ schemes:
         - MaccyTests
         - MaccyUITests
       testPlans:
-        - path: Maccy-Generated.xctestplan
+        - path: Maccy.xctestplan
           defaultPlan: true
     profile:
       config: Release
