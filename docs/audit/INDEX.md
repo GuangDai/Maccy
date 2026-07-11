@@ -2,7 +2,7 @@
 
 > **本文件是审计文档仓库的单一权威导航中心,自包含。** 阅读任何审计文档前先读此页,以避免把"冻结的设计意图"或"历史快照"误读为"当前状态"。
 >
-> 最近更新:**2026-07-11**(XcodeGen M0–M3 production cutover complete at `94ca913`: `project.yml` is truth; normal CI/release regenerate twice and reject drift; full master and release dry-runs green. `NEW-storage-load-models-2` cleanup at `91d76b8`; E3 at `32320cf`; E1 at `cd368ea`.) Earlier **2026-07-10**:`2026-07-10-history-split-plan/` — expanded B0 authority: **defer History split**; D4 measure-first (`onEvent` widen); DS-022-standalone hollow-as-B1; full **SwiftLint 1000/1000 policy audit**; forcing-gate + S0–S7 execution board. Expands `history-split-grilling/00-decision.md`. + `2026-07-10-master-roadmap.md` global post-Wave-A order. Earlier 2026-07-09:`2026-07-09-design-audit-verification/` — `/grill-with-docs` verification of the design-structure audit: 13-agent verify+refute workflow + firsthand grep. **27/34 findings confirmed verbatim; 6 severity-overstated (DS-002 Crit→High etc.); DS-019 refuted; 19 new issues** incl. a silent session-wide dedup-disable (`NEW-dedup-ids-1`) and the `searchGeneration` bug-class; 16 glossary/location fixes. Recalibrates the playbook's Wave A. HEAD `6cd37c8`. Same day also **rewrote** `2026-07-09-design-structure-audit/` in **English only**, ~3.3k lines: step-by-step data-flow traces (`02`), evidence-backed findings DS-001…034 (`17`), per-module deep dives, master playbook (`19`). HEAD `6cd37c8`. Supersedes the earlier Chinese draft of the same folder.). Earlier 2026-07-05:`2026-07-05-applicationimage-mainactor-crash/`. Phase-1 整理(2026-06-29)仍适用。
+> 最近更新:**2026-07-12**(D2 `a487276`/`70e1d23`:live ingest policy 随请求快照；普通 file/plain/image 过滤与投影不再整块回 MainActor；fixture-backed planner 只把 AppKit RTF/HTML 解析留在 main。计划/证据见 `2026-07-12-d2-mainactor-hop-plan.md`。C6 `1393143`:stored identity 直接使用 Apple `PersistentIdentifier.ID`。E2/C5 与 XcodeGen M0–M3 也已完成；`project.yml` 是真相源，CI/release 双生成并拒绝漂移。) Earlier **2026-07-10**:`2026-07-10-history-split-plan/` — expanded B0 authority: **defer History split**; D4 measure-first (`onEvent` widen); DS-022-standalone hollow-as-B1; full **SwiftLint 1000/1000 policy audit**; forcing-gate + S0–S7 execution board. Expands `history-split-grilling/00-decision.md`. + `2026-07-10-master-roadmap.md` global post-Wave-A order. Earlier 2026-07-09:`2026-07-09-design-audit-verification/` — verification of the design-structure audit: **27/34 findings confirmed verbatim; 6 severity-overstated; DS-019 refuted; 19 new issues**. Earlier 2026-07-05:`2026-07-05-applicationimage-mainactor-crash/`. Phase-1 整理(2026-06-29)仍适用。
 
 ## 0. 三大权威源 + spec-of-record(reading order)
 
@@ -33,7 +33,7 @@
 - `load()` 200 项 ~44–55ms;搜索 ~3.9ms/key;copy ~1.7ms;预览 ~15ms。(旧"load() 0.91s"为 pre-BS-4,已废。)
 
 ### 实时摄取路径
-- 实时 per-copy 路径:`BackgroundClipboardIngestor`→`History.consume`→`reconcileWithStore`(4.4a 经 `model(for:)` + 二分插入增量;G-copy 9.34→0.99ms)。`findSimilarItem` / `History.add` 在生产中已死。
+- 实时 per-copy 路径:`Clipboard`(pasteboard + `IngestPolicy` 值快照)→`BackgroundClipboardIngestor`→`History.consume`→`reconcileWithStore`。D2 后普通 file/plain/image 不回 main；只有 planner 选中的小型 RTF/HTML 使用 AppKit main 解析。4.4a 经 `model(for:)` + 二分插入增量;G-copy 9.34→0.99ms。`findSimilarItem` / `History.add` 在生产中已死。
 
 ## 2. 存活文档清单(Phase-1 整理后)
 

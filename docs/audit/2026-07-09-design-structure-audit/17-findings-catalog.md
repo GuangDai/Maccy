@@ -124,6 +124,12 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-011 — Ingest MainActor hop for filter/title/body
 
+> **Resolved 2026-07-12 (`a487276`, `70e1d23`):** `Clipboard` captures a
+> Sendable `IngestPolicy` with each request. A pure `IngestMainActorPlan` keeps
+> file/plain/image filtering and projection on the ingest actor and routes only
+> selected small RTF/HTML parsing to main. Fixture-backed heavy-text/RTF tests
+> plus the existing no-trap integration test guard the split.
+
 | | |
 |--|--|
 | **Evidence** | `ClipboardIngestor.ingest` `MainActor.run` block 161–172 |

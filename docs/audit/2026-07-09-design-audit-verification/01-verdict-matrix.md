@@ -14,7 +14,7 @@
 | DS-008 | ✅ `▽under` | Low→**Low (larger)** | High | `Clipboard.swift:315-379,44-61,278-292` | Dead surface **bigger than enumerated**: + `filteredTypes`, `supportedTypes`/`disabledTypes` cascade, `ignoredRegexps` NSCache all dead. |
 | DS-009 | ◐ `△over` `⟳` | Med→**Low** | High | `SignatureIndex.swift` (146 LOC); 0 refs in `History.swift` at baseline | Correctness **preserved** at audit time. **Resolved 2026-07-11 (`c6afcbe`):** successful UI delete/clear now batches `.removed`/`.cleared` into the actor index, closing stale growth. |
 | DS-010 | ✅ ² | Med→Med | High | legacy `Search.swift` (217 LOC); `History.swift:855` | Empty query → `search.search("")`; non-empty → `SearchActor`. Confirmed firsthand (cluster agent rate-limited). |
-| DS-011 | ✅ | Med→Med | High | `ClipboardIngestor.swift:161-172` | `MainActor.run` for config+filter+title+body+limit. |
+| DS-011 | ✅ `⟳` | Med→Med | High | `IngestPolicy` / `IngestMainActorPlan`; `a487276`, `70e1d23` | **Resolved:** `Clipboard` captures live Defaults into the request; ordinary filtering/title/body/limit work stays on the ingest actor. Only planner-selected small RTF/HTML parsing hops to main; fixture-backed routing and the RTF no-trap integration test lock the boundary. |
 | DS-012 | ✅ | Med→Med | High | `History.swift:900` | `all.first { $0.id == dto.id }` O(n) per match → O(matches×n)/keystroke. |
 | DS-013 | ✅ `⟳` | Med→Med | High | `togglePin` 702-738 | No `invalidateInFlightSearch`/gen bump. Fix = one `invalidateInFlightSearch()` (query is cleared @733; nothing to re-run). **Part of a bug class** — see `00` §2.2. |
 | DS-014 | ✅ | Med→Med | High | `limitHistorySize` 288-294 (delete@292) | Per-item `delete`+save; actor trims batch in one txn. |

@@ -48,17 +48,17 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Stor
 - **跨 actor 载荷必须是 `Sendable`**(DTO/值类型/`Data`/`UUID`)。`@Model HistoryItem` / `HistoryItemContent` **不跨 actor**——跨边界前投影为 DTO(`ItemSnapshotDTO` 等,见 `Maccy/Ingest/Dtos.swift`)。
 - **上下文线程归属**:`mainContext` 仅 main;`Storage.newBackgroundContext()`(`Storage+Background.swift:17`)仅所属 actor。**禁止跨域共用同一 context**。
 - **单一真相源**:数据真相是 SwiftData(后台 context 单事务写);主线程 `@Observable` 是其投影。
-- **主线程禁做重活**:`NSImage(data:)` 解码、resize、`NSAttributedString(rtf:/html:)`、SwiftData 重 fetch/save、正则、去重比对——禁止在 main(标题/富文本解析目前仍违反此规则,见 §2.1)。
+- **主线程禁做可迁移重活**:`NSImage(data:)` 解码、resize、SwiftData 重 fetch/save、正则、去重比对禁止在 main。AppKit 的 `NSAttributedString(rtf:/html:)` 已被实证为 off-main 会 trap，因此只允许 planner 选中的小型 RTF/HTML 在 main 解析；普通 file/plain/image ingest 不回 main。
 
 ### 1.4 已落地的 scaffolding(部分已接线)
 
 | 文件 | 状态 |
 |---|---|
-| `Maccy/Ingest/Dtos.swift` | ✅ DTO 目录(`ContentDTO`/`ClipboardItemDTO`/`SignatureDTO`/`ItemSnapshotDTO`/`StoreEvent` 等)+ 投影函数 `snapshot(of:)` / `contentDTOs(of:)` |
+| `Maccy/Ingest/Dtos.swift` + `IngestFilter.swift` | ✅ DTO 目录(`ContentDTO`/`ClipboardItemDTO`/`SignatureDTO`/`ItemSnapshotDTO`/`StoreEvent` 等)+ `IngestRequest` 携带的每请求 `IngestPolicy` + 投影函数 `snapshot(of:)` / `contentDTOs(of:)` |
 | `Maccy/Ingest/SignatureIndex.swift` | ✅ 纯值去重索引 `[SignatureDTO: ItemID]`,接入 ingestor(BS-4.2) |
 | `Maccy/Ingest/ClipboardIngestor.swift` | ✅ 已接入 live copy 路径(BS-2) |
 | `Maccy/ImageProcessing/ImageProcessing.swift` + `ImageProcessor.swift` + `ImageDownsampler.swift` + `ThumbnailCache.swift` | ✅ ImageIO 降采样已接入(BS-3) |
-| `Maccy/Persistence/Storage+Background.swift` | ⚠️ `newBackgroundContext()` 已用;**`VisibleWindowLoader.fetchWindow`(`:47`)是死代码——只有测试调用,从未接进 `History.load()`** |
+| `Maccy/Persistence/Storage+Background.swift` | ⚠️ `newBackgroundContext()` 与 `VisibleWindowLoader.fetchWindow` 都仅测试使用；生产 ingestor 由 `@ModelActor` 自建 context，window loader 从未接进 `History.load()`(D0 已记录)。 |
 
 ---
 
@@ -71,12 +71,12 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Stor
 | 项 | 状态 | 说明 |
 |---|---|---|
 | pasteboard poll Timer 同步跑整条管线 | [已修] | `pasteboard-polling-callback-heavy`:Timer 现仅触发 `Task { await ingestor.ingest() }`,重活在 actor(`ClipboardIngestor.swift`) |
-| 富文本/标题解析回主线程 | [未修] | `richtext-sync-decode-on-ingest` / `ClipboardIngestor.swift:144-150,225-235` 仍 `await MainActor.run { filterContents / title(for:) }`(Defaults + `NSAttributedString` 主线程亲和)。**这是 copy 路径上最后的主线程阻塞** |
+| 富文本/标题解析回主线程 | [已修/安全例外] | D2(`a487276`):`Clipboard` 随请求捕获 live policy；纯过滤与 file/plain/image 标题/正文投影都在 ingest actor。仅 `IngestMainActorPlan` 选中的小型 RTF/HTML 因 AppKit 亲和回 main；heavy-text/RTF fixture 与 no-trap 集成测试锁定边界。 |
 | 去重全表 fetch | [已修] | `findsimilar-full-refetch`:live 路径改走 `SignatureIndex`(`O(h)` 命中候选数,非 `O(n)`)。legacy `History.findSimilarItem` / `History.add` **已不在生产路径**(死代码,见 §2.2) |
 | 单复制多次 save | [已修] | `add-does-3-pending-changes-saves`:ingestor 单事务写后台 context |
 | copy 风暴无合并 | [未修] | `no-coalesce-of-ingest-writes`:每个 `changeCount` 变化跑一次完整管线 |
-| `shouldIgnore` 正则全在主线程 | [部分] | 正则缓存已 NSCache 限界(M5);匹配仍在 `filterContents` 主线程块 |
-| Timer 无 tolerance / 非 common mode | [未修] | `timer-no-tolerance-mode` |
+| `shouldIgnore` 正则全在主线程 | [已修] | D2 后正则规则在 ingest actor 的纯 `filterContents(...richTextPresent:)` 路径执行；只有必要的 AppKit 富文本 presence 解析回 main。 |
+| Timer 无 tolerance / 非 common mode | [已修] | E3(`32320cf`):有效 interval 10% tolerance + `.common` run-loop mode。 |
 
 **live 摄取路径**(`ClipboardIngestor` → `History.consume` → `reconcileWithStore`):BS-4.4a 已增量(`model(for:)` + 二分插入),G-copy 实测 9.34→0.99ms。
 

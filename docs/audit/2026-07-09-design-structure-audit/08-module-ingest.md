@@ -97,8 +97,14 @@ Enum exists; **not** used to drive decisions. Only Sendable test.
 
 ## 5. IngestFilter
 
+> **Current update (D2, `a487276`):** `Clipboard` attaches `IngestPolicy` to
+> each request. The pure overload accepts the rich-text presence decision and
+> runs on the ingest actor. `IngestMainActorPlan` requests main work only when
+> small RTF/HTML parsing is reachable; ordinary file/plain/image copies do not
+> enter `MainActor`.
+
 High-cohesion pure function. RTF/HTML via NSAttributedString. Regex uncached (correct over Clipboard dead cached path).  
-Production still wrapped in MainActor.run because of that AppKit affinity + Defaults.
+At the audit baseline production wrapped the whole operation in MainActor.run because of AppKit affinity + Defaults.
 
 ---
 

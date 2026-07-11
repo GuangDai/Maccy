@@ -76,7 +76,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 |---|------|--------|--------|------|
 | D0 | **Load ADR — done** (`7852ea8`) | DS-004, `NEW-storage-load-models-1` | S | — | Keep the loader/background APIs test-only; production claims were removed. This records the current decision without pretending the larger DS-004 memory problem is fixed. |
 | D1 | Implement the load decision | DS-004 | L | H | Windowed load (or confirmed deletion). The big memory win — unbounded `load` faults the whole table into `mainContext`. Needs memory-suite literacy. |
-| D2 | Shrink the MainActor hop | DS-011 | M | M | Snapshot `Defaults` off the hot path; evaluate off-main rich text with fixtures. |
+| D2 | **Shrink the MainActor hop — done** (`a487276`, `70e1d23`) | DS-011 | M | M | `Clipboard` attaches a live Sendable policy snapshot; pure filtering and file/plain/image projection stay on the ingest actor; fixture-backed routing keeps only selected small RTF/HTML parsing on `MainActor`. |
 | D3 | Ingest coalesce | DS-020 | M | M | Product decision: latest-wins mailbox vs current one-Task-per-changeCount. |
 | D4 | **`syncAllToStore` O(n)→O(deleted) — done** (`9c8728c`) | `NEW-history-spine-2` | M | M | Ingest returns deleted persistent IDs and main applies only those removals. |
 | D5 | **Bound per-copy trim fetch — done** (`592bae6`, `01493f9`) | `NEW-ingest-dualpath-1` | M | M | Count + bounded tail fetch replaces full unpinned-row fault/sort on the no-trim path. |
@@ -151,7 +151,8 @@ C6 complete (`1393143`); D4/D5 pair with BS-4/6 memory work
 10. ~~XcodeGen M3 production cutover~~ — **done** (`94ca913`; generated output committed, manual full matrix `29153231827`, master generation+test gate `29153606508`, release dry-run `29153818821`).
 11. ~~C5 — move pin availability queries off `HistoryItem`~~ — **done** (`76a2a53`, `b49b462`; context-injected module, generated-project full matrix + Release package green in `29154584664`; C3/C4 still respect the documented B2 dependency).
 12. ~~E2 — organize Application/Search packages~~ — **done** (`2a06a58`, `72fa8f2`, `9e54d77`, `19b7431`; generated-project full matrix + Release package green in `29167115880`; B2-gated work stays gated).
-13. ~~C6 — settle stored item identity~~ — **done** (`1393143`; Apple-documented stable ID, no schema, string/FNV projection deleted; full matrix green in `29167878876`). Next: D2, then the D3 coalescing decision/implementation.
+13. ~~C6 — settle stored item identity~~ — **done** (`1393143`; Apple-documented stable ID, no schema, string/FNV projection deleted; full matrix green in `29167878876`).
+14. ~~D2 — shrink the ingest MainActor hop~~ — **done** (`a487276`, `70e1d23`; request policy snapshot + pure routing plan; heavy plain-text fixture requires no main work, RTF stays safely main-affine; full generated matrix green in `29168784563`). Next: D3.
 
 XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
@@ -174,4 +175,4 @@ XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
 ---
 
-**One-line summary:** Wave A plus D0/D4–D6, C1/C2/C5/C6, E1–E4, and XcodeGen M0–M3 are complete. Next is D2 followed by D3; C3/C4 remain behind their documented B2 dependency, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.
+**One-line summary:** Wave A plus D0/D2/D4–D6, C1/C2/C5/C6, E1–E4, and XcodeGen M0–M3 are complete. Next is D3; C3/C4 remain behind their documented B2 dependency, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.

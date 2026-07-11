@@ -40,3 +40,18 @@ without moving AppKit's RTF/HTML parsing off the main thread.
   snapshot cannot go stale and keeps the actor free of UI/global reads.
 - No parser protocol with a single production adapter. The planning seam is a
   pure value decision and is sufficient to test routing.
+
+## Result
+
+- `IngestRequest` now requires an `IngestPolicy`; production cannot silently
+  omit the live snapshot because the memberwise initializer has no default.
+- `IngestMainActorPlan` is a pure, Sendable routing decision. The heavy plain
+  fixture produces `[]`; RTF-only produces `.textProjection`; whitespace + RTF
+  produces only `.richTextPresence` because the surviving plain representation
+  wins title/body priority.
+- The actor's unconditional main block is gone. Oversized rich text follows the
+  existing no-parse policy, while selected small RTF/HTML still uses AppKit on
+  main and remains covered by the no-trap integration test.
+- Implementation: `a487276`; follow-up compile/lint fixes: `7aac733`, `70e1d23`.
+- Verification: generated-project zero drift, strict SwiftLint/build, unit, both
+  UI shards, perf-text, and perf-image all green in run `29168784563`.

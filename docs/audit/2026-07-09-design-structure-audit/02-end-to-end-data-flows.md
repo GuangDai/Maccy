@@ -113,6 +113,13 @@ Task { await ingestor.ingest(request) }
 
 ## A.7 Actor: MainActor hop (filter + title + body + limit)
 
+> **Current update (D2, `a487276`, `70e1d23`):** this unconditional block no
+> longer exists. `Clipboard` captures live Defaults as a Sendable
+> `IngestPolicy`; the actor performs pure filtering and ordinary text projection.
+> `IngestMainActorPlan` routes only reachable small RTF/HTML parsing to main.
+> Heavy plain-text and RTF fixtures characterize the split, and the existing
+> RTF ingest test guards the off-main trap regression.
+
 ```155:172:Maccy/Ingest/ClipboardIngestor.swift
     let mainWork = await MainActor.run { () -> IngestMainWork in
       let config = Self.ingestConfig()
@@ -148,7 +155,8 @@ Documented order in `IngestFilter.swift`:
 ### A.7.3 Title / searchText
 
 Temporary uninserted `HistoryItemContent` rows fed into `HistoryItemEngine.generateTitle` / `searchableBody` (NSAttributedString on main).  
-**DS-011:** last major main-thread cost on copy path.
+**DS-011 baseline:** last major main-thread cost on copy path. Resolved by the
+selective D2 routing described above.
 
 ---
 
