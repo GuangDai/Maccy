@@ -62,6 +62,26 @@ final class ClipboardTests: XCTestCase {
     clipboard.ingestor = savedIngestor
   }
 
+  // MARK: - polling Timer policy
+
+  /// Polling keeps the configured cadence while allowing modest wakeup coalescing.
+  func testPollingTimerConfigurationUsesToleranceAndCommonMode() {
+    let configuration = Clipboard.timerConfiguration(checkInterval: 0.5)
+
+    XCTAssertEqual(configuration.interval, 0.5)
+    XCTAssertEqual(configuration.tolerance, 0.05, accuracy: 0.000_001)
+    XCTAssertEqual(configuration.runLoopMode, .common)
+  }
+
+  /// Tolerance derives from the effective interval, not an invalid raw default.
+  func testPollingTimerConfigurationAppliesMinimumBeforeTolerance() {
+    let configuration = Clipboard.timerConfiguration(checkInterval: 0)
+
+    XCTAssertEqual(configuration.interval, 0.1)
+    XCTAssertEqual(configuration.tolerance, 0.01, accuracy: 0.000_001)
+    XCTAssertEqual(configuration.runLoopMode, .common)
+  }
+
   // MARK: - changeCount detection + dispatch shape
 
   /// A pasteboard change dispatches exactly one `IngestRequest` to the ingestor.
