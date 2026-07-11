@@ -324,7 +324,17 @@ remains an untracked side-by-side artifact; the legacy project is still the prod
 - The workflow's repository check found no tracked changes to `Maccy.xcodeproj`, `Maccy.xctestplan`, or canonical `Package.resolved`. The sole status entry was the expected untracked `Maccy-Generated.xcodeproj/` evidence artifact.
 - After M1 merged at `b719303`, [default-branch macOS 26 ARM CI run 29128474149](https://github.com/GuangDai/Maccy/actions/runs/29128474149) passed strict lint, unit, `ui-1`, `ui-2`, `perf-text`, and `perf-image`, proving the still-authoritative legacy build/test entry point remained green.
 
-M2 is now the next generator milestone: give a side-by-side test-plan copy valid generated target identifiers, then run the full unit/UI/performance matrix and release-packaging dry run against the generated project. Production still builds the legacy project until M2 proves those gates and M3 performs the isolated replacement.
+## M2 completion evidence (2026-07-11)
+
+M2 is complete through `fc29202`. The legacy project remains the production input until M3, but the side-by-side generated project now has semantic CI and packaging evidence rather than build-only evidence.
+
+- `Maccy-Generated.xctestplan` retains `enable-testing` and uses the deterministic generated target IDs captured in M1. `scripts/verify-generated-test-plan.sh` derives IDs from every fresh pbxproj and rejects a stale plan or scheme reference.
+- [Validate Generated Xcode Project run 29146217892](https://github.com/GuangDai/Maccy/actions/runs/29146217892) passed repeatability, target-ID/test-plan/scheme verification, normalized graph/settings parity, Debug app build, bundle/language/package checks, and unchanged canonical legacy inputs.
+- The same validated generated-project artifact fed all five normal shard selections. Generated `unit`, `ui-1`, `ui-2`, `perf-text`, and `perf-image` jobs all passed xcodebuild plus the repository warning/error/failure self-scan.
+- A separate generated Release job ran `scripts/package-app.sh`, produced exactly one app zip and SHA-256, passed the warning/error/failure scan, and uploaded `generated-release-package-29146217892-1` without publishing.
+- The run produced seven evidence artifacts: the generated project, five result/log bundles, and the Release package. No known runner flake occurred.
+
+M3 is now the next generator milestone: replace `Maccy.xcodeproj` in one isolated generated-output commit, update the canonical test-plan IDs, and make normal CI and release regenerate/verify zero drift before consuming the committed project.
 
 ## Primary sources
 

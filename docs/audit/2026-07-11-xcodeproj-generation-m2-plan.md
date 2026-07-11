@@ -77,3 +77,16 @@
 6. Commit as `docs(xcodegen-m2): record semantic CI evidence`.
 
 M3 begins only after these gates are evidence-backed. M3 owns the isolated `Maccy.xcodeproj` replacement, canonical test-plan ID update, normal CI/release zero-diff generation gates, and the no-hand-edit ownership rule.
+
+## Completion evidence
+
+M2 is complete at `fc29202`. [Validate Generated Xcode Project run 29146217892](https://github.com/GuangDai/Maccy/actions/runs/29146217892) passed on its first attempt:
+
+- validation regenerated twice with pinned/checksummed XcodeGen, proved byte-for-byte repeatability, verified the fresh target IDs against `Maccy-Generated.xctestplan` and the generated scheme, compared the legacy/generated graph and all six critical build-setting sets, clean-built the Debug app, checked the 31-language/resource/package contract, and proved canonical legacy inputs unchanged;
+- generated `unit`, `ui-1`, `ui-2`, `perf-text`, and `perf-image` jobs all passed their normal xcodebuild and warning/error/failure self-scans;
+- the generated Release packaging job produced and verified one app zip plus its SHA-256 without publishing;
+- no runner-contention or performance flake occurred.
+
+Evidence artifacts are `xcodeproj-generated-29146217892-1`, five `generated-shard-*-29146217892-1` result/log bundles, and `generated-release-package-29146217892-1`. The package artifact digest is `sha256:0c96e53fd87990cbb478d4ffe3f232f4697bb1d272088c0765ac4405641dc2ce`; the generated-project artifact digest is `sha256:f7a73e1d3ad074e58a36f24c9c0972ae7bf15b6d6f8170992a754786387ab8ac`.
+
+M3 is now unblocked.

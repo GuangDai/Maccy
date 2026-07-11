@@ -25,7 +25,7 @@
 
 **What this closed:** the entire **silent-failure cluster** (4 distinct swallow sites — now all surface to `lastPersistError`) and the **search-generation bug class** (3 sites now bump generation like their siblings). The most dangerous correctness defects in the verification are gone.
 
-**Post-roadmap progress (through 2026-07-11):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), E1 (`cd368ea`), and E3 (`32320cf`) have landed or passed their branch gate. The XcodeGen M0/M1 cross-cut also completed through `b719303`; it does not change the production project yet.
+**Post-roadmap progress (through 2026-07-11):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), E1 (`cd368ea`), E3 (`32320cf`), and timestamp hygiene (`91d76b8`) have landed or passed their branch gate. The XcodeGen cross-cut completed M0/M1 and M2 semantic test/package equivalence through `fc29202`; production cutover remains M3.
 
 **What remains:** structure debt (the deferred god-object split), load/memory work beyond the completed D0/D4–D6 steps, single search-engine/domain cleanup, package organization, progressive dependency injection, and the XcodeGen M2/M3 production cutover.
 
@@ -146,9 +146,10 @@ C6 deferred (Low); D4/D5 pair with BS-4/6 memory work
 5. ~~C2.3 — isolate lazy fingerprint backfill persistence semantics~~ — **done/refined** (`f9f0e85`; cross-ingest timing refuted, read-side mutation removed).
 6. ~~E1 — route App Intents through a stable full-history command port~~ — **done** (`cd368ea`; duplicated 1-based bounds removed, no `AppState.shared` remains under `Intents`).
 7. ~~E3 — keep clipboard polling coalescible and active during event tracking~~ — **done** (`32320cf`; tested tolerance + `.common`).
-8. ~~Remove `HistoryItem.init` timestamp self-assignments~~ — **done** (`91d76b8`; no behavior change, full matrix green). Next: XcodeGen M2 semantic CI equivalence, then C5.
+8. ~~Remove `HistoryItem.init` timestamp self-assignments~~ — **done** (`91d76b8`; no behavior change, full matrix green).
+9. ~~XcodeGen M2 semantic CI equivalence~~ — **done** (`fc29202`; generated target IDs/test plan, all five generated-project shards, and Release package dry-run green in `29146217892`). Next: isolated M3 production cutover, then C5.
 
-Parallel-safe: XcodeGen M2 remains a separate infrastructure track.
+Parallel-safe: XcodeGen M3 remains a separate infrastructure track.
 
 ---
 
