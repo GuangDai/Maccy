@@ -19,6 +19,7 @@ final class HistoryPinPersistenceTests: XCTestCase {
   }
 
   override func tearDown() async throws {
+    history.clearAll()
     history.searchQuery = ""
     Defaults[.size] = savedSize
     Defaults[.sortBy] = savedSortBy
