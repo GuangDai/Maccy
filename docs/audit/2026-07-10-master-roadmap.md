@@ -64,7 +64,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 | # | Step | Closes | Effort | Risk |
 |---|------|--------|--------|------|
 | C1 | Single filter source | DS-008, `NEW-clipboard-filter-1/2/3` | M | M | Shared UTI constants; delete 4 dead Clipboard helpers + the dead `supportedTypes`/`disabledTypes` cascade; fix `contents(from:)` doc rot. |
-| C2 | `SignatureIndex` consistency | DS-009 | M | M | **C2.1 DONE** (`c6afcbe`, green run 29129247034): successful UI delete/clear sends one batched removal/reset to the actor, updating candidate + bridge maps. C2.2 signature re-derivation and C2.3 lazy-backfill commit semantics remain separate small steps. |
+| C2 | `SignatureIndex` consistency | DS-009 | M | M | **C2.1 DONE** (`c6afcbe`): UI delete/clear batches actor removal/reset. **C2.2 DONE** (`10f8d90`): snapshot and candidate lookup share one DTO signature projection. C2.3 lazy-backfill commit semantics remains. |
 | C3 | Single `MatchEngine` + empty short-circuit | DS-010, DS-012, DS-029 | M | M | Merge legacy `Search` (217 LOC) into `SearchActor`; O(1) decorator-id resolve (`[UUID: HistoryItemDecorator]`); pin the one-item corpus-lag. |
 | C4 | Batch limit deletes | DS-014 | S | M | One transaction for `limitHistorySize` trim (matches the actor's batched trim). |
 | C5 | Pin query off the entity | DS-015 | S | L | `HistoryItem.availablePins` reads `Storage.shared` — move to a PinService. |
@@ -117,7 +117,7 @@ E4 (dead subtree) needs your delete/keep decision
 | `NEW-ingest-dualpath-2` read mutates candidates | Low | C2.3 | open |
 | `NEW-ingest-dualpath-3` adapter fully dead | Low | B4 | open (B4 removes it) |
 | `NEW-ingest-dualpath-4` result discarded | Low | **A** | ✅ done |
-| `NEW-dedup-ids-2` findDuplicate re-derives signature | Low | C2.2 | open |
+| `NEW-dedup-ids-2` findDuplicate re-derives signature | Low | C2.2 | ✅ done (`10f8d90`) |
 | `NEW-dedup-ids-3` backfill cross-ingest commit | Low | C2.3 | open |
 | `NEW-clipboard-filter-1/2/3` dead helpers + doc rot | Low | C1 | open |
 | `NEW-storage-load-models-1` dead newBackgroundContext + false doc | Med | D0 | open |
@@ -143,7 +143,7 @@ E4 (dead subtree) needs your delete/keep decision
 1. ~~D4/D5/D6 hot-path fixes~~ — **done** (`9c8728c`, `592bae6` + `01493f9`, `947f88b`).
 2. ~~Resolve D0 and E4~~ — **done** (`7852ea8`: keep loader test-only/correct docs; `9849d00`: delete dead paste-stack subtree).
 3. ~~C1 and C2.1 domain cleanup~~ — **done** (`2ac325f`, `c6afcbe`).
-4. **C2.2 — stop re-deriving the incoming signature entries** in `findDuplicate`; reuse the already-built `SignatureDTO` without changing authoritative comparison behavior.
+4. ~~C2.2 — stop re-deriving incoming signature entries~~ — **done** (`10f8d90`; shared `signatureDTO(of:)`).
 5. **C2.3 — isolate lazy fingerprint backfill persistence semantics**, then continue to C3/E1 while the History split remains deferred behind its forcing gate.
 
 Parallel-safe: E1 (Intent port) remains independent of C2's actor internals. XcodeGen M2 is a separate infrastructure track.

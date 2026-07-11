@@ -23,3 +23,13 @@
 - `test(c2.2): require one dedup signature projection`
 - `refactor(c2.2): reuse the DTO signature for candidate lookup`
 - `docs(c2.2): record signature single-source evidence`
+
+## Completion evidence (2026-07-11)
+
+C2.2 is complete at `10f8d90`.
+
+- [Red run 29135885970](https://github.com/GuangDai/Maccy/actions/runs/29135885970) passed strict SwiftLint and failed compilation at the new contract with `cannot find 'signatureDTO' in scope`. The remaining duplicate shard work was cancelled after that intended red was captured.
+- `signatureDTO(of:)` now owns the exact pre-existing type/derived-fingerprint/size projection. `snapshot(of:)` and `findDuplicate` both call it; the latter still uses `HistoryItemEngine.Signature` for the authoritative byte-aware `supersedes` confirmation.
+- [Green run 29135977209](https://github.com/GuangDai/Maccy/actions/runs/29135977209) passed strict SwiftLint, unit, `ui-1`, `ui-2`, `perf-text`, and `perf-image`. The extraction is net-zero in implementation lines and preserves the previous fingerprint rule.
+
+C2.3 remains open and separate: candidate fingerprint backfill must not leak pending changes from a failed commit into a later unrelated ingest.

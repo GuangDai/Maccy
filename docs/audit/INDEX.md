@@ -152,6 +152,7 @@
 | [`2026-07-10-xcodeproj-generation-m0-plan.md`](2026-07-10-xcodeproj-generation-m0-plan.md) | A | Completed M0 implementation record: read-only runner capture script/workflow, checked task board, artifact contract, and handoff gate into side-by-side XcodeGen M1. |
 | [`2026-07-11-xcodeproj-generation-m1-plan.md`](2026-07-11-xcodeproj-generation-m1-plan.md) | A | Side-by-side XcodeGen implementation and acceptance record: pinned/checksummed generator, declarative three-target spec + xcconfigs, semantic parity comparator, and warning-free generated app build evidence. Legacy production project remains authoritative until M2/M3. |
 | [`2026-07-11-c2-signature-index-sync-plan.md`](2026-07-11-c2-signature-index-sync-plan.md) | A | Completed C2.1 TDD record: UI delete/clear batches committed removal events into the actor-owned SignatureIndex; valid red and full green runner evidence; C2.2/C2.3 residual boundaries. |
+| [`2026-07-11-c2-signature-reuse-plan.md`](2026-07-11-c2-signature-reuse-plan.md) | A | Completed C2.2 TDD record: one `signatureDTO(of:)` projection now feeds both snapshots and candidate lookup; compile-red and full green runner evidence; C2.3 remains isolated. |
 
 ### 独立文档
 
