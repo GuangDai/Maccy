@@ -42,6 +42,32 @@ final class HistoryPinPersistenceTests: XCTestCase {
     XCTAssertEqual(stored.first?.pin, pin)
   }
 
+  /// Pin availability is queried through the caller-provided context and excludes assigned keys.
+  func testPinServiceExcludesAssignedPins() throws {
+    let assigned = historyItem("assigned")
+    assigned.pin = "b"
+    try Storage.shared.context.save()
+
+    let service = PinService(context: Storage.shared.context)
+
+    XCTAssertEqual(Set(service.availablePins), PinService.supportedPins.subtracting(["b"]))
+  }
+
+  /// With every supported key but one assigned, random selection returns the sole free key.
+  func testPinServiceReturnsOnlyRemainingPin() throws {
+    let expected = try XCTUnwrap(PinService.supportedPins.sorted().first)
+    for pin in PinService.supportedPins.subtracting([expected]) {
+      let assigned = historyItem("assigned-\(pin)")
+      assigned.pin = pin
+    }
+    try Storage.shared.context.save()
+
+    let service = PinService(context: Storage.shared.context)
+
+    XCTAssertEqual(service.availablePins, [expected])
+    XCTAssertEqual(service.randomAvailablePin, expected)
+  }
+
   /// Builds a single-string-content `HistoryItem` inserted into the shared context, with title derived from its content.
   private func historyItem(_ value: String) -> HistoryItem {
     let item = HistoryItem()
