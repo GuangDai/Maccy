@@ -20,8 +20,6 @@ jobs:
     timeout-minutes: 15
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      XCODEGEN_HOME: ${{ runner.temp }}/xcodegen-2.45.4
-      EVIDENCE_DIR: ${{ runner.temp }}/xcodeproj-generation-evidence
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -35,6 +33,9 @@ jobs:
 
       - name: Regenerate and verify zero drift
         shell: bash
+        env:
+          XCODEGEN_HOME: ${{ runner.temp }}/xcodegen-2.45.4
+          EVIDENCE_DIR: ${{ runner.temp }}/xcodeproj-generation-evidence
         run: bash scripts/verify-xcodeproj-generation.sh
 
       - name: Upload generation evidence
