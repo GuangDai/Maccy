@@ -1,5 +1,6 @@
 import AppKit
 import Defaults
+import Logging
 import SwiftData
 
 /// A single clipboard history entry. Owns its content entries (one per
