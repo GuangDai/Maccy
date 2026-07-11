@@ -39,6 +39,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$EVIDENCE"
           cp -R Maccy.xcodeproj "${{ runner.temp }}/pre-generation.xcodeproj"
+          cp -R Config "${{ runner.temp }}/Config"
           cp Maccy.xctestplan "${{ runner.temp }}/pre-generation.xctestplan"
 
           bash scripts/regenerate-xcodeproj.sh \
