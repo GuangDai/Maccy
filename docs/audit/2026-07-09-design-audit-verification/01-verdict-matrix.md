@@ -12,7 +12,7 @@
 | DS-006 | ✅ `△over` | High→**Med** | High | 175 occ / 26 files | Structural/testability only; no runtime/correctness impact. (175 vs 171 = occ-vs-lines; also only 4 of 8 singletons counted.) |
 | DS-007 | ✅ | High→Med-High | High | 23 sites (lines listed in `03`) | Central spine coupling; no runtime impact. Exact count. |
 | DS-008 | ✅ `▽under` | Low→**Low (larger)** | High | `Clipboard.swift:315-379,44-61,278-292` | Dead surface **bigger than enumerated**: + `filteredTypes`, `supportedTypes`/`disabledTypes` cascade, `ignoredRegexps` NSCache all dead. |
-| DS-009 | ◐ `△over` `⟳` | Med→**Low** | High | `SignatureIndex.swift` (146 LOC); 0 refs in `History.swift` | Correctness **preserved**: `supersedes` containment can't match an empty shell + shared-store delete propagation. Residual = perf + slow index growth. **No rebuild trigger exists** (sharpens audit). |
+| DS-009 | ◐ `△over` `⟳` | Med→**Low** | High | `SignatureIndex.swift` (146 LOC); 0 refs in `History.swift` at baseline | Correctness **preserved** at audit time. **Resolved 2026-07-11 (`c6afcbe`):** successful UI delete/clear now batches `.removed`/`.cleared` into the actor index, closing stale growth. |
 | DS-010 | ✅ ² | Med→Med | High | legacy `Search.swift` (217 LOC); `History.swift:855` | Empty query → `search.search("")`; non-empty → `SearchActor`. Confirmed firsthand (cluster agent rate-limited). |
 | DS-011 | ✅ | Med→Med | High | `ClipboardIngestor.swift:161-172` | `MainActor.run` for config+filter+title+body+limit. |
 | DS-012 | ✅ | Med→Med | High | `History.swift:900` | `all.first { $0.id == dto.id }` O(n) per match → O(matches×n)/keystroke. |

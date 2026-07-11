@@ -11,7 +11,7 @@
 | **Search-generation discipline** | The invariant that *any* mutation changing `all`'s contents or order must cancel the in-flight search (`invalidateInFlightSearch()` / bump `searchGeneration`) before the stale generation's `applySearchResults` can run. | The audit treated DS-013 (togglePin) as a single bug. Verification found it is a **class** — `load()` and `select()` have the same omission. The term names the structural cause: discipline is per-call-site, not centralized. |
 | **Incremental-but-O(n) path** | A path *labeled* "incremental" (per-copy, avoid full work) that is nevertheless linear in total history size on every invocation. | `syncAllToStore` (main, every copy) and `commit`'s unpinned fetch+sort (actor, every copy) are both O(rows). The "incremental per-copy reconcile" roadmap label hides this. |
 | **Silent dedup disable** | The failure mode where `ensureDedupIndexInitialized` swallows a first-ingest fetch error and flips `dedupIndexInitialized = true` with an empty index, turning off dedup for the whole session with no log. | `NEW-dedup-ids-1`. Distinct from a dedup *miss* — this is dedup *off*. |
-| **Mutating read** | A query whose stated purpose is to read (dedup lookup, load) but which writes as a side effect (candidate fingerprint backfill; `limitHistorySize` deletes during `load`). | `NEW-ingest-dualpath-2/3`, `NEW-storage-load-models-2`, and the "Cold load is not side-effect-free" correction. |
+| **Mutating read** | A query whose stated purpose is to read (dedup lookup, load) but which writes as a side effect. Candidate fingerprint backfill was moved out of lookup on 2026-07-11; the load-side case remains. | `NEW-ingest-dualpath-2` resolved by `f9f0e85`; `NEW-storage-load-models-2` and the "Cold load is not side-effect-free" correction remain. |
 | **Dead-feature subtree** | A coherent, non-trivial code surface (model + extension + views + key handling) rendered wholly unreachable by a single always-false gate, yet not marked deprecated. | `multiSelectionEnabled = false` gates ~250 LOC of paste-stack/multi-select (`NEW-singletons-intents-misc-1` / DS-028). |
 
 ---
@@ -24,7 +24,7 @@
 | **Cold load** (§4 alias) | Add: **not side-effect-free** — calls `limitHistorySize(to:)` which deletes overflow rows. And **cross-link DS-022**: `load()` bypasses the persistence port (`Storage.shared.context.fetch` direct), so it is not interceptable by a fake `HistoryPersistence`. |
 | **Live ingest** (§4 alias) | Add: **not end-to-end off-main** — `ingest` hops to `MainActor.run` once per call for filter/title/body/limit (DS-011). |
 | **Legacy add** (§1) | Add: `findSimilarItem` is `private` (reachable only via `add`); the actor's class doc names the parity gap (no `sessionLog`/`isModified` modification-merge on the actor). |
-| **SignatureIndex rebuild** (implicit in DS-009 text) | **There is no rebuild trigger.** `dedupIndexInitialized` is set once and never reset; only a process restart clears stale entries. |
+| **SignatureIndex rebuild** (implicit in DS-009 text) | **Audit baseline:** no rebuild trigger. **Current:** UI delete/clear forwards batched removal/reset events; a full clear marks the index uninitialized for a safe next-ingest rebuild (`c6afcbe`). |
 | **ItemID** (§2) | Fold location: `Dtos.swift:186-217` (the `:177-180` site is the wrapper). Keep distinct from the **xxh3 content fingerprint** — `CLAUDE.md`'s "FNV-1a superseded" refers to the legacy *content* hash, **not** ItemID. |
 | **`MainActorIngestorAdapter`** | "Not production-wired" → **fully dead** (0 instantiation sites; only static `historyItem(from:)` used in one test). |
 
@@ -43,7 +43,7 @@ Decorator id = UUID() Fresh per HistoryItemDecorator init (Maccy/Observables/His
 
 Index signature       SignatureDTO / ContentSignatureEntry { type, size, fingerprint? }
                       Registered by snapshot(of:)  Dtos.swift:141-148
-                      Queried by  findDuplicate     ClipboardIngestor.swift:292-298  ← re-derived (parity invariant, NEW-dedup-ids-2)
+                      Queried by  findDuplicate     shared `signatureDTO(of:)` projection (`10f8d90`)
 Containment signature HistoryItemEngine.Signature (value bytes) — AUTHORITATIVE for supersedes/dataLikelyEqual.
 ```
 

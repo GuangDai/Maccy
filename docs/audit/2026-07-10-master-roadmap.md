@@ -64,7 +64,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 | # | Step | Closes | Effort | Risk |
 |---|------|--------|--------|------|
 | C1 | Single filter source | DS-008, `NEW-clipboard-filter-1/2/3` | M | M | Shared UTI constants; delete 4 dead Clipboard helpers + the dead `supportedTypes`/`disabledTypes` cascade; fix `contents(from:)` doc rot. |
-| C2 | `SignatureIndex` consistency | DS-009 | M | M | **C2.1 DONE** (`c6afcbe`): UI delete/clear batches actor removal/reset. **C2.2 DONE** (`10f8d90`): snapshot and candidate lookup share one DTO signature projection. C2.3 lazy-backfill commit semantics remains. |
+| C2 | `SignatureIndex` consistency | DS-009 | M | M | **DONE.** C2.1 (`c6afcbe`): UI delete/clear batches actor removal/reset. C2.2 (`10f8d90`): one DTO signature projection. C2.3 (`f9f0e85`): search is read-only; backfill occurs inside the ingest transaction. Original cross-ingest timing claim refuted by `ModelContext.transaction` semantics. |
 | C3 | Single `MatchEngine` + empty short-circuit | DS-010, DS-012, DS-029 | M | M | Merge legacy `Search` (217 LOC) into `SearchActor`; O(1) decorator-id resolve (`[UUID: HistoryItemDecorator]`); pin the one-item corpus-lag. |
 | C4 | Batch limit deletes | DS-014 | S | M | One transaction for `limitHistorySize` trim (matches the actor's batched trim). |
 | C5 | Pin query off the entity | DS-015 | S | L | `HistoryItem.availablePins` reads `Storage.shared` — move to a PinService. |
@@ -114,11 +114,11 @@ E4 (dead subtree) needs your delete/keep decision
 | `NEW-history-spine-3` load no gen bump | Low | **A** | ✅ done |
 | `NEW-history-spine-4` select no invalidate | Low | **A** | ✅ done |
 | `NEW-ingest-dualpath-1` commit O(n)/copy | Med | D5 | open |
-| `NEW-ingest-dualpath-2` read mutates candidates | Low | C2.3 | open |
+| `NEW-ingest-dualpath-2` read mutates candidates | Low | C2.3 | ✅ done (`f9f0e85`) |
 | `NEW-ingest-dualpath-3` adapter fully dead | Low | B4 | open (B4 removes it) |
 | `NEW-ingest-dualpath-4` result discarded | Low | **A** | ✅ done |
 | `NEW-dedup-ids-2` findDuplicate re-derives signature | Low | C2.2 | ✅ done (`10f8d90`) |
-| `NEW-dedup-ids-3` backfill cross-ingest commit | Low | C2.3 | open |
+| `NEW-dedup-ids-3` backfill cross-ingest commit | Low | C2.3 | ✅ refuted timing; coupling removed (`f9f0e85`) |
 | `NEW-clipboard-filter-1/2/3` dead helpers + doc rot | Low | C1 | open |
 | `NEW-storage-load-models-1` dead newBackgroundContext + false doc | Med | D0 | open |
 | `NEW-storage-load-models-2` init self-assigns timestamps | Low | C (hygiene) | open |
@@ -144,7 +144,7 @@ E4 (dead subtree) needs your delete/keep decision
 2. ~~Resolve D0 and E4~~ — **done** (`7852ea8`: keep loader test-only/correct docs; `9849d00`: delete dead paste-stack subtree).
 3. ~~C1 and C2.1 domain cleanup~~ — **done** (`2ac325f`, `c6afcbe`).
 4. ~~C2.2 — stop re-deriving incoming signature entries~~ — **done** (`10f8d90`; shared `signatureDTO(of:)`).
-5. **C2.3 — isolate lazy fingerprint backfill persistence semantics**, then continue to C3/E1 while the History split remains deferred behind its forcing gate.
+5. ~~C2.3 — isolate lazy fingerprint backfill persistence semantics~~ — **done/refined** (`f9f0e85`; cross-ingest timing refuted, read-side mutation removed). Next: E1, then C3 when its History seam is safe.
 
 Parallel-safe: E1 (Intent port) remains independent of C2's actor internals. XcodeGen M2 is a separate infrastructure track.
 

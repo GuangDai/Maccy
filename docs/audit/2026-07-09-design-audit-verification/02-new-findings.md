@@ -95,6 +95,8 @@ Severity convention matches the design audit: **Medium** = real defect worth sch
 
 ### `NEW-ingest-dualpath-2` — dedup read path mutates non-matching candidate rows
 
+> **Resolved 2026-07-11 (`f9f0e85`):** duplicate search now returns candidate models without mutating them; surviving-candidate backfill runs inside the ingest transaction.
+
 | | |
 |--|--|
 | **Location** | `ClipboardIngestor.swift:308` (call in `findDuplicate`), `:332-341` (`backfillMissingFingerprints`) |
@@ -117,6 +119,8 @@ Severity convention matches the design audit: **Medium** = real defect worth sch
 
 ### `NEW-dedup-ids-2` — `findDuplicate` re-derives `ContentSignatureEntry` inline (unmaintained parity invariant)
 
+> **Resolved 2026-07-11 (`10f8d90`):** `signatureDTO(of:)` is the single projection used by both `snapshot(of:)` and candidate lookup.
+
 | | |
 |--|--|
 | **Location** | `ClipboardIngestor.swift:292-298` vs `Dtos.swift:141-148` |
@@ -124,6 +128,8 @@ Severity convention matches the design audit: **Medium** = real defect worth sch
 | **Recommendation** | `findDuplicate` should reuse `snapshot(of: item).signature.entries`. |
 
 ### `NEW-dedup-ids-3` — `backfillMissingFingerprints` is a write side-effect in a read query, committed by a later unrelated ingest
+
+> **Corrected/resolved 2026-07-11 (`f9f0e85`):** Apple documents that `ModelContext.transaction` writes pending changes when its closure finishes, so the claimed later-save timing was false. The real read/write coupling was still removed, and a forced closure failure plus fresh-context fetch proves atomic rollback.
 
 | | |
 |--|--|

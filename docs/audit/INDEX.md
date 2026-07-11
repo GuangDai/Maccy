@@ -153,6 +153,7 @@
 | [`2026-07-11-xcodeproj-generation-m1-plan.md`](2026-07-11-xcodeproj-generation-m1-plan.md) | A | Side-by-side XcodeGen implementation and acceptance record: pinned/checksummed generator, declarative three-target spec + xcconfigs, semantic parity comparator, and warning-free generated app build evidence. Legacy production project remains authoritative until M2/M3. |
 | [`2026-07-11-c2-signature-index-sync-plan.md`](2026-07-11-c2-signature-index-sync-plan.md) | A | Completed C2.1 TDD record: UI delete/clear batches committed removal events into the actor-owned SignatureIndex; valid red and full green runner evidence; C2.2/C2.3 residual boundaries. |
 | [`2026-07-11-c2-signature-reuse-plan.md`](2026-07-11-c2-signature-reuse-plan.md) | A | Completed C2.2 TDD record: one `signatureDTO(of:)` projection now feeds both snapshots and candidate lookup; compile-red and full green runner evidence; C2.3 remains isolated. |
+| [`2026-07-11-c2-backfill-transaction-plan.md`](2026-07-11-c2-backfill-transaction-plan.md) | A | Completed C2.3 investigation/fix: refutes the cross-ingest timing using Apple transaction semantics, removes the real read-side mutation, and records forced-transaction-failure/fresh-context green evidence. |
 
 ### 独立文档
 

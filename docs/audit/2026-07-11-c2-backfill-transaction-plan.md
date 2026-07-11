@@ -1,10 +1,10 @@
 # C2.3 Fingerprint backfill transaction plan
 
-**Goal:** Ensure lazy fingerprint backfill belongs to the ingest transaction that discovered it and cannot be committed by a later unrelated ingest after the original commit fails.
+**Goal:** Remove lazy fingerprint backfill from duplicate search and prove it is atomic with the ingest transaction that discovered it.
 
-**Findings:** `NEW-ingest-dualpath-2` and `NEW-dedup-ids-3`. `findDuplicate` currently mutates candidate contents as a read side effect before `commit`; a thrown save leaves those changes pending on the long-lived actor context, and the next successful save can persist them.
+**Findings:** `NEW-ingest-dualpath-2` is confirmed: `findDuplicate` mutates candidate contents as a read side effect. The proposed `NEW-dedup-ids-3` cross-ingest timing is **refuted**: Apple documents that [`ModelContext.transaction(block:)`](https://developer.apple.com/documentation/swiftdata/modelcontext/transaction%28block%3A%29) writes pending changes when its closure finishes, so backfill did not wait for the later explicit `save()` as the verification assumed.
 
-**Design:** Make duplicate search return the duplicate plus candidate models that need backfill, without mutating them. Apply those idempotent backfills inside `commit`'s transaction, excluding the duplicate that is about to be deleted. On any commit error, explicitly `rollback()` the actor context before returning the failure result. A DEBUG-only forced commit failure immediately before save provides deterministic regression coverage for pending-change leakage.
+**Design:** Make duplicate search return the duplicate plus candidate models that need backfill, without mutating them. Apply those idempotent backfills inside `commit`'s transaction, excluding the duplicate that is about to be deleted. On any transaction error, explicitly `rollback()` the actor context before returning the failure result. A DEBUG-only failure thrown inside the transaction closure provides deterministic atomicity coverage.
 
 ## Invariants
 
@@ -17,8 +17,8 @@
 
 ## TDD and verification
 
-1. Seed a pre-migration-style large row with a nil fingerprint. Force a superset ingest to fail immediately before save, then run an unrelated successful ingest. Assert the seed remains nil; on current code it is incorrectly committed by the second save.
-2. Capture the expected runner red, then move backfill mutation into `commit` and rollback on failure.
+1. Seed a pre-migration-style large row with a nil fingerprint. Force a superset ingest transaction to throw, then run an unrelated successful ingest. Read through a fresh context and assert the seed remains nil.
+2. Capture the missing-seam compile red, then move backfill mutation into the transaction and rollback on failure.
 3. Re-run the existing successful-backfill/idempotence tests and the full strict lint/unit/UI/performance matrix.
 4. Record evidence and close C2.3 without broadening into C3 search consolidation.
 
@@ -31,3 +31,15 @@
 - `test(c2.3): expose cross-ingest backfill commit`
 - `fix(c2.3): bind fingerprint backfill to its ingest transaction`
 - `docs(c2.3): record backfill transaction evidence`
+
+## Completion evidence and corrected mechanism (2026-07-11)
+
+C2.3 is complete at `f9f0e85`/`ba00696`; the final runner proof is `f9f0e85` plus the fresh-context test commit already in branch history.
+
+- [Red run 29136425890](https://github.com/GuangDai/Maccy/actions/runs/29136425890) passed strict SwiftLint and failed only because the new `setCommitFailureForTesting` seam did not exist.
+- Early iterations deliberately exposed two incorrect assumptions instead of hiding them: run 29136555814 showed that throwing *after* `transaction` was already after persistence; run 29136739033 enforced Swift 6 by rejecting a mutable non-Sendable journal captured by the transaction closure. Runs 29136821626/29136934917 then separated main-context cache visibility from actual store persistence.
+- Apple’s transaction contract explains the evidence: a successful closure writes pending changes. The final forced error is therefore thrown **inside** that closure. `findDuplicate` is now read-only, `commit` applies surviving-candidate backfills inside the same transaction as trim/delete/insert, and the catch path calls `rollback()`.
+- The regression test reads from a fresh `ModelContext` after a later unrelated successful ingest, proving the failed transaction did not persist the nil-column backfill. The existing successful-backfill and idempotence tests remain green.
+- [Final green run 29137114873](https://github.com/GuangDai/Maccy/actions/runs/29137114873) passed strict SwiftLint, unit, `ui-1`, `ui-2`, `perf-text`, and `perf-image`. The expected forced-error log has a narrow CI allowlist keyed to `ForcedCommitFailure`.
+
+Result: `NEW-ingest-dualpath-2` is fixed; `NEW-dedup-ids-3` is closed as a refuted timing claim with the underlying read/write coupling still removed.
