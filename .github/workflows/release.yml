@@ -67,6 +67,22 @@ jobs:
             exit 1
           fi
 
+      - name: Regenerate and verify project is current
+        shell: bash
+        env:
+          XCODEGEN_HOME: ${{ runner.temp }}/xcodegen-2.45.4
+          EVIDENCE_DIR: ${{ runner.temp }}/xcodeproj-generation-evidence
+        run: bash scripts/verify-xcodeproj-generation.sh
+
+      - name: Upload project generation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-xcodeproj-generation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/xcodeproj-generation-evidence
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Package app
         id: package
         shell: bash

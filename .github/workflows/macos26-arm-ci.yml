@@ -14,6 +14,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  project-generation:
+    name: Generated Xcode project
+    runs-on: macos-26
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      XCODEGEN_HOME: ${{ runner.temp }}/xcodegen-2.45.4
+      EVIDENCE_DIR: ${{ runner.temp }}/xcodeproj-generation-evidence
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Enforce macOS 26 ARM runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(sw_vers -productVersion)" == 26.* ]]
+          [[ "$(uname -m)" == arm64 ]]
+
+      - name: Regenerate and verify zero drift
+        shell: bash
+        run: bash scripts/verify-xcodeproj-generation.sh
+
+      - name: Upload generation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xcodeproj-generation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/xcodeproj-generation-evidence
+          if-no-files-found: warn
+          retention-days: 14
+
   lint:
     name: Lint + diagnostics
     runs-on: macos-26
@@ -118,7 +150,7 @@ jobs:
 
   test-shards:
     name: shard (${{ matrix.shard }})
-    needs: lint
+    needs: [lint, project-generation]
     runs-on: macos-26
     timeout-minutes: 30
     continue-on-error: ${{ !matrix.block }}
