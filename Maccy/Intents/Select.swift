@@ -18,19 +18,9 @@ struct Select: AppIntent, CustomIntentMigratedAppIntent {
   @Parameter(title: "Number", default: 1, requestValueDialog: "What is the number of the item?")
   var number: Int
 
-  /// Converts the 1-based `number` parameter to a 0-based collection index.
-  private let positionOffset = 1
-
   /// Selects the item at `number` and returns its title.
   @MainActor func perform() async throws -> some IntentResult & ReturnsValue<String> {
-    let items = AppState.shared.history.items
-    let index = number - positionOffset
-    guard index >= 0, items.count > index else {
-      throw AppIntentError.notFound
-    }
-
-    let value = items[index].title
-    AppState.shared.history.select(items[index])
+    let value = try HistoryCommandServices.require().select(at: number)
 
     return .result(value: value)
   }

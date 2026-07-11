@@ -13,12 +13,12 @@ struct Clear: AppIntent, CustomIntentMigratedAppIntent {
   }
 
   /// Clears history after optionally confirming with the user.
-  func perform() async throws -> some IntentResult {
+  @MainActor func perform() async throws -> some IntentResult {
     if !Defaults[.suppressClearAlert] {
       try await requestConfirmation()
     }
 
-    await AppState.shared.history.clear()
+    try HistoryCommandServices.require().clear()
     return .result()
   }
 }

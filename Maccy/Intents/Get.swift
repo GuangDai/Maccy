@@ -20,9 +20,6 @@ struct Get: AppIntent, CustomIntentMigratedAppIntent {
   @Parameter(title: "Number", default: 1)
   var number: Int
 
-  /// Converts the 1-based `number` parameter to a 0-based collection index.
-  private let positionOffset = 1
-
   static var parameterSummary: some ParameterSummary {
     When(\.$selected, .equalTo, false) {
       Summary {
@@ -41,18 +38,12 @@ struct Get: AppIntent, CustomIntentMigratedAppIntent {
   /// Image contents are written to a temporary PNG file (data protection `.atomic`
   /// + `.completeFileProtection`) so the entity can expose them as a URL.
   @MainActor func perform() async throws -> some IntentResult & ReturnsValue<HistoryItemAppEntity> {
-    var item: HistoryItem?
+    let service = try HistoryCommandServices.require()
+    let item: HistoryItem
     if selected {
-      item = AppState.shared.navigator.selection.first?.item
+      item = try service.selectedItem()
     } else {
-      let index = number - positionOffset
-      if index >= 0, AppState.shared.history.items.count > index {
-        item = AppState.shared.history.items[index].item
-      }
-    }
-
-    guard let item else {
-      throw AppIntentError.notFound
+      item = try service.item(at: number)
     }
 
     let intentItem = HistoryItemAppEntity()

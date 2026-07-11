@@ -69,6 +69,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Bridge FloatingPanel via AppDelegate.
     AppState.shared.appDelegate = self
+    HistoryCommandServices.current = AppHistoryCommandService(
+      history: AppState.shared.history,
+      navigator: AppState.shared.navigator
+    )
 
     // Wire the off-main ingest actor: the pasteboard snapshot is
     // filtered/deduped/written on a background SwiftData context, and the

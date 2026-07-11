@@ -15,17 +15,8 @@ struct Delete: AppIntent, CustomIntentMigratedAppIntent {
     Summary("Delete \(\.$number) Item from Clipboard History")
   }
 
-  /// Converts the 1-based `number` parameter to a 0-based collection index.
-  private let positionOffset = 1
-
   @MainActor func perform() async throws -> some IntentResult {
-    let items = AppState.shared.history.items
-    let index = number - positionOffset
-    guard index >= 0, items.count > index else {
-      throw AppIntentError.notFound
-    }
-
-    AppState.shared.history.delete(items[index])
+    try HistoryCommandServices.require().delete(at: number)
 
     return .result()
   }
