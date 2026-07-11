@@ -29,15 +29,15 @@
 | DS-023 | ✅ | Med→Med | High | `ContentView` `try?`; `AppState:101` `try?` | Load errors swallowed. |
 | DS-024 | ✅ `⟳` | Med→Med | High | `Clipboard.start` Timer | **Resolved `32320cf`:** tested 10% tolerance; explicit main-run-loop `.common` registration. |
 | DS-025 | ◐ `△over` `⟳` | Med→**Low** | Med | `History.swift:49-62` (**inline**, not a separate file) | No-save-before-predicate real, but **no prod path leaves a pending main-context insert**; trigger dormant. |
-| DS-026 | ✅ | Med→Med | High | 29 root `.swift`; `AppDelegate` 390 (≈110 DEBUG) | Overload. Exact. |
+| DS-026 | ✅ | Med→Med | High | E2 `2a06a58`/`72fa8f2`/`9e54d77` | **Resolved:** root Swift 29→22; composition and test/perf hooks left `AppDelegate` for `Application/` modules. |
 | DS-027 | ✅ | Med→Med | High | README re-checks | All 4 HEAD re-checks accurate (fingerprint candidate-only; `dataFromFileIfAllowed` nil-on-fail; `DecodedImageCache` gone; `item(before:)` guarded). |
 | DS-028 | ✅ `▽under` `⟳` | Low/Med→**High (cleanup)** | High | deletion `9849d00` | **Resolved:** the ~250 LOC dead paste-stack/multi-select subtree and always-false gate were deleted. |
 | DS-029 | ✅ `△over` | Med→**Low** | High | fire-and-forget corpus `Task`s | One-item lag; documented; self-correcting. |
 | DS-030 | ✅ | Med→Med | High | `HistoryItemEngine` | Takes `[HistoryItemContent]` (@Model). |
 | DS-031 | ◐ | Low→Low | High | `Dtos.swift` | `IngestPlan`/`IngestIgnoreReason` unused (overlaps DS-017). |
-| DS-032 | ✅ | Low→Low | High | `AppDelegate` ≈110 LOC `#if DEBUG` | DEBUG-gated; no shipped bloat. |
+| DS-032 | ✅ | Low→Low | High | `Application/DebugHooks.swift`; `72fa8f2` | **Resolved:** whole-file DEBUG module owns the test/perf bridge; `AppDelegate` only forwards lifecycle calls under `#if DEBUG`. |
 | DS-033 | ◐ | Low→Low | High | `StorageSettingsPane.swift:70,121` only | Only **one** pane reads `Storage.shared` in prod (Pins pane hit is `#Preview`). |
-| DS-034 | ✅ | Low→Low | High | `Search*.swift` at root | Not colocated under `Search/`. |
+| DS-034 | ✅ | Low→Low | High | `Maccy/Search/`; `2a06a58` | **Resolved:** all four search sources are colocated with zero source changes. |
 
 **Adversarial retrial column** (6 correctness-critical findings, skeptic re-read the code and argued the opposite):
 

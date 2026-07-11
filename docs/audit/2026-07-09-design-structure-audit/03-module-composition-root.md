@@ -115,3 +115,5 @@ DebugHooks: separate type, DEBUG only
 - [ ] Intent tests without full AppState.shared  
 
 **Confidence:** High on wiring path and coupling counts.
+
+> **E2 resolution (2026-07-12):** `9e54d77` introduced a lazily initialized concrete `Application/CompositionRoot.swift` for Intent/ingest/clipboard/memory wiring and moved the delegate/entry under `Application/`; `72fa8f2` moved the complete test/perf notification lifecycle into whole-file DEBUG `DebugHooks.swift`. `AppDelegate` fell to 209 lines. Remaining singleton-default replacement is tracked separately by E5/DS-006.

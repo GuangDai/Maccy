@@ -143,3 +143,5 @@ Maccy system
 4. Candidate packages later: `Search/`, `Composition/`, `Application/`.  
 
 See playbook Wave E for ordering.
+
+> **E2 resolution (2026-07-12):** `2a06a58` colocated the four search sources under `Maccy/Search/`; `72fa8f2` + `9e54d77` formed `Maccy/Application/` around the app entry, delegate, composition root, and DEBUG hooks. Root-level Swift files fell from the verified baseline of 29 to 22 without behavior changes; XcodeGen output and the full generated-project matrix/package passed in `29167115880`.

@@ -33,3 +33,14 @@ No protocol is added: production and tests do not have two justified adapters. C
 7. Update DS-026/DS-032/DS-034, the master roadmap, and this record with commit/run evidence.
 
 Known runner-contention timeouts and microbenchmark RSD failures are recorded once and not rerun.
+
+## Evidence
+
+- Search package: `2a06a58` moved all four `Search*` sources with 100% rename similarity and zero source-line changes.
+- DEBUG package: `72fa8f2` moved notification names, observer ownership, Sparkle test suppression, install/remove, and fallback perf dump into a whole-file `#if DEBUG` `DebugHooks` module.
+- Application package: `9e54d77` added the lazily initialized `CompositionRoot`, moved `AppDelegate`/`MaccyApp` under `Application/`, and localized Intent/ingest/clipboard/memory wiring. Lazy composition plus call-time `MemoryGovernor.shared` evaluation preserves the original singleton initialization order.
+- Generated project: workflow `29167009077` passed repeatability, generated test-plan, clean build, and bundle checks, then failed only the expected pre-commit parity/drift gates for the two new sources and package paths. Its exact project artifact was committed in `19b7431` (pbxproj SHA-256 `60bdb2ab84398908e06265a51852ebe30e2c8bc5470dcf92a2592b0951e01df7`).
+- Green: workflow `29167115880` passed production generation and zero drift, the generated Release package, unit, both UI shards, and both performance shards. No contention failure required classification.
+- Static result: root-level Swift files fell from the verified audit baseline of 29 to 22; `Application/` contains four cohesive sources; `Search/` contains exactly the four search sources; `AppDelegate` is 209 lines and contains no notification bridge, background-ingestor construction, Intent registry wiring, or memory-governor wiring.
+
+E2 is complete. DS-026, DS-032, and DS-034 are closed at the roadmap-defined package/wiring seam; progressive replacement of remaining singleton defaults remains E5.

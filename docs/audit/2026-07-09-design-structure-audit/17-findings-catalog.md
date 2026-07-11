@@ -263,13 +263,14 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 | **Recommendation** | Ensure save/pending discipline; tests around clear after unsaved inserts |
 | **Confidence** | Medium |
 
-### DS-026 — Root Swift surface area / AppDelegate overload
+### DS-026 — Root Swift surface area / AppDelegate overload — RESOLVED (`2a06a58`, `72fa8f2`, `9e54d77`)
 
 | | |
 |--|--|
-| **Evidence** | ~29 root-level Swift files; AppDelegate wires ingest, status item, Defaults migration, UITest/Perf hooks |
+| **Evidence** | Historical: ~29 root-level Swift files; AppDelegate wired ingest, status item, Defaults migration, and UITest/Perf hooks. Current: 22 root Swift files; `Application/CompositionRoot` owns infrastructure wiring and `Application/DebugHooks` owns the test/perf bridge. |
 | **Impact** | Navigation cost; composition mixed with tests |
 | **Recommendation** | CompositionRoot + DebugHooks split; later package moves |
+| **Resolution** | `AppDelegate`/`MaccyApp` plus both extracted modules live under `Application/`; `AppDelegate` is 209 lines and retains delegate/status-window responsibilities. Generated Release + all test shards passed in `29167115880`. |
 | **Confidence** | High |
 
 ### DS-027 — Documentation drift vs HEAD
@@ -317,9 +318,9 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 | ID | Summary | Confidence |
 |----|---------|------------|
 | DS-031 | `IngestPlan` / unused DTO surface (overlaps 017) | High |
-| DS-032 | Perf/DEBUG hooks inflate AppDelegate | High |
+| DS-032 | **Resolved (`72fa8f2`):** whole-file DEBUG `Application/DebugHooks.swift` | High |
 | DS-033 | Settings panes read Storage.shared directly | High |
-| DS-034 | Root `Search.swift` + actor + DTOs not colocated under `Search/` | High |
+| DS-034 | **Resolved (`2a06a58`):** all four sources under `Maccy/Search/` | High |
 
 ---
 

@@ -25,7 +25,7 @@
 
 **What this closed:** the entire **silent-failure cluster** (4 distinct swallow sites — now all surface to `lastPersistError`) and the **search-generation bug class** (3 sites now bump generation like their siblings). The most dangerous correctness defects in the verification are gone.
 
-**Post-roadmap progress (through 2026-07-12):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), C5 (`76a2a53` + generated project `b49b462`), E1 (`cd368ea`), E3 (`32320cf`), and timestamp hygiene (`91d76b8`) are complete. XcodeGen M0–M3 is complete through `94ca913`: production project output is generated, and normal CI/release enforce repeatability + zero drift.
+**Post-roadmap progress (through 2026-07-12):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), C5 (`76a2a53` + generated project `b49b462`), E1 (`cd368ea`), E2 (`2a06a58`, `72fa8f2`, `9e54d77` + generated project `19b7431`), E3 (`32320cf`), and timestamp hygiene (`91d76b8`) are complete. XcodeGen M0–M3 is complete through `94ca913`: production project output is generated, and normal CI/release enforce repeatability + zero drift.
 
 **What remains:** structure debt (the deferred god-object split), load/memory work beyond the completed D0/D4–D6 steps, single search-engine/domain cleanup, package organization, and progressive dependency injection.
 
@@ -87,7 +87,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 | # | Step | Closes | Effort | Risk |
 |---|------|--------|--------|------|
 | E1 | **Intent port — done** (`cd368ea`) | DS-018, `NEW-singletons-intents-misc-2/3` | M | L | `HistoryCommandService` is the single Intent application port; one resolver owns 1-based bounds and indexes `all`, not search-filtered `items`. |
-| E2 | Package moves (no behavior) | DS-026, DS-034 | M | L | `CompositionRoot` + `DebugHooks` split; colocate `Search*` under `Search/`. |
+| E2 | **Package moves — done** (`2a06a58`, `72fa8f2`, `9e54d77`, `19b7431`) | DS-026, DS-032, DS-034 | M | L | `Application/` owns lazy composition + DEBUG hooks + delegate/entry; all four `Search*` sources are colocated under `Search/`; full generated matrix/package green. |
 | E3 | **Clipboard Timer — done** (`32320cf`) | DS-024 | S | L | Effective interval retains its 100 ms floor, adds tested 10% tolerance, and runs in `.common`. |
 | E4 | **Dead paste-stack subtree deleted** (`9849d00`) | DS-028, `NEW-singletons-intents-misc-1` | S | L | Removed the unreachable model/views/state/key branches and always-false gate. |
 | E5 | Progressive DI vs `shared` | DS-006 | ongoing | M | Stop new `*.shared` call sites; inject at boundaries. 175 occurrences / 26 files — whittle, don't big-bang. |
@@ -148,8 +148,9 @@ C6 deferred (Low); D4/D5 pair with BS-4/6 memory work
 7. ~~E3 — keep clipboard polling coalescible and active during event tracking~~ — **done** (`32320cf`; tested tolerance + `.common`).
 8. ~~Remove `HistoryItem.init` timestamp self-assignments~~ — **done** (`91d76b8`; no behavior change, full matrix green).
 9. ~~XcodeGen M2 semantic CI equivalence~~ — **done** (`fc29202`; generated target IDs/test plan, all five generated-project shards, and Release package dry-run green in `29146217892`).
-10. ~~XcodeGen M3 production cutover~~ — **done** (`94ca913`; generated output committed, manual full matrix `29153231827`, master generation+test gate `29153606508`, release dry-run `29153818821`). Next: C5, then remaining ungated domain cleanup.
-11. ~~C5 — move pin availability queries off `HistoryItem`~~ — **done** (`76a2a53`, `b49b462`; context-injected module, generated-project full matrix + Release package green in `29154584664`). Next ungated cleanup: E2; C3/C4 still respect the documented B2 dependency.
+10. ~~XcodeGen M3 production cutover~~ — **done** (`94ca913`; generated output committed, manual full matrix `29153231827`, master generation+test gate `29153606508`, release dry-run `29153818821`).
+11. ~~C5 — move pin availability queries off `HistoryItem`~~ — **done** (`76a2a53`, `b49b462`; context-injected module, generated-project full matrix + Release package green in `29154584664`; C3/C4 still respect the documented B2 dependency).
+12. ~~E2 — organize Application/Search packages~~ — **done** (`2a06a58`, `72fa8f2`, `9e54d77`, `19b7431`; generated-project full matrix + Release package green in `29167115880`). Next ungated study: C6, then D2/D3; B2-gated work stays gated.
 
 XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
@@ -172,4 +173,4 @@ XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
 ---
 
-**One-line summary:** Wave A plus D0/D4–D6, C1/C2/C5, E1/E3/E4, and XcodeGen M0–M3 are complete. Next is E2 and other ungated cleanup; C3/C4 remain behind their documented B2 dependency, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.
+**One-line summary:** Wave A plus D0/D4–D6, C1/C2/C5, E1–E4, and XcodeGen M0–M3 are complete. Next is the ungated C6 stability study followed by D2/D3; C3/C4 remain behind their documented B2 dependency, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.
