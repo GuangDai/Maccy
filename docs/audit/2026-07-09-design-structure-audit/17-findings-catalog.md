@@ -159,13 +159,14 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 | **Note** | Actor trim already batches in one txn — UI path weaker |
 | **Confidence** | High |
 
-### DS-015 — `HistoryItem.availablePins` queries `Storage.shared`
+### DS-015 — `HistoryItem.availablePins` queries `Storage.shared` — RESOLVED (`76a2a53`, `b49b462`)
 
 | | |
 |--|--|
-| **Evidence** | `HistoryItem.swift` ~52–66 fetch pin != nil on Storage.shared.context |
+| **Evidence** | Historical: `HistoryItem.swift` ~52–66 fetched `pin != nil` on `Storage.shared.context`. Current: `PinService(context:)` owns the query and `HistoryItem` has no pin-query/static allocation surface. |
 | **Impact** | Domain entity tied to infrastructure + main actor |
 | **Recommendation** | PinService / Mutations with injected context |
+| **Resolution** | `PinService` receives the caller's `ModelContext`; settings use their environment context and decorators receive the module through their initializer. Full generated-project matrix + Release package passed in `29154584664`. |
 | **Confidence** | High |
 
 ### DS-016 — `MainActorIngestorAdapter` residual

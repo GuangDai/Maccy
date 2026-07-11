@@ -30,12 +30,12 @@ One clipboard history record: multi-type payloads, source app, copy timestamps/c
 | Dedup | supersedes, duplicateSignature | Domain — OK via Engine |
 | Title/body | generateTitle, previewableTextPrefix, searchableBody | Domain — **should not read Defaults inside entity** |
 | Content access | fileURLs, imageData, html/rtf/text, flags | Read model — OK |
-| Static pins | supportedPins, **availablePins**, randomAvailablePin | **availablePins queries Storage.shared (DS-015)** |
+| Static pins | Historical: supportedPins, **availablePins**, randomAvailablePin | **Resolved (`76a2a53`): moved to context-injected `PinService` (DS-015)** |
 | File | dataFromFileIfAllowed | Infrastructure policy |
 
 ### 1.4 Anemic vs rich
 
-Partially rich (supersedes/title). Orchestration still in History/Ingestor. **Storage-bound** via `@Model` + pin fetch.
+Partially rich (supersedes/title). Orchestration still in History/Ingestor. It remains persistence-bound through `@Model`, but the former pin fetch no longer couples the entity to `Storage.shared`.
 
 ### 1.5 `imageData` / file read
 

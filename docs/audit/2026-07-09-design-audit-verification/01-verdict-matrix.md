@@ -18,7 +18,7 @@
 | DS-012 | ✅ | Med→Med | High | `History.swift:900` | `all.first { $0.id == dto.id }` O(n) per match → O(matches×n)/keystroke. |
 | DS-013 | ✅ `⟳` | Med→Med | High | `togglePin` 702-738 | No `invalidateInFlightSearch`/gen bump. Fix = one `invalidateInFlightSearch()` (query is cleared @733; nothing to re-run). **Part of a bug class** — see `00` §2.2. |
 | DS-014 | ✅ | Med→Med | High | `limitHistorySize` 288-294 (delete@292) | Per-item `delete`+save; actor trims batch in one txn. |
-| DS-015 | ✅ | Med→Med | High | `HistoryItem.swift:52-66` (fetch @59) | `availablePins` reads `Storage.shared.context`. |
+| DS-015 | ✅ | Med→Med | High | `PinService.swift`; deletion `76a2a53` | **Resolved:** context-injected `PinService` owns assigned/free pin queries; `HistoryItem` no longer reads `Storage.shared`. |
 | DS-016 | ◐ `△over` | Med→**Low** | High | `ClipboardIngestor.swift:14-37` | Not "residual" — **fully dead**: 0 instantiation sites; only static `historyItem(from:)` used in 1 test. |
 | DS-017 | ✅ `△over` | Med→**Low** | High | `Dtos.swift:110` + `DtoTests.swift:17` | Nominal; only `requireSendable` references it. |
 | DS-018 | ✅ | Med→Med | High | 8 sites: Get×3, Select×2, Delete×2, Clear×1 | Intents → `AppState.shared`. |

@@ -25,7 +25,7 @@
 
 **What this closed:** the entire **silent-failure cluster** (4 distinct swallow sites — now all surface to `lastPersistError`) and the **search-generation bug class** (3 sites now bump generation like their siblings). The most dangerous correctness defects in the verification are gone.
 
-**Post-roadmap progress (through 2026-07-11):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), E1 (`cd368ea`), E3 (`32320cf`), and timestamp hygiene (`91d76b8`) are complete. XcodeGen M0–M3 is complete through `94ca913`: production project output is generated, and normal CI/release enforce repeatability + zero drift.
+**Post-roadmap progress (through 2026-07-12):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), C5 (`76a2a53` + generated project `b49b462`), E1 (`cd368ea`), E3 (`32320cf`), and timestamp hygiene (`91d76b8`) are complete. XcodeGen M0–M3 is complete through `94ca913`: production project output is generated, and normal CI/release enforce repeatability + zero drift.
 
 **What remains:** structure debt (the deferred god-object split), load/memory work beyond the completed D0/D4–D6 steps, single search-engine/domain cleanup, package organization, and progressive dependency injection.
 
@@ -67,7 +67,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 | C2 | `SignatureIndex` consistency | DS-009 | M | M | **DONE.** C2.1 (`c6afcbe`): UI delete/clear batches actor removal/reset. C2.2 (`10f8d90`): one DTO signature projection. C2.3 (`f9f0e85`): search is read-only; backfill occurs inside the ingest transaction. Original cross-ingest timing claim refuted by `ModelContext.transaction` semantics. |
 | C3 | Single `MatchEngine` + empty short-circuit | DS-010, DS-012, DS-029 | M | M | Merge legacy `Search` (217 LOC) into `SearchActor`; O(1) decorator-id resolve (`[UUID: HistoryItemDecorator]`); pin the one-item corpus-lag. |
 | C4 | Batch limit deletes | DS-014 | S | M | One transaction for `limitHistorySize` trim (matches the actor's batched trim). |
-| C5 | Pin query off the entity | DS-015 | S | L | `HistoryItem.availablePins` reads `Storage.shared` — move to a PinService. |
+| C5 | **Pin query off the entity — done** (`76a2a53`, `b49b462`) | DS-015 | S | L | Context-injected `PinService` owns supported/assigned/free-key policy; `HistoryItem` has no persistence query or `Storage.shared` access. |
 | C6 | ItemID stability study | DS-019 | M | H | **Recalibrated to Low** (ItemID not persisted → no cross-relaunch break). Document the latent reliance on `String(describing:)`; a stored UUID column only if a concrete need appears. Probably **defer**. |
 
 ### Wave D — Read & hot paths (perf; ties to BS-4/6 memory)
@@ -149,6 +149,7 @@ C6 deferred (Low); D4/D5 pair with BS-4/6 memory work
 8. ~~Remove `HistoryItem.init` timestamp self-assignments~~ — **done** (`91d76b8`; no behavior change, full matrix green).
 9. ~~XcodeGen M2 semantic CI equivalence~~ — **done** (`fc29202`; generated target IDs/test plan, all five generated-project shards, and Release package dry-run green in `29146217892`).
 10. ~~XcodeGen M3 production cutover~~ — **done** (`94ca913`; generated output committed, manual full matrix `29153231827`, master generation+test gate `29153606508`, release dry-run `29153818821`). Next: C5, then remaining ungated domain cleanup.
+11. ~~C5 — move pin availability queries off `HistoryItem`~~ — **done** (`76a2a53`, `b49b462`; context-injected module, generated-project full matrix + Release package green in `29154584664`). Next ungated cleanup: E2; C3/C4 still respect the documented B2 dependency.
 
 XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
@@ -171,4 +172,4 @@ XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
 ---
 
-**One-line summary:** Wave A plus D0/D4–D6, C1/C2, and E1/E3/E4 are complete. Next is small ungated domain/hygiene work and XcodeGen M2, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.
+**One-line summary:** Wave A plus D0/D4–D6, C1/C2/C5, E1/E3/E4, and XcodeGen M0–M3 are complete. Next is E2 and other ungated cleanup; C3/C4 remain behind their documented B2 dependency, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.
