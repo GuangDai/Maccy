@@ -10,7 +10,7 @@
 | File | Types | Role |
 |------|-------|------|
 | `ClipboardIngestor.swift` | protocol, `MainActorIngestorAdapter`, `BackgroundClipboardIngestor` | Contract + impls |
-| `Dtos.swift` | ContentDTO, StoreEvent, snapshot, ItemID, … | Sendable catalog |
+| `Dtos.swift` | ContentDTO, StoreEvent, snapshot, StoredItemID, … | Sendable catalog |
 | `IngestFilter.swift` | IngestConfig, filterContents | Pure filter |
 | `PasteboardSource.swift` | protocol, NSPasteboardSource | Snapshot |
 | `SignatureIndex.swift` | index struct | Dedup candidates |
@@ -46,7 +46,7 @@ Not production-wired. Different semantics (no StoreEvent). Isolate to tests.
 
 ```text
 State:
-  signatureIndex, persistentIDByItemID, dedupIndexInitialized
+  signatureIndex, persistentIDByStoredID, dedupIndexInitialized
   image: ImageProcessing   // injected; main ingest path does not decode for title
   now, onEvent
   modelContext via @ModelActor
@@ -81,10 +81,9 @@ No sessionLog modification merge — documented intentional.
 
 ## 4. Dtos deep notes
 
-### ItemID (DS-019)
+### StoredItemID (DS-019 — resolved `1393143`)
 
-`String(describing: persistentModelID)` → double FNV-1a → UUID.  
-Stability across OS updates is a **risk**, not proven broken in this audit.
+The index now keys directly on Apple's stable, `Hashable`/`Sendable` `PersistentIdentifier.ID`. The old `String(describing: persistentModelID)` → double-FNV → UUID projection and its latent format/collision risk were deleted without adding a schema column.
 
 ### snapshot(of:) cost
 

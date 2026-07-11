@@ -24,18 +24,18 @@ Baseline HEAD: `6cd37c8`.
 
 ---
 
-## 2. Three identifier systems (do not conflate)
+## 2. Stored and presentation identities (do not conflate)
 
 | Name | Type | Stable across? | How created | Used for |
 |------|------|----------------|-------------|----------|
-| **PersistentIdentifier** | SwiftData | App relaunches (same store row) | Assigned on insert/save | `model(for:)`, `syncAllToStore`, `sessionLog` values |
-| **ItemID** | `typealias ItemID = UUID` | As stable as `String(describing: persistentModelID)` | Double FNV-1a fold of that string (`Dtos.swift` `itemID(from:)`) | `SignatureIndex` keys, `StoreEvent.removed`, `snapshot.id` |
+| **PersistentIdentifier** | SwiftData fetch handle | App relaunches (same store row) | Assigned on insert/save | `model(for:)`, reconciliation, `sessionLog` values |
+| **StoredItemID** | `PersistentIdentifier.ID` | Stable within its containing store | Exposed directly by SwiftData | `SignatureIndex` keys, `StoreEvent.removed`, `snapshot.id` |
 | **Decorator id** | `UUID` (`let id = UUID()` on each decorator) | **Only while that decorator instance lives** | New UUID every `HistoryItemDecorator(...)` | `SearchMatchDTO.id`, selection, `VisibilityTracker`, SwiftUI `Identifiable` |
 
 ### Invariants that must hold
 
-1. For one store row, `PersistentIdentifier` is the only true persistence identity.
-2. `ItemID` **must** be a pure function of that identity for the life of the process (and ideally across launches — **see finding DS-019** if `String(describing:)` is not stable).
+1. `PersistentIdentifier` is the fetch handle; its `StoredItemID` is the same row's correlation identity within the store.
+2. Production only indexes committed items whose temporary identity has been replaced by the stable stored identity.
 3. After merge/re-decorate, **decorator id changes**. Corpus must `remove(oldDecoratorId)` then `insert(newEntry)`.
 4. Never use decorator id as a database key or cross-process id.
 
@@ -45,11 +45,11 @@ Baseline HEAD: `6cd37c8`.
   let id = UUID()
 ```
 
-### Evidence — ItemID derivation
+### Evidence — stored identity projection
 
-```177:180:Maccy/Ingest/Dtos.swift
-private func itemID(for item: HistoryItem) -> ItemID {
-  itemID(from: String(describing: item.persistentModelID))
+```swift
+func storedItemID(for item: HistoryItem) -> StoredItemID {
+  item.persistentModelID.id
 }
 ```
 

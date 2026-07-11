@@ -38,3 +38,12 @@ This decision is deliberately recorded here rather than as an ADR: the represent
 2. Implement the direct identity projection, generic index, vocabulary rename, and dead adapter deletion.
 3. Run focused/full unit, UI, performance, strict lint, generated-project zero-drift, and Release gates through the macOS runner.
 4. Update the roadmap, verification matrix, existing identifier glossaries, and this record with evidence.
+
+## Verification evidence
+
+- Red: `f9be29b` changed the committed-model characterization to require `snapshot(of: item).id == item.persistentModelID.id`. Workflow `29167729346` failed all shards at the test compile boundary with the expected `Conflicting arguments to generic parameter 'T' ('ItemID' vs. 'PersistentIdentifier.ID')` error.
+- Green: `1393143` introduced `StoredItemID = PersistentIdentifier.ID`, removed the string/double-FNV projection, specialized production `SignatureIndex` to that identity, made the pure index generic for UUID test fixtures, and made `SearchActor` explicitly use presentation UUIDs. It also removed the index's snapshot/event convenience interface and nine tests that exercised only that production-dead interface; actor-level `synchronizeStoreEvents` tests remain the integration surface.
+- Workflow `29167878876` passed strict lint/diagnostics, generated-project repeatability and zero drift, the full unit suite (including the new committed-identity characterization), both UI shards, and both performance shards. No flake required classification.
+- Static proof: no `String(describing: persistentModelID)`, double-FNV seeds, `ItemID` symbol, or `itemID(for:)` remains in production or tests. The change removed 231 lines and added 68 with no schema/project-output change.
+
+C6 is complete. DS-019 is closed without a migration, and DS-005's identity vocabulary now distinguishes stored identity from presentation identity in both code and the root domain glossary.

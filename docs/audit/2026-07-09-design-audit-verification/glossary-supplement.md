@@ -25,7 +25,7 @@
 | **Live ingest** (§4 alias) | Add: **not end-to-end off-main** — `ingest` hops to `MainActor.run` once per call for filter/title/body/limit (DS-011). |
 | **Legacy add** (§1) | Add: `findSimilarItem` is `private` (reachable only via `add`); the actor's class doc names the parity gap (no `sessionLog`/`isModified` modification-merge on the actor). |
 | **SignatureIndex rebuild** (implicit in DS-009 text) | **Audit baseline:** no rebuild trigger. **Current:** UI delete/clear forwards batched removal/reset events; a full clear marks the index uninitialized for a safe next-ingest rebuild (`c6afcbe`). |
-| **ItemID** (§2) | Fold location: `Dtos.swift:186-217` (the `:177-180` site is the wrapper). Keep distinct from the **xxh3 content fingerprint** — `CLAUDE.md`'s "FNV-1a superseded" refers to the legacy *content* hash, **not** ItemID. |
+| **StoredItemID** (§2) | **Current (`1393143`):** alias of Apple's stable `PersistentIdentifier.ID`; the old description/double-FNV projection was deleted. Keep distinct from presentation UUIDs and the xxh3 content fingerprint. |
 | **`MainActorIngestorAdapter`** | "Not production-wired" → **fully dead** (0 instantiation sites; only static `historyItem(from:)` used in one test). |
 
 ---
@@ -33,11 +33,10 @@
 ## Identifier/signature map (verified HEAD locations)
 
 ```text
-PersistentIdentifier  SwiftData-assigned; stable across relaunch; the ONLY true persistence identity.
-ItemID = UUID         Double FNV-1a fold of String(describing: persistentModelID).
-                      Fold: Maccy/Ingest/Dtos.swift:186-217   (wrapper itemID(for:) :178-180)
-                      NOT persisted in any @Model → rebuilt every process (why DS-019 is Low).
-Decorator id = UUID() Fresh per HistoryItemDecorator init (Maccy/Observables/HistoryItemDecorator.swift:47).
+PersistentIdentifier  SwiftData fetch handle carrying store/entity/stable-ID information.
+StoredItemID           Alias of PersistentIdentifier.ID; stable within the containing store,
+                       Hashable + Sendable; keys SignatureIndex and StoreEvent.removed.
+Decorator id = UUID() Fresh per HistoryItemDecorator init (Maccy/Observables/HistoryItemDecorator.swift).
                       Used for: SearchMatchDTO.id, selection, VisibilityTracker, SwiftUI Identifiable.
                       Never stable across re-decorate (merge/load) → corpus must remove(old) then insert(new).
 

@@ -65,9 +65,9 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 | | |
 |--|--|
-| **Evidence** | Glossary; `HistoryItemDecorator.id = UUID()`; `itemID(from: String(describing:))`; Engine.Signature vs SignatureDTO |
-| **Impact** | Merge must re-key search corpus by decorator id; ItemID stability risk (DS-019); naming confusion |
-| **Recommendation** | Freeze glossary; invariant tests; long-term stable ItemID strategy |
+| **Evidence** | `CONTEXT.md`; `HistoryItemDecorator.id = UUID()`; `StoredItemID = PersistentIdentifier.ID`; Engine.Signature vs SignatureDTO |
+| **Impact** | Merge must re-key search corpus by presentation id; stored vs presentation identity and signature vs fingerprint must remain distinct. |
+| **Recommendation** | **Completed (`1393143`):** canonical glossary + invariant test + direct stable stored identity; search actor explicitly uses presentation UUID. |
 | **Confidence** | High |
 
 ### DS-006 — Global singleton bus
@@ -105,7 +105,7 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 | | |
 |--|--|
 | **Evidence** | Index maintained only inside actor: `ensureDedupIndexInitialized`, `maintainDedupIndex` after commit. `History.delete`/`clear` update arrays + search corpus only |
-| **Impact** | Stale ItemIDs in index; extra candidates; relies on supersedes false / empty shells |
+| **Impact** | Stale stored item identities in index; extra candidates; relies on supersedes false / empty shells |
 | **Recommendation** | `noteRemoved` on actor or dirty-rebuild; ideally unified events |
 | **Confidence** | High mechanism; Medium severity in practice (correctness mostly held by supersedes) |
 
@@ -198,13 +198,13 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 | **Recommendation** | `HistoryCommandService` protocol |
 | **Confidence** | High |
 
-### DS-019 — ItemID depends on `String(describing: PersistentIdentifier)`
+### DS-019 — ItemID depends on `String(describing: PersistentIdentifier)` — RESOLVED (`1393143`)
 
 | | |
 |--|--|
-| **Evidence** | `Dtos.swift` itemID(for:) |
-| **Impact** | If description format changes across OS versions, index keys break across relaunch |
-| **Recommendation** | Measure stability; consider stored UUID column |
+| **Evidence** | Historical: `Dtos.swift` `itemID(for:)` hashed `String(describing:)`. Current: `StoredItemID = PersistentIdentifier.ID`; committed snapshot identity is characterized directly. |
+| **Impact** | Original cross-relaunch failure was refuted because the index rebuilt each process; the remaining undocumented-format and collision risks are now removed. |
+| **Recommendation** | **Completed:** use Apple's stable store-scoped ID; no redundant UUID column/migration. |
 | **Confidence** | Medium (risk), High (mechanism) |
 
 ### DS-020 — No ingest coalesce

@@ -8,7 +8,7 @@
 | DS-002 | ✅ `△over` `⟳` | **Crit→High** | High | `History.swift:420-441` (`try?`@422; loop 425-434) | Fetch-fail → empty set → wipe `all`. **Self-heals on next popup unless store itself is broken** (then `prewarm`'s `load()` also throws & is swallowed). No row deletion. High, not Critical. |
 | DS-003 | ✅ `⟳` | High→**Med**¹ | High | prod wire `AppDelegate.swift:82`; legacy `History.swift:308/742/182` | Dual paths real; but legacy reachable in prod **only via `MainActorIngestorAdapter.ingest` (0 instantiation sites)** → no live dual-write/race. `ClipboardIngestor.swift:44-46` doc still calls adapter "the runtime path" (false). |
 | DS-004 | ✅ | High→High | High | `load` 269-285 (bare descriptor @270); loader `Storage+Background.swift:55` | Unbounded fetch; `fetchWindow` has **6 callers, all in `StorageBackgroundContextTests`**. |
-| DS-005 | ✅ | desc→desc | High | `Dtos.swift:178-180`, `186-217` | 3 IDs + 2 signatures, accurate. (See `03`: fold is at 186-217, not 177-180.) |
+| DS-005 | ✅ | desc→desc | High | `CONTEXT.md`; `Dtos.swift`; `SearchActor.swift`; `1393143` | **Sharpened:** stored identity is `PersistentIdentifier.ID`; presentation identity is explicit UUID; signatures/fingerprints remain separately named. |
 | DS-006 | ✅ `△over` | High→**Med** | High | 175 occ / 26 files | Structural/testability only; no runtime/correctness impact. (175 vs 171 = occ-vs-lines; also only 4 of 8 singletons counted.) |
 | DS-007 | ✅ | High→Med-High | High | 23 sites (lines listed in `03`) | Central spine coupling; no runtime impact. Exact count. |
 | DS-008 | ✅ `▽under` | Low→**Low (larger)** | High | `Clipboard.swift:315-379,44-61,278-292` | Dead surface **bigger than enumerated**: + `filteredTypes`, `supportedTypes`/`disabledTypes` cascade, `ignoredRegexps` NSCache all dead. |
@@ -22,7 +22,7 @@
 | DS-016 | ◐ `△over` | Med→**Low** | High | `ClipboardIngestor.swift:14-37` | Not "residual" — **fully dead**: 0 instantiation sites; only static `historyItem(from:)` used in 1 test. |
 | DS-017 | ✅ `△over` | Med→**Low** | High | `Dtos.swift:110` + `DtoTests.swift:17` | Nominal; only `requireSendable` references it. |
 | DS-018 | ✅ | Med→Med | High | 8 sites: Get×3, Select×2, Delete×2, Clear×1 | Intents → `AppState.shared`. |
-| DS-019 | ✗ `△over` `⟳` | Med→**Low** | High | `Dtos.swift:178-180`→`186-217` | **Refuted as cross-relaunch risk**: ItemID **not persisted** in any `@Model`; index rebuilt from store on first ingest every process → format change absorbed. Only latent reliance on undocumented format. |
+| DS-019 | ✗ `△over` `⟳` | Med→**Low** | High | `StoredItemID`; `1393143` | **Resolved after refutation:** the latent string-format risk is gone; the index directly uses Apple's stable `PersistentIdentifier.ID`, with no schema column. |
 | DS-020 | ✅ | Med→Med | High | `Clipboard.swift:237` | One `Task` per changeCount; no coalesce. |
 | DS-021 | ✅ | Med→Med | Med | `History.swift:383` | `model.title == snapshot.title` gate → full reconcile on mismatch. |
 | DS-022 | ✅ | Med→Med | High | `History.swift` load/reconcile/syncAll/merge | Dual IO channel; fake `HistoryPersistence` can't intercept load. |
@@ -47,7 +47,7 @@
 | DS-003 | CONFIRMED / High | **CONFIRMED / Medium** (agrees)¹ | No live dual-write — legacy path reachable only via the never-instantiated adapter. Mechanism forced; only the High-vs-Medium tier was arguable. |
 | DS-009 | PARTIALLY / Low | **PARTIALLY / High-conf** (agrees) | `supersedes`=containment over `self.contents` → empty shell structurally cannot match; shared-store delete propagation. "No false-positive ever" leans on empirical SwiftData behavior, not a formal guarantee. |
 | DS-013 | CONFIRMED / Medium | **CONFIRMED / Medium** (agrees) | Only gen-writers are `performSearch`@861 & `invalidate`@949; togglePin omits it while `clear`/`clearAll`/`delete` all call it. |
-| DS-019 | REFUTED / Low | **REFUTED / High-conf** (agrees) | Neither `@Model` stores an ItemID; `ensureDedupIndexInitialized` re-derives all keys on first ingest every process. |
+| DS-019 | REFUTED / Low | **REFUTED / High-conf** (agrees) | Original cross-launch failure remained refuted; `1393143` subsequently removed even the latent description dependency by using `PersistentIdentifier.ID`. |
 | DS-025 | PARTIALLY / Low | **PARTIALLY / Medium-conf** (agrees) | Sole main-context insert (`History.swift:36`) saves immediately @37-38; actor uses a separate context. No live pending-insert path. |
 
 ¹ DS-003 severity: the cluster verifier held High; the adversarial skeptic downgraded to Medium with a strong argument (no live dual-write). The skeptic's Medium is adopted as the verified severity.

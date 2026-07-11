@@ -25,7 +25,7 @@
 
 **What this closed:** the entire **silent-failure cluster** (4 distinct swallow sites — now all surface to `lastPersistError`) and the **search-generation bug class** (3 sites now bump generation like their siblings). The most dangerous correctness defects in the verification are gone.
 
-**Post-roadmap progress (through 2026-07-12):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), C5 (`76a2a53` + generated project `b49b462`), E1 (`cd368ea`), E2 (`2a06a58`, `72fa8f2`, `9e54d77` + generated project `19b7431`), E3 (`32320cf`), and timestamp hygiene (`91d76b8`) are complete. XcodeGen M0–M3 is complete through `94ca913`: production project output is generated, and normal CI/release enforce repeatability + zero drift.
+**Post-roadmap progress (through 2026-07-12):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), C5 (`76a2a53` + generated project `b49b462`), C6 (`1393143`), E1 (`cd368ea`), E2 (`2a06a58`, `72fa8f2`, `9e54d77` + generated project `19b7431`), E3 (`32320cf`), and timestamp hygiene (`91d76b8`) are complete. XcodeGen M0–M3 is complete through `94ca913`: production project output is generated, and normal CI/release enforce repeatability + zero drift.
 
 **What remains:** structure debt (the deferred god-object split), load/memory work beyond the completed D0/D4–D6 steps, single search-engine/domain cleanup, package organization, and progressive dependency injection.
 
@@ -68,7 +68,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 | C3 | Single `MatchEngine` + empty short-circuit | DS-010, DS-012, DS-029 | M | M | Merge legacy `Search` (217 LOC) into `SearchActor`; O(1) decorator-id resolve (`[UUID: HistoryItemDecorator]`); pin the one-item corpus-lag. |
 | C4 | Batch limit deletes | DS-014 | S | M | One transaction for `limitHistorySize` trim (matches the actor's batched trim). |
 | C5 | **Pin query off the entity — done** (`76a2a53`, `b49b462`) | DS-015 | S | L | Context-injected `PinService` owns supported/assigned/free-key policy; `HistoryItem` has no persistence query or `Storage.shared` access. |
-| C6 | ItemID stability study | DS-019 | M | H | **Recalibrated to Low** (ItemID not persisted → no cross-relaunch break). Document the latent reliance on `String(describing:)`; a stored UUID column only if a concrete need appears. Probably **defer**. |
+| C6 | **Stored identity — done** (`1393143`) | DS-019; sharpens DS-005 | M | L | Uses Apple's stable, `Hashable`/`Sendable` `PersistentIdentifier.ID` directly; deletes string/FNV projection and avoids a redundant schema column. |
 
 ### Wave D — Read & hot paths (perf; ties to BS-4/6 memory)
 
@@ -98,7 +98,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 B0 → B1 → B2 → (B3 → B4)              # structure spine; B5 after B2
 D0 → D1                                # load ADR gates the load rewrite
 B2 before C3/C4 (they edit the split History); C2 completed safely before the deferred split
-C6 deferred (Low); D4/D5 pair with BS-4/6 memory work
+C6 complete (`1393143`); D4/D5 pair with BS-4/6 memory work
 ```
 
 ---
@@ -131,7 +131,7 @@ C6 deferred (Low); D4/D5 pair with BS-4/6 memory work
 1. **D0 — Load: CLOSED** — keep the loader/background APIs test-only and correct the false production docs (`7852ea8`). DS-004's larger production load/memory work remains separate.
 2. **E4 — Dead paste-stack / multi-select subtree: CLOSED** — delete it (`9849d00`).
 3. **B0 — History split granularity:** ~~the full 5–7 types, or a smaller first cut?~~ **CLOSED** — defer split entirely until forcing-gate; see [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/).
-4. **C6 — ItemID:** keep the derived `String(describing:)` form (Low risk, document it), or invest in a stored UUID column now?
+4. **C6 — Stored identity: CLOSED** — use `PersistentIdentifier.ID` directly (`1393143`). It supplies the stable, store-scoped, `Hashable`/`Sendable` identity the index needs; neither the undocumented string fold nor a redundant UUID column remains.
 5. **C2.1 — SignatureIndex delete-sync:** ~~`noteRemoved`, dirty-rebuild, or unified events?~~ **CLOSED** — successful UI mutations send batched `.removed`/`.cleared` events to the actor; full clear forces a safe next-ingest rebuild (`c6afcbe`).
 6. **D3 — Ingest coalesce:** latest-wins mailbox, or keep one-Task-per-change (accept storm cost)?
 
@@ -150,7 +150,8 @@ C6 deferred (Low); D4/D5 pair with BS-4/6 memory work
 9. ~~XcodeGen M2 semantic CI equivalence~~ — **done** (`fc29202`; generated target IDs/test plan, all five generated-project shards, and Release package dry-run green in `29146217892`).
 10. ~~XcodeGen M3 production cutover~~ — **done** (`94ca913`; generated output committed, manual full matrix `29153231827`, master generation+test gate `29153606508`, release dry-run `29153818821`).
 11. ~~C5 — move pin availability queries off `HistoryItem`~~ — **done** (`76a2a53`, `b49b462`; context-injected module, generated-project full matrix + Release package green in `29154584664`; C3/C4 still respect the documented B2 dependency).
-12. ~~E2 — organize Application/Search packages~~ — **done** (`2a06a58`, `72fa8f2`, `9e54d77`, `19b7431`; generated-project full matrix + Release package green in `29167115880`). Next ungated study: C6, then D2/D3; B2-gated work stays gated.
+12. ~~E2 — organize Application/Search packages~~ — **done** (`2a06a58`, `72fa8f2`, `9e54d77`, `19b7431`; generated-project full matrix + Release package green in `29167115880`; B2-gated work stays gated).
+13. ~~C6 — settle stored item identity~~ — **done** (`1393143`; Apple-documented stable ID, no schema, string/FNV projection deleted; full matrix green in `29167878876`). Next: D2, then the D3 coalescing decision/implementation.
 
 XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
@@ -173,4 +174,4 @@ XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
 ---
 
-**One-line summary:** Wave A plus D0/D4–D6, C1/C2/C5, E1–E4, and XcodeGen M0–M3 are complete. Next is the ungated C6 stability study followed by D2/D3; C3/C4 remain behind their documented B2 dependency, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.
+**One-line summary:** Wave A plus D0/D4–D6, C1/C2/C5/C6, E1–E4, and XcodeGen M0–M3 are complete. Next is D2 followed by D3; C3/C4 remain behind their documented B2 dependency, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.
