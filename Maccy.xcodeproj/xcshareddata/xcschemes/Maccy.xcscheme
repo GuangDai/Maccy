@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1540"
+   LastUpgradeVersion = "1520"
    version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
-      buildArchitectures = "Automatic">
+      runPostActionsOnFailure = "NO">
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
@@ -15,7 +15,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "DAEE38421E3DBEB100DD2966"
+               BlueprintIdentifier = "4A116F674F15506EB4B1EC9B"
                BuildableName = "Maccy.app"
                BlueprintName = "Maccy"
                ReferencedContainer = "container:Maccy.xcodeproj">
@@ -27,35 +27,49 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES">
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      onlyGenerateCoverageForSpecifiedTargets = "NO">
       <TestPlans>
          <TestPlanReference
-            reference = "container:Maccy.xctestplan"
-            default = "YES">
+            default = "YES"
+            reference = "container:Maccy.xctestplan">
          </TestPlanReference>
       </TestPlans>
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "4A116F674F15506EB4B1EC9B"
+            BuildableName = "Maccy.app"
+            BlueprintName = "Maccy"
+            ReferencedContainer = "container:Maccy.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
       <Testables>
          <TestableReference
-            skipped = "NO">
+            skipped = "NO"
+            parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "DA360DAF1E3DF137005C6F6B"
+               BlueprintIdentifier = "0446876ED5176C853EBC49E0"
                BuildableName = "MaccyTests.xctest"
                BlueprintName = "MaccyTests"
                ReferencedContainer = "container:Maccy.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
-            skipped = "NO">
+            skipped = "NO"
+            parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "DA0EE7B5204657830025FC60"
+               BlueprintIdentifier = "2F20B29709C072148C322A94"
                BuildableName = "MaccyUITests.xctest"
                BlueprintName = "MaccyUITests"
                ReferencedContainer = "container:Maccy.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -71,12 +85,14 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "DAEE38421E3DBEB100DD2966"
+            BlueprintIdentifier = "4A116F674F15506EB4B1EC9B"
             BuildableName = "Maccy.app"
             BlueprintName = "Maccy"
             ReferencedContainer = "container:Maccy.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -88,12 +104,14 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "DAEE38421E3DBEB100DD2966"
+            BlueprintIdentifier = "4A116F674F15506EB4B1EC9B"
             BuildableName = "Maccy.app"
             BlueprintName = "Maccy"
             ReferencedContainer = "container:Maccy.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">

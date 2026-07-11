@@ -1,40 +1,38 @@
 {
-  "configurations" : [
+  "configurations": [
     {
-      "id" : "AF4E53A3-F52D-4A3E-B9EF-EF728B4C1AAA",
-      "name" : "Test Scheme Action",
-      "options" : {
-
-      }
+      "id": "AF4E53A3-F52D-4A3E-B9EF-EF728B4C1AAA",
+      "name": "Test Scheme Action",
+      "options": {}
     }
   ],
-  "defaultOptions" : {
-    "commandLineArgumentEntries" : [
+  "defaultOptions": {
+    "commandLineArgumentEntries": [
       {
-        "argument" : "enable-testing"
+        "argument": "enable-testing"
       }
     ],
-    "targetForVariableExpansion" : {
-      "containerPath" : "container:Maccy.xcodeproj",
-      "identifier" : "DAEE38421E3DBEB100DD2966",
-      "name" : "Maccy"
+    "targetForVariableExpansion": {
+      "containerPath": "container:Maccy.xcodeproj",
+      "identifier": "4A116F674F15506EB4B1EC9B",
+      "name": "Maccy"
     }
   },
-  "testTargets" : [
+  "testTargets": [
     {
-      "target" : {
-        "containerPath" : "container:Maccy.xcodeproj",
-        "identifier" : "DA360DAF1E3DF137005C6F6B",
-        "name" : "MaccyTests"
+      "target": {
+        "containerPath": "container:Maccy.xcodeproj",
+        "identifier": "0446876ED5176C853EBC49E0",
+        "name": "MaccyTests"
       }
     },
     {
-      "target" : {
-        "containerPath" : "container:Maccy.xcodeproj",
-        "identifier" : "DA0EE7B5204657830025FC60",
-        "name" : "MaccyUITests"
+      "target": {
+        "containerPath": "container:Maccy.xcodeproj",
+        "identifier": "2F20B29709C072148C322A94",
+        "name": "MaccyUITests"
       }
     }
   ],
-  "version" : 1
+  "version": 1
 }
