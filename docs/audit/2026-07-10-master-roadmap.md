@@ -25,9 +25,9 @@
 
 **What this closed:** the entire **silent-failure cluster** (4 distinct swallow sites — now all surface to `lastPersistError`) and the **search-generation bug class** (3 sites now bump generation like their siblings). The most dangerous correctness defects in the verification are gone.
 
-**Post-roadmap progress (through 2026-07-11):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), and C2.1 (`c6afcbe`) have landed or reached a green branch gate. The XcodeGen M0/M1 cross-cut also completed through `b719303`; it does not change the production project yet.
+**Post-roadmap progress (through 2026-07-11):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), E1 (`cd368ea`), and E3 (`32320cf`) have landed or passed their branch gate. The XcodeGen M0/M1 cross-cut also completed through `b719303`; it does not change the production project yet.
 
-**What remains:** structure debt (the deferred god-object split), load/memory work, C2's two residual dedup details, single search-engine/domain cleanup, Intent boundaries, and progressive dependency injection.
+**What remains:** structure debt (the deferred god-object split), load/memory work beyond the completed D0/D4–D6 steps, single search-engine/domain cleanup, package organization, progressive dependency injection, and the XcodeGen M2/M3 production cutover.
 
 ---
 
@@ -63,7 +63,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 
 | # | Step | Closes | Effort | Risk |
 |---|------|--------|--------|------|
-| C1 | Single filter source | DS-008, `NEW-clipboard-filter-1/2/3` | M | M | Shared UTI constants; delete 4 dead Clipboard helpers + the dead `supportedTypes`/`disabledTypes` cascade; fix `contents(from:)` doc rot. |
+| C1 | **Single filter source — done** (`2ac325f`) | DS-008, `NEW-clipboard-filter-1/2/3` | M | M | Shared `IngestFilter` rules now own the UTI policy; dead Clipboard helpers/cascades and doc rot were removed. |
 | C2 | `SignatureIndex` consistency | DS-009 | M | M | **DONE.** C2.1 (`c6afcbe`): UI delete/clear batches actor removal/reset. C2.2 (`10f8d90`): one DTO signature projection. C2.3 (`f9f0e85`): search is read-only; backfill occurs inside the ingest transaction. Original cross-ingest timing claim refuted by `ModelContext.transaction` semantics. |
 | C3 | Single `MatchEngine` + empty short-circuit | DS-010, DS-012, DS-029 | M | M | Merge legacy `Search` (217 LOC) into `SearchActor`; O(1) decorator-id resolve (`[UUID: HistoryItemDecorator]`); pin the one-item corpus-lag. |
 | C4 | Batch limit deletes | DS-014 | S | M | One transaction for `limitHistorySize` trim (matches the actor's batched trim). |
@@ -74,13 +74,13 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 
 | # | Step | Closes | Effort | Risk |
 |---|------|--------|--------|------|
-| D0 | **Load ADR** (decision) | DS-004, `NEW-storage-load-models-1` | S | — | **Wire vs delete `VisibleWindowLoader`**; either way kill the false "production calls this" docstring on `newBackgroundContext` (which is itself prod-dead). Needs your call (§5). |
+| D0 | **Load ADR — done** (`7852ea8`) | DS-004, `NEW-storage-load-models-1` | S | — | Keep the loader/background APIs test-only; production claims were removed. This records the current decision without pretending the larger DS-004 memory problem is fixed. |
 | D1 | Implement the load decision | DS-004 | L | H | Windowed load (or confirmed deletion). The big memory win — unbounded `load` faults the whole table into `mainContext`. Needs memory-suite literacy. |
 | D2 | Shrink the MainActor hop | DS-011 | M | M | Snapshot `Defaults` off the hot path; evaluate off-main rich text with fixtures. |
 | D3 | Ingest coalesce | DS-020 | M | M | Product decision: latest-wins mailbox vs current one-Task-per-changeCount. |
-| D4 | `syncAllToStore` O(n)→O(deleted) | `NEW-history-spine-2` | M | M | Have the ingest actor return the `deletedItemIDs` it already computes; apply those directly instead of re-fetching all identifiers on every copy. |
-| D5 | `commit` per-copy full fetch→maintained count | `NEW-ingest-dualpath-1` | M | M | Track an ordered/counted tail in the actor so the size-trim doesn't fetch+sort the entire unpinned table every copy. |
-| D6 | Defaults-reload uses reconcile, not full load | `NEW-history-spine-1` | S | L | `loadAfterDefaultsChange` → `reconcileWithStore` (reuse decorators, avoid image re-decode storm). |
+| D4 | **`syncAllToStore` O(n)→O(deleted) — done** (`9c8728c`) | `NEW-history-spine-2` | M | M | Ingest returns deleted persistent IDs and main applies only those removals. |
+| D5 | **Bound per-copy trim fetch — done** (`592bae6`, `01493f9`) | `NEW-ingest-dualpath-1` | M | M | Count + bounded tail fetch replaces full unpinned-row fault/sort on the no-trim path. |
+| D6 | **Defaults reload uses reconcile — done** (`947f88b`) | `NEW-history-spine-1` | S | L | `loadAfterDefaultsChange` reuses reconcile/decorators rather than forcing full load/redecode. |
 
 ### Wave E–F — Boundaries & hygiene (low-risk, interleaves anywhere)
 
@@ -88,8 +88,8 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 |---|------|--------|--------|------|
 | E1 | **Intent port — done** (`cd368ea`) | DS-018, `NEW-singletons-intents-misc-2/3` | M | L | `HistoryCommandService` is the single Intent application port; one resolver owns 1-based bounds and indexes `all`, not search-filtered `items`. |
 | E2 | Package moves (no behavior) | DS-026, DS-034 | M | L | `CompositionRoot` + `DebugHooks` split; colocate `Search*` under `Search/`. |
-| E3 | Timer / multiSelect | DS-024, DS-028 | S | L | Timer `tolerance` + `.common`; decide the dead `multiSelectionEnabled` subtree. |
-| E4 | **Delete dead paste-stack subtree** | `NEW-singletons-intents-misc-1` | S | L | ~250 LOC unreachable (PasteStack model + extension + 3 views + KeyChord/KeyHandling branches), gated by always-false `multiSelectionEnabled`. **Needs your decision** (§5). |
+| E3 | **Clipboard Timer — done** (`32320cf`) | DS-024 | S | L | Effective interval retains its 100 ms floor, adds tested 10% tolerance, and runs in `.common`. |
+| E4 | **Dead paste-stack subtree deleted** (`9849d00`) | DS-028, `NEW-singletons-intents-misc-1` | S | L | Removed the unreachable model/views/state/key branches and always-false gate. |
 | E5 | Progressive DI vs `shared` | DS-006 | ongoing | M | Stop new `*.shared` call sites; inject at boundaries. 175 occurrences / 26 files — whittle, don't big-bang. |
 
 ### 3.5 Hard dependencies
@@ -97,9 +97,8 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 ```text
 B0 → B1 → B2 → (B3 → B4)              # structure spine; B5 after B2
 D0 → D1                                # load ADR gates the load rewrite
-B2 before C2/C3/C4 (they edit the split History)
+B2 before C3/C4 (they edit the split History); C2 completed safely before the deferred split
 C6 deferred (Low); D4/D5 pair with BS-4/6 memory work
-E4 (dead subtree) needs your delete/keep decision
 ```
 
 ---
@@ -109,28 +108,28 @@ E4 (dead subtree) needs your delete/keep decision
 | New ID | Sev | Wave | Status |
 |--------|-----|------|--------|
 | `NEW-dedup-ids-1` | Med (top) | **A** | ✅ done |
-| `NEW-history-spine-1` Defaults-reload full load | Med | D6 | open |
-| `NEW-history-spine-2` syncAll O(n)/copy | Med | D4 | open |
+| `NEW-history-spine-1` Defaults-reload full load | Med | D6 | ✅ done (`947f88b`) |
+| `NEW-history-spine-2` syncAll O(n)/copy | Med | D4 | ✅ done (`9c8728c`) |
 | `NEW-history-spine-3` load no gen bump | Low | **A** | ✅ done |
 | `NEW-history-spine-4` select no invalidate | Low | **A** | ✅ done |
-| `NEW-ingest-dualpath-1` commit O(n)/copy | Med | D5 | open |
+| `NEW-ingest-dualpath-1` commit O(n)/copy | Med | D5 | ✅ done (`592bae6`, `01493f9`) |
 | `NEW-ingest-dualpath-2` read mutates candidates | Low | C2.3 | ✅ done (`f9f0e85`) |
 | `NEW-ingest-dualpath-3` adapter fully dead | Low | B4 | open (B4 removes it) |
 | `NEW-ingest-dualpath-4` result discarded | Low | **A** | ✅ done |
 | `NEW-dedup-ids-2` findDuplicate re-derives signature | Low | C2.2 | ✅ done (`10f8d90`) |
 | `NEW-dedup-ids-3` backfill cross-ingest commit | Low | C2.3 | ✅ refuted timing; coupling removed (`f9f0e85`) |
-| `NEW-clipboard-filter-1/2/3` dead helpers + doc rot | Low | C1 | open |
-| `NEW-storage-load-models-1` dead newBackgroundContext + false doc | Med | D0 | open |
+| `NEW-clipboard-filter-1/2/3` dead helpers + doc rot | Low | C1 | ✅ done (`2ac325f`) |
+| `NEW-storage-load-models-1` dead newBackgroundContext + false doc | Med | D0 | ✅ ADR/docs done (`7852ea8`; APIs retained test-only) |
 | `NEW-storage-load-models-2` init self-assigns timestamps | Low | C (hygiene) | open |
-| `NEW-singletons-intents-misc-1` dead paste-stack subtree | Med (cleanup value) | E4 | open (decision) |
+| `NEW-singletons-intents-misc-1` dead paste-stack subtree | Med (cleanup value) | E4 | ✅ done (`9849d00`) |
 | `NEW-singletons-intents-misc-2/3` intent dup + filtered-index ambiguity | Low/Med-Low | E1 | ✅ done (`cd368ea`) |
 
 ---
 
-## 5. Decision forks (need your call — these gate work)
+## 5. Decision forks (resolved and remaining)
 
-1. **D0 — Load:** wire `VisibleWindowLoader`, delete it, or keep test-only + fix the docstring? (The biggest memory lever; also kills the false "production calls this" claim.)
-2. **E4 — Dead paste-stack / multi-select subtree (~250 LOC):** delete it, or is multi-select a staged feature being kept warm?
+1. **D0 — Load: CLOSED** — keep the loader/background APIs test-only and correct the false production docs (`7852ea8`). DS-004's larger production load/memory work remains separate.
+2. **E4 — Dead paste-stack / multi-select subtree: CLOSED** — delete it (`9849d00`).
 3. **B0 — History split granularity:** ~~the full 5–7 types, or a smaller first cut?~~ **CLOSED** — defer split entirely until forcing-gate; see [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/).
 4. **C6 — ItemID:** keep the derived `String(describing:)` form (Low risk, document it), or invest in a stored UUID column now?
 5. **C2.1 — SignatureIndex delete-sync:** ~~`noteRemoved`, dirty-rebuild, or unified events?~~ **CLOSED** — successful UI mutations send batched `.removed`/`.cleared` events to the actor; full clear forces a safe next-ingest rebuild (`c6afcbe`).
@@ -145,7 +144,8 @@ E4 (dead subtree) needs your delete/keep decision
 3. ~~C1 and C2.1 domain cleanup~~ — **done** (`2ac325f`, `c6afcbe`).
 4. ~~C2.2 — stop re-deriving incoming signature entries~~ — **done** (`10f8d90`; shared `signatureDTO(of:)`).
 5. ~~C2.3 — isolate lazy fingerprint backfill persistence semantics~~ — **done/refined** (`f9f0e85`; cross-ingest timing refuted, read-side mutation removed).
-6. ~~E1 — route App Intents through a stable full-history command port~~ — **done** (`cd368ea`; duplicated 1-based bounds removed, no `AppState.shared` remains under `Intents`). Next: E3's remaining Timer work, then C3 when its History seam is safe.
+6. ~~E1 — route App Intents through a stable full-history command port~~ — **done** (`cd368ea`; duplicated 1-based bounds removed, no `AppState.shared` remains under `Intents`).
+7. ~~E3 — keep clipboard polling coalescible and active during event tracking~~ — **done** (`32320cf`; tested tolerance + `.common`). Next: the isolated timestamp-init hygiene finding, then C5 or XcodeGen M2 while C3 remains gated by the deferred History seam.
 
 Parallel-safe: XcodeGen M2 remains a separate infrastructure track.
 
@@ -168,4 +168,4 @@ Parallel-safe: XcodeGen M2 remains a separate infrastructure track.
 
 ---
 
-**One-line summary:** Wave A closed the silent-failure + search-generation defects. Next is **concrete-value work** — D4 (per-copy perf) or the Load ADR (D0) / dead-subtree (E4) decisions — **not** the hollow UIEffectPort (reverted 2026-07-10). Structural decoupling of History↔AppState waits for a real projection split (inversion), not a singleton-wrapping port.
+**One-line summary:** Wave A plus D0/D4–D6, C1/C2, and E1/E3/E4 are complete. Next is small ungated domain/hygiene work and XcodeGen M2, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.

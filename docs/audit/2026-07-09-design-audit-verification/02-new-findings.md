@@ -58,6 +58,8 @@ Severity convention matches the design audit: **Medium** = real defect worth sch
 
 ### `NEW-singletons-intents-misc-1` — ~250 LOC dead paste-stack / multi-select subtree
 
+> **Resolved 2026-07-10 (`9849d00`):** the entire unreachable paste-stack/multi-select subtree and its always-false gate were deleted.
+
 | | |
 |--|--|
 | **Location** | `PasteStack.swift` (72), `History+PasteStack.swift` (102), `PasteStackView.swift`/`PasteStackPreviewView.swift`/`PasteStackItemView.swift`; entry points `AppState.swift:71-74,117-119`, `HistoryItemView.swift:60-61`, `KeyChord.swift:46-49,102-125`, `KeyHandlingView.swift:104-135` |

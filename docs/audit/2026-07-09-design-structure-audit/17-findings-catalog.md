@@ -244,6 +244,8 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-024 — Timer without tolerance / common mode
 
+> **Resolved 2026-07-11 (`32320cf`):** `Clipboard.start()` now applies a tested 10% tolerance to the effective polling interval and explicitly registers the Timer on the main run loop in `.common` mode.
+
 | | |
 |--|--|
 | **Evidence** | `Clipboard.start` Timer API |
@@ -279,6 +281,8 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 | **Confidence** | High |
 
 ### DS-028 — `multiSelectionEnabled = false` dead switch
+
+> **Resolved 2026-07-10 (`9849d00`):** the unreachable paste-stack/multi-select model, views, state, and key-handling branches were deleted rather than retaining an always-false feature gate.
 
 | | |
 |--|--|

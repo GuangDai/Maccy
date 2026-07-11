@@ -27,11 +27,11 @@
 | DS-021 | ✅ | Med→Med | Med | `History.swift:383` | `model.title == snapshot.title` gate → full reconcile on mismatch. |
 | DS-022 | ✅ | Med→Med | High | `History.swift` load/reconcile/syncAll/merge | Dual IO channel; fake `HistoryPersistence` can't intercept load. |
 | DS-023 | ✅ | Med→Med | High | `ContentView` `try?`; `AppState:101` `try?` | Load errors swallowed. |
-| DS-024 | ✅ | Med→Med | High | `Clipboard.start` Timer | No tolerance; default mode (not `.common`). |
+| DS-024 | ✅ `⟳` | Med→Med | High | `Clipboard.start` Timer | **Resolved `32320cf`:** tested 10% tolerance; explicit main-run-loop `.common` registration. |
 | DS-025 | ◐ `△over` `⟳` | Med→**Low** | Med | `History.swift:49-62` (**inline**, not a separate file) | No-save-before-predicate real, but **no prod path leaves a pending main-context insert**; trigger dormant. |
 | DS-026 | ✅ | Med→Med | High | 29 root `.swift`; `AppDelegate` 390 (≈110 DEBUG) | Overload. Exact. |
 | DS-027 | ✅ | Med→Med | High | README re-checks | All 4 HEAD re-checks accurate (fingerprint candidate-only; `dataFromFileIfAllowed` nil-on-fail; `DecodedImageCache` gone; `item(before:)` guarded). |
-| DS-028 | ✅ `▽under` | Low/Med→**High (cleanup)** | High | `AppState.swift:15` | Gates a **~250 LOC dead paste-stack/multi-select subtree**. |
+| DS-028 | ✅ `▽under` `⟳` | Low/Med→**High (cleanup)** | High | deletion `9849d00` | **Resolved:** the ~250 LOC dead paste-stack/multi-select subtree and always-false gate were deleted. |
 | DS-029 | ✅ `△over` | Med→**Low** | High | fire-and-forget corpus `Task`s | One-item lag; documented; self-correcting. |
 | DS-030 | ✅ | Med→Med | High | `HistoryItemEngine` | Takes `[HistoryItemContent]` (@Model). |
 | DS-031 | ◐ | Low→Low | High | `Dtos.swift` | `IngestPlan`/`IngestIgnoreReason` unused (overlaps DS-017). |

@@ -34,3 +34,11 @@ The value configuration is intentionally the only new seam. It makes the energy/
 - `test(e3): define clipboard timer policy`
 - `fix(e3): keep polling active in common modes`
 - `docs(e3): record clipboard timer evidence`
+
+## Evidence
+
+- Red: workflow `29145191058` on `5b994fe` compiled the app, then failed every shard that reached `MaccyTests/ClipboardTests.swift` with the expected two `Type 'Clipboard' has no member 'timerConfiguration'` errors. The run was cancelled immediately after the compile-red was captured.
+- Green: `32320cf` adds the configuration and explicitly scheduled Timer. Workflow `29145295608` passed strict lint/diagnostics, the complete unit suite (including both new Timer policy tests), both UI shards, and all three performance shards.
+- Static proof: `Timer.scheduledTimer` no longer appears in `Clipboard`; `start()` sets `timer.tolerance` before registering the Timer through `RunLoop.main.add(..., forMode: .common)` via the tested configuration.
+
+E3 is complete. DS-024 is closed; DS-028 remains closed independently by the earlier E4 deletion (`9849d00`).
