@@ -217,7 +217,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Enforce all M1 gates
+      - name: Enforce all generation gates
         if: always()
         shell: bash
         run: |
@@ -235,8 +235,214 @@ jobs:
           failed=0
           for outcome in "${outcomes[@]}"; do
             if [[ "$outcome" != success ]]; then
-              echo "M1 gate did not succeed: $outcome" >&2
+              echo "Generated-project gate did not succeed: $outcome" >&2
               failed=1
             fi
           done
           exit "$failed"
+
+  test-shards:
+    name: generated shard (${{ matrix.shard }})
+    needs: validate
+    runs-on: macos-26
+    timeout-minutes: 30
+    strategy:
+      max-parallel: 5
+      fail-fast: false
+      matrix:
+        include:
+          - shard: unit
+            only: "MaccyTests"
+            skip: "MaccyTests/PerformanceHarnessWiringTest MaccyTests/HistoryItemPerformanceTests MaccyTests/ImageDecodePerformanceTests MaccyTests/TextSearchPerformanceTests MaccyTests/CorpusGeneratorTests"
+          - shard: ui-1
+            only: "MaccyUITests/MaccyUITests/testPopupWithHotkey MaccyUITests/MaccyUITests/testCloseWithHotkey MaccyUITests/MaccyUITests/testPopupWithMenubar MaccyUITests/MaccyUITests/testNewCopyIsAdded MaccyUITests/MaccyUITests/testSearch MaccyUITests/MaccyUITests/testCopyWithClick MaccyUITests/MaccyUITests/testDownArrow MaccyUITests/MaccyUITests/testUpArrow MaccyUITests/MaccyUITests/testCopyWithEnter MaccyUITests/MaccyUITests/testCopyWithCommandShortcut MaccyUITests/MaccyUITests/testCopyImage MaccyUITests/MaccyUITests/testCopyFile MaccyUITests/MaccyUITests/testCopyRTF MaccyUITests/MaccyUITests/testCopyHTML MaccyUITests/MaccyUITests/testSearchFiles MaccyUITests/MaccyUITests/testSearchAndCopyWithCommandShortcut MaccyUITests/MaccyUITests/testControlJ MaccyUITests/MaccyUITests/testControlK MaccyUITests/MaccyUITests/testDeleteEntry MaccyUITests/MaccyUITests/testDeleteEntryDuringSearch MaccyUITests/MaccyUITests/testClear MaccyUITests/MaccyUITests/testClearDuringSearch"
+            skip: ""
+          - shard: ui-2
+            only: "MaccyUITests/MaccyUITests/testClearAll MaccyUITests/MaccyUITests/testPin MaccyUITests/MaccyUITests/testPinDuringSearch MaccyUITests/MaccyUITests/testUnpin MaccyUITests/MaccyUITests/testRemoveLastWordFromSearchWithControlW MaccyUITests/MaccyUITests/testPasteToSearch MaccyUITests/MaccyUITests/testDisablesOnOptionClickingMenubarIcon MaccyUITests/MaccyUITests/testDisablesOnlyForNextCopyOnOptionShiftClickingMenubarIcon MaccyUITests/MaccyUITests/testCreatesNewCopyOnEnterWhenSearchResultsAreEmpty MaccyUITests/MaccyUITests/testOpenAndClose MaccyUITests/MaccyUITests/testOpenAndSelectSecondItem MaccyUITests/MaccyUITests/testOpenAndSelectThirdItem MaccyUITests/MaccyUITests/testOpenAndSelectThirdItemRepeatedPress MaccyUITests/MaccyUITests/testTogglePopupAndCloseOnClickOutside"
+            skip: ""
+          - shard: perf-image
+            only: "MaccyTests/ImageDecodePerformanceTests/testImageRenderFirst20 MaccyTests/ImageDecodePerformanceTests/testSingleLargeImageColdLoad MaccyTests/ImageDecodePerformanceTests/testManyImagesColdLoad_N200 MaccyTests/ImageDecodePerformanceTests/testMixedColdLoad_N200 MaccyTests/PerformanceHarnessWiringTest MaccyTests/HistoryItemPerformanceTests MaccyUITests/PerfRenderUITests/testImageRenderB MaccyUITests/PreviewRefreshUITests/testPreviewRefreshesAcrossNavigation"
+            skip: ""
+          - shard: perf-text
+            only: "MaccyTests/ImageDecodePerformanceTests/testTextRenderFirst20 MaccyTests/ImageDecodePerformanceTests/testProbeDetectsSynchronousMainStall MaccyTests/ImageDecodePerformanceTests/testGCopyPerCopyConsume_N200 MaccyTests/ImageDecodePerformanceTests/testGCopyPerCopyConsume_N1000 MaccyTests/ImageDecodePerformanceTests/testGIngestPerCopy_N1000 MaccyTests/TextSearchPerformanceTests MaccyUITests/PerfRenderUITests/testTextRenderB MaccyTests/ImageDecodePerformanceTests/testMixedRenderFirst20 MaccyUITests/PerfRenderUITests/testMixedRenderB"
+            skip: ""
+    env:
+      NSUnbufferedIO: YES
+      OS_ACTIVITY_MODE: disable
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      PROJECT: Maccy-Generated.xcodeproj
+      SCHEME: Maccy
+      CONFIGURATION: Debug
+      DESTINATION: platform=macOS,arch=arm64
+      DERIVED_DATA: ${{ github.workspace }}/GeneratedDerivedData
+      RESULT_BUNDLES: ${{ github.workspace }}/generated-result-bundles
+      LOG_DIR: ${{ github.workspace }}/generated-ci-logs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download validated generated project
+        uses: actions/download-artifact@v8
+        with:
+          name: xcodeproj-generated-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ github.workspace }}
+
+      - name: Verify generated test inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$PROJECT/project.pbxproj"
+          test -f Maccy-Generated.xctestplan
+          bash scripts/verify-generated-test-plan.sh
+
+      - name: Prepare log and result directories
+        shell: bash
+        run: mkdir -p "$LOG_DIR" "$RESULT_BUNDLES"
+
+      - name: Fetch shared perf corpus (perf shards only)
+        if: ${{ startsWith(matrix.shard, 'perf-') }}
+        shell: bash
+        env:
+          CORPUS_DIR: ${{ github.workspace }}/perf-corpus
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          mkdir -p "$CORPUS_DIR"
+          corpus_tag="perf-corpus-$(git rev-parse HEAD:MaccyTests/ImageFixtureGenerator.swift | cut -c1-16)"
+          echo "Corpus tag: $corpus_tag"
+          if gh release download "$corpus_tag" -p 'perf-corpus.tar.gz' -D /tmp 2>/dev/null; then
+            tar -xzf /tmp/perf-corpus.tar.gz -C "$CORPUS_DIR"
+            echo "Downloaded corpus: $(ls "$CORPUS_DIR" | wc -l) files"
+          else
+            echo "No prebuilt corpus for this generator version; tests will generate locally."
+          fi
+          echo "MACCY_PERF_FIXTURES=$CORPUS_DIR" >> "$GITHUB_ENV"
+
+      - name: Build and test generated-project shard
+        shell: bash
+        run: |
+          set -uo pipefail
+          runner_noise_fopen='fopen fail''ed for data file: errno = 2 (No such file or directory)'
+          runner_noise_io='IOServiceMatchingfail''ed for: AppleM2ScalerParavirtDriver'
+          only_args=""
+          for test_name in ${{ matrix.only }}; do
+            only_args="$only_args -only-testing:$test_name"
+          done
+          skip_args=""
+          for test_name in ${{ matrix.skip }}; do
+            skip_args="$skip_args -skip-testing:$test_name"
+          done
+          if [[ "${{ matrix.shard }}" == perf-* ]]; then
+            xcodebuild \
+              -project "$PROJECT" -scheme "$SCHEME" \
+              -configuration "$CONFIGURATION" -destination "$DESTINATION" \
+              -derivedDataPath "$DERIVED_DATA" \
+              -resultBundlePath "$RESULT_BUNDLES/${{ matrix.shard }}.xcresult" \
+              $only_args $skip_args \
+              CODE_SIGNING_ALLOWED=NO \
+              test 2>&1 \
+              | tee "$LOG_DIR/${{ matrix.shard }}-raw.log" \
+              | awk -v fopen="$runner_noise_fopen" -v io="$runner_noise_io" '
+                  index($0, fopen) || index($0, io) || /IDELaunchParametersSnapshot:/ { next }
+                  { print }
+                ' \
+              | tee "$LOG_DIR/${{ matrix.shard }}.log"
+          else
+            set -e
+            xcodebuild \
+              -project "$PROJECT" -scheme "$SCHEME" \
+              -configuration "$CONFIGURATION" -destination "$DESTINATION" \
+              -derivedDataPath "$DERIVED_DATA" \
+              -resultBundlePath "$RESULT_BUNDLES/${{ matrix.shard }}.xcresult" \
+              $only_args $skip_args \
+              CODE_SIGNING_ALLOWED=NO \
+              test 2>&1 \
+              | awk -v fopen="$runner_noise_fopen" -v io="$runner_noise_io" '
+                  index($0, fopen) || index($0, io) || /IDELaunchParametersSnapshot:/ { next }
+                  { print }
+                ' \
+              | tee "$LOG_DIR/${{ matrix.shard }}.log"
+          fi
+
+      - name: Self-scan generated-project shard log
+        shell: bash
+        run: |
+          set -euo pipefail
+          matches=$(grep -Ein '(^|[^[:alpha:]])(warning:|error:|\*\* TEST FAILED \*\*|Fatal error|[Ff]ailed)([^[:alpha:]]|$)' "$LOG_DIR/${{ matrix.shard }}.log" \
+                    | grep -vE 'HDRImageConverter.*falling back to SIMD|MTLCompiler.*XPC_ERROR_CONNECTION_INVALID|Compiler failed with XPC_ERROR_CONNECTION_INVALID|Dedup index init failed; retry|Failed to commit ingest:.*ForcedCommitFailure|syncAllToStore identifier fetch failed|History load failed' || true)
+          if [[ -n "$matches" ]]; then
+            echo "$matches"
+            echo "Warnings, errors, or failures found in generated ${{ matrix.shard }} log"
+            exit 1
+          fi
+
+      - name: Upload generated-project shard evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-shard-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            generated-ci-logs
+            generated-result-bundles
+          if-no-files-found: warn
+          retention-days: 14
+
+  package-dry-run:
+    name: Package generated Release app
+    needs: validate
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      NSUnbufferedIO: YES
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      PROJECT: Maccy-Generated.xcodeproj
+      SCHEME: Maccy
+      CONFIGURATION: Release
+      DESTINATION: platform=macOS,arch=arm64
+      DERIVED_DATA: ${{ github.workspace }}/GeneratedReleaseDerivedData
+      PACKAGE_DIR: ${{ github.workspace }}/generated-release-package
+      CODE_SIGNING_ALLOWED: NO
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download validated generated project
+        uses: actions/download-artifact@v8
+        with:
+          name: xcodeproj-generated-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ github.workspace }}
+
+      - name: Verify generated release input
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$PROJECT/project.pbxproj"
+          bash scripts/verify-generated-test-plan.sh
+
+      - name: Package generated app
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/package-app.sh \
+            2>&1 | tee "$RUNNER_TEMP/generated-package.log"
+          cp "$RUNNER_TEMP/generated-package.log" "$PACKAGE_DIR/package.log"
+
+      - name: Verify generated package
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find "$PACKAGE_DIR" -maxdepth 1 -type f -name '*.zip' | wc -l | tr -d ' ')" -eq 1
+          test "$(find "$PACKAGE_DIR" -maxdepth 1 -type f -name '*.sha256' | wc -l | tr -d ' ')" -eq 1
+          if grep -Ein '(^|[^[:alpha:]])(warning:|error:|\*\* BUILD FAILED \*\*|Fatal error|[Ff]ailed)([^[:alpha:]]|$)' "$PACKAGE_DIR/package.log"; then
+            echo "Warnings, errors, or failures found in generated package log"
+            exit 1
+          fi
+
+      - name: Upload generated Release package
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-release-package-${{ github.run_id }}-${{ github.run_attempt }}
+          path: generated-release-package
+          if-no-files-found: error
+          retention-days: 14
