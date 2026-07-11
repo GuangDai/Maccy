@@ -160,8 +160,12 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
 
   /// Error injected immediately before save to verify failed transactions do
   /// not leak pending changes into the next ingest.
-  private enum ForcedCommitFailure: Error {
+  private enum ForcedCommitFailure: Error, CustomStringConvertible {
     case forced
+
+    var description: String {
+      "ForcedCommitFailure.forced"
+    }
   }
 
   /// Test-only: when set, the dedup-index init fetch fails until cleared,
@@ -302,7 +306,6 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
         limit: mainWork.historyLimit
       )
     } catch {
-      modelContext.rollback()
       logger.error("Failed to commit ingest: \(String(describing: error))")
       return IngestResult(
         event: nil,
@@ -431,7 +434,8 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// threshold, are skipped) and adds no transaction. A candidate that is about
   /// to be deleted as the duplicate is skipped by `commit`; surviving candidates
   /// persist their backfill atomically with the new item.
-  private func backfillMissingFingerprints(in item: HistoryItem) {
+  private func backfillMissingFingerprints(in item: HistoryItem) -> [HistoryItemContent] {
+    var changed: [HistoryItemContent] = []
     for content in item.contents {
       guard content.fingerprint == nil,
             let value = content.value,
@@ -439,7 +443,9 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
         continue
       }
       content.fingerprint = fingerprint
+      changed.append(content)
     }
+    return changed
   }
 
   /// Lazily builds the dedup index from the committed store on the first
@@ -549,57 +555,69 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   ) throws -> CommitDeletes {
     var deletedItemIDs: [ItemID] = []
     var deletedPersistentIDs: [PersistentIdentifier] = []
-    try modelContext.transaction {
-      for candidate in candidates where candidate != dup {
-        backfillMissingFingerprints(in: candidate)
-      }
-
-      // Delete the duplicate first (pending) so the count and tail fetches below
-      // exclude it via the live `pin == nil` predicate — no dup-membership flag
-      // and no arithmetic subtraction (which would read `dup.pin` from the
-      // actor's cached fault and could diverge from the store under a concurrent
-      // main-side pin change on the dup).
-      if let dup {
-        deletedItemIDs.append(snapshot(of: dup).id)
-        deletedPersistentIDs.append(dup.persistentModelID)
-        modelContext.delete(dup)
-      }
-
-      // Count unpinned WITHOUT faulting any @Model (SELECT COUNT(*) WHERE
-      // pin IS NULL). Honors the pending dup delete above, so it excludes the
-      // dup. `limit - 1` leaves room for the new item (mirrors the legacy
-      // `History.add` net-zero-on-merge trim target).
-      let unpinnedCount = (try? modelContext.fetchCount(
-        FetchDescriptor<HistoryItem>(predicate: #Predicate { $0.pin == nil })
-      )) ?? 0
-      let toEvict = max(0, unpinnedCount - max(0, limit - 1))
-
-      // Fetch only the oldest `toEvict` unpinned rows (ascending sort, bounded),
-      // not all of them — the steady-state copy evicts ~1, so this faults ~1 row
-      // instead of ~1000. Excludes the pending dup.
-      if toEvict > 0 {
-        var tailDescriptor = FetchDescriptor<HistoryItem>(
-          predicate: #Predicate { $0.pin == nil },
-          sortBy: [SortDescriptor(\.lastCopiedAt, order: .forward)]
-        )
-        tailDescriptor.fetchLimit = toEvict
-        let tail = (try? modelContext.fetch(tailDescriptor)) ?? []
-        for excess in tail {
-          deletedItemIDs.append(snapshot(of: excess).id)
-          deletedPersistentIDs.append(excess.persistentModelID)
-          modelContext.delete(excess)
+    var backfilledContents: [HistoryItemContent] = []
+    do {
+      try modelContext.transaction {
+        for candidate in candidates where candidate != dup {
+          backfilledContents.append(contentsOf: backfillMissingFingerprints(in: candidate))
         }
-      }
 
-      modelContext.insert(item)
+        // Delete the duplicate first (pending) so the count and tail fetches below
+        // exclude it via the live `pin == nil` predicate — no dup-membership flag
+        // and no arithmetic subtraction (which would read `dup.pin` from the
+        // actor's cached fault and could diverge from the store under a concurrent
+        // main-side pin change on the dup).
+        if let dup {
+          deletedItemIDs.append(snapshot(of: dup).id)
+          deletedPersistentIDs.append(dup.persistentModelID)
+          modelContext.delete(dup)
+        }
+
+        // Count unpinned WITHOUT faulting any @Model (SELECT COUNT(*) WHERE
+        // pin IS NULL). Honors the pending dup delete above, so it excludes the
+        // dup. `limit - 1` leaves room for the new item (mirrors the legacy
+        // `History.add` net-zero-on-merge trim target).
+        let unpinnedCount = (try? modelContext.fetchCount(
+          FetchDescriptor<HistoryItem>(predicate: #Predicate { $0.pin == nil })
+        )) ?? 0
+        let toEvict = max(0, unpinnedCount - max(0, limit - 1))
+
+        // Fetch only the oldest `toEvict` unpinned rows (ascending sort, bounded),
+        // not all of them — the steady-state copy evicts ~1, so this faults ~1 row
+        // instead of ~1000. Excludes the pending dup.
+        if toEvict > 0 {
+          var tailDescriptor = FetchDescriptor<HistoryItem>(
+            predicate: #Predicate { $0.pin == nil },
+            sortBy: [SortDescriptor(\.lastCopiedAt, order: .forward)]
+          )
+          tailDescriptor.fetchLimit = toEvict
+          let tail = (try? modelContext.fetch(tailDescriptor)) ?? []
+          for excess in tail {
+            deletedItemIDs.append(snapshot(of: excess).id)
+            deletedPersistentIDs.append(excess.persistentModelID)
+            modelContext.delete(excess)
+          }
+        }
+
+        modelContext.insert(item)
+      }
+      modelContext.processPendingChanges()
+      #if DEBUG
+      if forceCommitFailure {
+        throw ForcedCommitFailure.forced
+      }
+      #endif
+      try modelContext.save()
+    } catch {
+      // SwiftData rollback alone does not reliably restore changed relationship
+      // children after `processPendingChanges`; restore this ingest's exact
+      // backfills first so no later save can leak them across transaction scope.
+      for content in backfilledContents {
+        content.fingerprint = nil
+      }
+      modelContext.rollback()
+      throw error
     }
-    modelContext.processPendingChanges()
-    #if DEBUG
-    if forceCommitFailure {
-      throw ForcedCommitFailure.forced
-    }
-    #endif
-    try modelContext.save()
     return CommitDeletes(dedupIDs: deletedItemIDs, persistentIDs: deletedPersistentIDs)
   }
 
