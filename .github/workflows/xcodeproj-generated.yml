@@ -72,6 +72,20 @@ jobs:
             "${{ github.workspace }}/Maccy-Generated.xcodeproj" \
             | tee "$EVIDENCE/repeatability.diff"
 
+      - name: Verify generated test plan
+        id: test_plan
+        if: steps.generate.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          GENERATED_PROJECT: ${{ github.workspace }}/Maccy-Generated.xcodeproj
+          GENERATED_TEST_PLAN: ${{ github.workspace }}/Maccy-Generated.xctestplan
+          EVIDENCE: ${{ runner.temp }}/xcodeproj-generated-evidence
+        run: |
+          set -euo pipefail
+          bash scripts/verify-generated-test-plan.sh \
+            2>&1 | tee "$EVIDENCE/generated-test-plan.log"
+
       - name: Compare legacy and generated contracts
         id: parity
         if: steps.generate.outcome == 'success'
@@ -172,6 +186,7 @@ jobs:
         run: |
           git diff --exit-code -- \
             Maccy.xcodeproj \
+            Maccy-Generated.xctestplan \
             Maccy.xctestplan \
             Maccy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
@@ -210,6 +225,7 @@ jobs:
           outcomes=(
             "${{ steps.generate.outcome }}"
             "${{ steps.repeatability.outcome }}"
+            "${{ steps.test_plan.outcome }}"
             "${{ steps.parity.outcome }}"
             "${{ steps.project_list.outcome }}"
             "${{ steps.build.outcome }}"
