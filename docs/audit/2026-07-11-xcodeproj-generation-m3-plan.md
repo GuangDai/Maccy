@@ -84,3 +84,16 @@
 5. Commit as `docs(xcodegen-m3): record production cutover evidence`.
 
 After M3, M4 ongoing work is declarative-only: edit spec/xcconfig, run the manual generator workflow or local pinned script, commit the generated output, and let CI prove zero drift. A trusted write-token updater can be added separately, but PR validation remains read-only.
+
+## Completion evidence
+
+M3 is complete at `94ca913`.
+
+- First producer run `29152984417` passed repeatability, refreshed canonical test-plan IDs, legacy/generated graph and six settings comparisons, Debug build, bundle/language/package checks, and failed only the expected committed-output drift gate. Artifact `xcodeproj-generated-29152984417-1` supplied the production project; `68383c7` mechanically committed its exact pbxproj, shared scheme, and test plan. The package lock retained SHA-256 `b876894d2ffb9a9f73fea94ce070ddf555f80bb5e2486ea0c3e6ee7798385144`.
+- An intermediate post-cutover run exposed a verifier-only context bug: copying the generated project outside the repository without `Config/*.xcconfig` made the comparator see SDK defaults. `71175b9` preserved the xcconfig context; no project output changed.
+- [Production regeneration run 29153231827](https://github.com/GuangDai/Maccy/actions/runs/29153231827) then passed zero drift, all generation/parity/build/bundle/test-plan gates, all five unit/UI/performance shards, and the Release packaging dry run. Its production-project artifact digest is `sha256:355fb704baab7c8d428df4445ecea35896d9000a1bd56a59f4118b2e9ef09615`; its generated Release package digest is `sha256:8ef3faa5f1316c63e2183af06c3560528ce3b21a65e351191c91664d7c1996d4`.
+- The first normal-CI parse attempt found that `${{ runner.temp }}` is unavailable in job-level `env`. Official actionlint 1.7.12 identified the exact two lines; `94ca913` moved them to step-level env and actionlint passed all three changed workflows.
+- [Master CI run 29153606508](https://github.com/GuangDai/Maccy/actions/runs/29153606508) passed the new `Generated Xcode project` job, strict SwiftLint/diagnostics, unit, both UI shards, and both performance shards.
+- [Release workflow run 29153818821](https://github.com/GuangDai/Maccy/actions/runs/29153818821) passed production regeneration/zero drift, Release packaging, warning/error scan, metadata resolution, and artifact upload. `Publish GitHub Release` was explicitly skipped (`publish=false`). The packaged `Maccy-dry-run-94ca913-2.6.1-60` artifact digest is `sha256:e3fc54aace1c9b4b86fd7fb83d8d0614a4611bbcd378007e4ec7ccc4653bd9a6`.
+
+Ownership is now active, not aspirational: edit `project.yml`/xcconfigs, regenerate via `scripts/regenerate-xcodeproj.sh` or the manual workflow, and commit generated output. Normal CI and release independently regenerate twice and reject any project/plan/lock drift.

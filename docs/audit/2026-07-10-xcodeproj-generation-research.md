@@ -4,7 +4,7 @@
 >
 > Repository baseline: `7da8ac6` (`c1-single-filter-source`)
 >
-> Scope: replace routine hand-editing of `Maccy.xcodeproj/project.pbxproj` with a declarative source and GitHub Actions generation/verification. M0 contract capture and M1 side-by-side generation evidence are recorded below; production cutover remains future work.
+> Scope: replace routine hand-editing of `Maccy.xcodeproj/project.pbxproj` with a declarative source and GitHub Actions generation/verification. M0–M3 are complete: production now consumes committed XcodeGen output and normal CI/release reject generation drift.
 
 ## Executive decision
 
@@ -334,7 +334,17 @@ M2 is complete through `fc29202`. The legacy project remains the production inpu
 - A separate generated Release job ran `scripts/package-app.sh`, produced exactly one app zip and SHA-256, passed the warning/error/failure scan, and uploaded `generated-release-package-29146217892-1` without publishing.
 - The run produced seven evidence artifacts: the generated project, five result/log bundles, and the Release package. No known runner flake occurred.
 
-M3 is now the next generator milestone: replace `Maccy.xcodeproj` in one isolated generated-output commit, update the canonical test-plan IDs, and make normal CI and release regenerate/verify zero drift before consuming the committed project.
+## M3 completion evidence (2026-07-11)
+
+M3 is complete at `94ca913`; `project.yml` and `Config/*.xcconfig` are now the editable project truth, and `Maccy.xcodeproj` is deterministic checked output.
+
+- Producer run `29152984417` proved the first production-name generation and uploaded the expected whole-file rewrite after every semantic gate passed; `68383c7` mechanically committed that artifact. Canonical `Maccy.xctestplan` now carries deterministic generated target IDs and retains `enable-testing`.
+- [Regenerate and Validate Xcode Project run 29153231827](https://github.com/GuangDai/Maccy/actions/runs/29153231827) passed two-generation zero drift, graph/settings/test-plan/bundle/package contracts, all five normal shards, and a Release package dry run.
+- `scripts/regenerate-xcodeproj.sh` is the single production regeneration entry point. It preserves `Package.resolved`, invokes pinned/checksummed XcodeGen, refreshes target IDs, and verifies the scheme/plan. `scripts/verify-xcodeproj-generation.sh` runs it twice and rejects non-repeatability or tracked drift.
+- [Master CI run 29153606508](https://github.com/GuangDai/Maccy/actions/runs/29153606508) passed the new parallel `Generated Xcode project` job and all existing lint/test/performance gates.
+- [Release dry-run 29153818821](https://github.com/GuangDai/Maccy/actions/runs/29153818821) passed the same generation gate before packaging; package/log/checksum upload succeeded and publishing was skipped.
+
+The M4 invariant is active: direct pbxproj edits fail CI/release. Make declarative changes, regenerate, review/commit the output, and let both gates prove zero drift. Generator upgrades remain isolated version/checksum/output-review commits.
 
 ## Primary sources
 
