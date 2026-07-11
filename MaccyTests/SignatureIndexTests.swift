@@ -4,12 +4,12 @@ import XCTest
 /// Tests for `SignatureIndex`, the in-memory dedup index mapping content
 /// signatures to item ids. Covers exact-signature lookup, per-entry containment
 /// lookup (so re-copying plain text after a rich copy merges rather than
-/// duplicates), and incremental reindexing from store events.
+/// duplicates), and incremental register/remove behavior.
 class SignatureIndexTests: XCTestCase {
   /// A registered signature resolves back to its item id.
   func testLookupReturnsRegisteredID() {
     let itemID = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
 
     index.register(textSignature, id: itemID)
 
@@ -19,7 +19,7 @@ class SignatureIndexTests: XCTestCase {
   /// Signature entry order within a signature does not affect lookup.
   func testSignatureEntriesAreOrderIndependent() {
     let itemID = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
 
     index.register(mixedSignature, id: itemID)
 
@@ -29,7 +29,7 @@ class SignatureIndexTests: XCTestCase {
   /// Removing an item id drops every signature registered against it.
   func testRemoveDeletesAllSignaturesForID() {
     let itemID = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
     index.bulkRegister([
       (textSignature, itemID),
       (imageSignature, itemID)
@@ -60,7 +60,7 @@ class SignatureIndexTests: XCTestCase {
   func testRegisterMovesSignatureToNewID() {
     let oldID = UUID()
     let newID = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
 
     index.register(textSignature, id: oldID)
     index.register(textSignature, id: newID)
@@ -69,62 +69,11 @@ class SignatureIndexTests: XCTestCase {
     XCTAssertEqual(index.lookup(textSignature), newID)
   }
 
-  /// The snapshot initializer rebuilds the index from persisted snapshots.
-  func testInitFromSnapshotsRebuildsIndex() {
-    let snapshot = makeSnapshot(id: UUID(), signature: textSignature)
-
-    let index = SignatureIndex(from: [snapshot])
-
-    XCTAssertEqual(index.lookup(textSignature), snapshot.id)
-  }
-
-  /// Merging an `.added` event registers the new item's signature.
-  func testMergeAddedRegistersSignature() {
-    let snapshot = makeSnapshot(id: UUID(), signature: textSignature)
-    var index = SignatureIndex()
-
-    index.merge(.added(snapshot))
-
-    XCTAssertEqual(index.lookup(textSignature), snapshot.id)
-  }
-
-  /// Merging a `.merged` event registers the surviving item's signature.
-  func testMergeMergedRegistersSignature() {
-    let snapshot = makeSnapshot(id: UUID(), signature: textSignature)
-    var index = SignatureIndex()
-
-    index.merge(.merged(snapshot))
-
-    XCTAssertEqual(index.lookup(textSignature), snapshot.id)
-  }
-
-  /// Merging a `.removed` event unregisters the item's signature.
-  func testMergeRemovedUnregisters() {
-    let itemID = UUID()
-    var index = SignatureIndex()
-    index.register(textSignature, id: itemID)
-
-    index.merge(.removed(itemID))
-
-    XCTAssertNil(index.lookup(textSignature))
-  }
-
-  /// Merging `.cleared` resets the index to empty.
-  func testMergeClearedResets() {
-    let itemID = UUID()
-    var index = SignatureIndex()
-    index.register(textSignature, id: itemID)
-
-    index.merge(.cleared)
-
-    XCTAssertNil(index.lookup(textSignature))
-  }
-
   /// An ingest request whose content exactly matches a registered signature
   /// surfaces that item id as a candidate.
   func testCandidatesReturnsIDForExactMatch() {
     let itemID = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
     index.register(textSignature, id: itemID)
 
     let request = IngestRequest(
@@ -146,7 +95,7 @@ class SignatureIndexTests: XCTestCase {
 
   /// An ingest request sharing no signature yields no candidates.
   func testCandidatesReturnsEmptyForNoMatch() {
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
     index.register(textSignature, id: UUID())
 
     let request = IngestRequest(
@@ -182,7 +131,7 @@ class SignatureIndexTests: XCTestCase {
   /// rich copy of the same text would create a duplicate instead of merging).
   func testCandidatesForEntriesReturnsSupersetItem() {
     let itemID = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
     index.register(mixedSignature, id: itemID)
 
     XCTAssertEqual(index.candidates(forEntries: [textEntry]), [itemID])
@@ -191,7 +140,7 @@ class SignatureIndexTests: XCTestCase {
   /// Querying the exact entry of a single-entry item returns that item.
   func testCandidatesForEntriesReturnsExactItem() {
     let itemID = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
     index.register(textSignature, id: itemID)
 
     XCTAssertEqual(index.candidates(forEntries: [textEntry]), [itemID])
@@ -201,7 +150,7 @@ class SignatureIndexTests: XCTestCase {
   /// path that lets the actor skip the full-table scan for the common case.
   func testCandidatesForEntriesEmptyForNovelContent() {
     let itemID = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
     index.register(imageSignature, id: itemID)
 
     XCTAssertEqual(index.candidates(forEntries: [textEntry]), [])
@@ -210,7 +159,7 @@ class SignatureIndexTests: XCTestCase {
   /// An item matching on several entries is returned once, not once per entry.
   func testCandidatesForEntriesDedupesOverlap() {
     let itemID = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
     index.register(mixedSignature, id: itemID)
 
     XCTAssertEqual(index.candidates(forEntries: [textEntry, imageEntry]), [itemID])
@@ -220,7 +169,7 @@ class SignatureIndexTests: XCTestCase {
   func testCandidatesForEntriesReturnsAllSharingItems() {
     let idA = UUID()
     let idB = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
     index.register(textSignature, id: idA)
     index.register(textSignature, id: idB)
 
@@ -230,7 +179,7 @@ class SignatureIndexTests: XCTestCase {
   /// Removing an item id clears its per-entry candidate membership.
   func testRemoveClearsEntryCandidates() {
     let itemID = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
     index.register(textSignature, id: itemID)
     index.remove(id: itemID)
 
@@ -242,49 +191,12 @@ class SignatureIndexTests: XCTestCase {
   func testRegisterMoveThenRemoveOldIDClearsEntryCandidates() {
     let oldID = UUID()
     let newID = UUID()
-    var index = SignatureIndex()
+    var index = SignatureIndex<UUID>()
     index.register(textSignature, id: oldID)
     index.register(textSignature, id: newID)
     index.remove(id: oldID)
 
     XCTAssertEqual(index.candidates(forEntries: [textEntry]), [newID])
-  }
-
-  /// The snapshot initializer also builds the per-entry index.
-  func testInitFromSnapshotsBuildsEntryIndex() {
-    let snapshot = makeSnapshot(id: UUID(), signature: textSignature)
-    let index = SignatureIndex(from: [snapshot])
-
-    XCTAssertEqual(index.candidates(forEntries: [textEntry]), [snapshot.id])
-  }
-
-  /// Merging an `.added` event registers per-entry candidates.
-  func testMergeAddedRegistersEntryCandidates() {
-    let snapshot = makeSnapshot(id: UUID(), signature: textSignature)
-    var index = SignatureIndex()
-    index.merge(.added(snapshot))
-
-    XCTAssertEqual(index.candidates(forEntries: [textEntry]), [snapshot.id])
-  }
-
-  /// Merging a `.removed` event clears per-entry candidates for the item.
-  func testMergeRemovedClearsEntryCandidates() {
-    let itemID = UUID()
-    var index = SignatureIndex()
-    index.register(textSignature, id: itemID)
-    index.merge(.removed(itemID))
-
-    XCTAssertEqual(index.candidates(forEntries: [textEntry]), [])
-  }
-
-  /// Merging `.cleared` resets the per-entry index to empty.
-  func testMergeClearedClearsEntryCandidates() {
-    let itemID = UUID()
-    var index = SignatureIndex()
-    index.register(textSignature, id: itemID)
-    index.merge(.cleared)
-
-    XCTAssertEqual(index.candidates(forEntries: [textEntry]), [])
   }
 
   /// A single plain-text-content signature.
@@ -317,21 +229,4 @@ class SignatureIndexTests: XCTestCase {
     ])
   }
 
-  /// Builds a minimal `ItemSnapshotDTO` carrying the given id and signature.
-  private func makeSnapshot(id: ItemID, signature: SignatureDTO) -> ItemSnapshotDTO {
-    let timestamp = Date(timeIntervalSince1970: 1_717_171_717)
-    return ItemSnapshotDTO(
-      id: id,
-      persistentID: nil,
-      title: "Sample",
-      firstCopiedAt: timestamp,
-      lastCopiedAt: timestamp,
-      numberOfCopies: 1,
-      pin: nil,
-      application: nil,
-      textPreview: "Sample",
-      imageFingerprint: nil,
-      signature: signature
-    )
-  }
 }

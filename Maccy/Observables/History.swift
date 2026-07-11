@@ -528,7 +528,7 @@ class History: ItemsContainer {
   /// doesn't pile them up.
   func clear() {
     invalidateInFlightSearch()
-    let removedStoreIDs = all.filter(\.isUnpinned).map { itemID(for: $0.item) }
+    let removedStoreIDs = all.filter(\.isUnpinned).map { storedItemID(for: $0.item) }
 
     do {
       try withLogging("Clearing history") {
@@ -599,7 +599,7 @@ class History: ItemsContainer {
     guard let item else { return }
 
     invalidateInFlightSearch()
-    let removedStoreID = itemID(for: item.item)
+    let removedStoreID = storedItemID(for: item.item)
     do {
       try withLogging("Removing history item") {
         try persistence.delete(item.item)

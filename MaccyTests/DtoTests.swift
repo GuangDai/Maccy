@@ -5,6 +5,7 @@ import XCTest
 class DtoTests: XCTestCase {
   /// Every DTO type used across actor boundaries conforms to `Sendable`.
   func testDtoTypesAreSendable() {
+    requireSendable(StoredItemID.self)
     requireSendable(ContentDTO.self)
     requireSendable(ClipboardItemDTO.self)
     requireSendable(CopyOrigin.self)
@@ -55,14 +56,15 @@ class DtoTests: XCTestCase {
   }
 
   /// `IngestResult` carries its event and metrics through to the caller.
+  @MainActor
   func testIngestResultCarriesEventAndMetrics() {
-    let itemID = UUID()
+    let storedItemID = HistoryItem().persistentModelID.id
     let copiedAt = Date(timeIntervalSince1970: 1_717_171_717)
     let signature = SignatureDTO(entries: [
       ContentSignatureEntry(type: "public.utf8-plain-text", fingerprint: 42, size: 10)
     ])
     let snapshot = ItemSnapshotDTO(
-      id: itemID,
+      id: storedItemID,
       persistentID: nil,
       title: "Copied text",
       firstCopiedAt: copiedAt,

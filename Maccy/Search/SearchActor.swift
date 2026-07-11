@@ -36,8 +36,8 @@ actor SearchActor {
   /// so exact/regexp results come back in the same order the list shows. The
   /// main actor maintains this incrementally on add/remove/clear; a keystroke
   /// then dispatches only the query and mode — not a rebuilt corpus projection.
-  private var corpusByID: [ItemID: SearchCorpusItem] = [:]
-  private var order: [ItemID] = []
+  private var corpusByID: [UUID: SearchCorpusItem] = [:]
+  private var order: [UUID] = []
 
   /// Searches the owned corpus for `query` under `mode`, projecting it in
   /// `all` order and delegating to the pure ``search(query:within:mode:)``.
@@ -71,7 +71,7 @@ actor SearchActor {
   }
 
   /// Drops every entry whose id is in `ids`.
-  func remove(_ ids: [ItemID]) {
+  func remove(_ ids: [UUID]) {
     guard !ids.isEmpty else { return }
     let idSet = Set(ids)
     order.removeAll { idSet.contains($0) }

@@ -1,9 +1,11 @@
 import Foundation
 import SwiftData
 
-/// Stable, value-type identifier for a history item, derived from its
-/// `PersistentIdentifier` so it can be used as a dictionary key off the main actor.
-typealias ItemID = UUID
+/// Stable, store-scoped identity of a persisted history item.
+///
+/// SwiftData exposes this value as `Hashable` and `Sendable`, so it can key the
+/// off-main dedup index directly without hashing an undocumented description.
+typealias StoredItemID = PersistentIdentifier.ID
 
 /// A single, `Sendable` pasteboard content entry projected from a `HistoryItemContent`.
 struct ContentDTO: Equatable, Hashable, Sendable {
@@ -71,7 +73,7 @@ struct MaccyFingerprint: Equatable, Hashable, Sendable {
 /// fields the main-observer and the dedup index need (title, timestamps, pin,
 /// preview, signature, …) plus the fetchable `persistentID` handle.
 struct ItemSnapshotDTO: Equatable, Sendable {
-  let id: ItemID
+  let id: StoredItemID
 
   /// The SwiftData fetchable handle (`ModelContext.model(for:)`). Set by
   /// `snapshot(of:)` from the `@Model`; `nil` in synthetic test snapshots, in
@@ -94,7 +96,7 @@ struct ItemSnapshotDTO: Equatable, Sendable {
 enum StoreEvent: Equatable, Sendable {
   case added(ItemSnapshotDTO)
   case merged(ItemSnapshotDTO)
-  case removed(ItemID)
+  case removed(StoredItemID)
   case cleared
 }
 
@@ -109,7 +111,7 @@ struct IngestRequest: Equatable, Sendable {
 /// The planned disposition of an ingest, decided before writing.
 enum IngestPlan: Equatable, Sendable {
   case create([ContentDTO])
-  case merge(existingID: ItemID, contents: [ContentDTO])
+  case merge(existingID: StoredItemID, contents: [ContentDTO])
   case ignore(IngestIgnoreReason)
 }
 
@@ -143,11 +145,11 @@ struct IngestMetrics: Equatable, Sendable {
   static let zero = IngestMetrics(dedupHits: 0, bytesHashed: 0, parseMs: 0)
 }
 
-/// Projects a `@Model HistoryItem` into a `Sendable` `ItemSnapshotDTO`, computing its dedup signature and stable `ItemID`.
+/// Projects a `@Model HistoryItem` into a `Sendable` `ItemSnapshotDTO`, computing its dedup signature.
 func snapshot(of item: HistoryItem) -> ItemSnapshotDTO {
   let signature = signatureDTO(of: item)
   return ItemSnapshotDTO(
-    id: itemID(for: item),
+    id: storedItemID(for: item),
     persistentID: item.persistentModelID,
     title: item.title,
     firstCopiedAt: item.firstCopiedAt,
@@ -187,44 +189,7 @@ func contentDTOs(of item: HistoryItem) -> [ContentDTO] {
   }
 }
 
-/// Derives the stable `ItemID` for a `@Model HistoryItem` from its `persistentModelID`.
-func itemID(for item: HistoryItem) -> ItemID {
-  itemID(from: String(describing: item.persistentModelID))
-}
-
-/// Hashes a string into a deterministic `UUID` via a double FNV-1a fold over its UTF-8 bytes.
-///
-/// Two independent seeds are mixed over the same byte stream to widen the 64-bit
-/// hash space across both halves of the resulting 128-bit UUID.
-private func itemID(from string: String) -> ItemID {
-  let bytes = Array(string.utf8)
-  var first = UInt64(0xcbf29ce484222325)
-  var second = UInt64(0x84222325cbf29ce4)
-
-  for byte in bytes {
-    first ^= UInt64(byte)
-    first &*= 0x00000100000001b3
-
-    second ^= UInt64(byte)
-    second &*= 0x00000100000001b3
-  }
-
-  return UUID(uuid: (
-    UInt8((first >> 56) & 0xff),
-    UInt8((first >> 48) & 0xff),
-    UInt8((first >> 40) & 0xff),
-    UInt8((first >> 32) & 0xff),
-    UInt8((first >> 24) & 0xff),
-    UInt8((first >> 16) & 0xff),
-    UInt8((first >> 8) & 0xff),
-    UInt8(first & 0xff),
-    UInt8((second >> 56) & 0xff),
-    UInt8((second >> 48) & 0xff),
-    UInt8((second >> 40) & 0xff),
-    UInt8((second >> 32) & 0xff),
-    UInt8((second >> 24) & 0xff),
-    UInt8((second >> 16) & 0xff),
-    UInt8((second >> 8) & 0xff),
-    UInt8(second & 0xff)
-  ))
+/// Returns the stable, store-scoped identity of a persisted history item.
+func storedItemID(for item: HistoryItem) -> StoredItemID {
+  item.persistentModelID.id
 }

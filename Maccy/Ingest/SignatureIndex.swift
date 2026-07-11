@@ -1,14 +1,12 @@
-import Foundation
-
 /// In-memory dedup index over every committed history item's content signature.
 ///
 /// Maintains four maps: full signature → id, id → signatures, content entry → ids,
 /// and id → entries. The per-entry map lets `candidates(forEntries:)` find every
 /// item that could supersede an incoming copy in O(hits), instead of a full-table
 /// fetch plus an O(n) `supersedes` scan.
-struct SignatureIndex: Sendable {
-  private var idsBySignature: [SignatureDTO: ItemID]
-  private var signaturesByID: [ItemID: Set<SignatureDTO>]
+struct SignatureIndex<ID: Hashable & Sendable>: Sendable {
+  private var idsBySignature: [SignatureDTO: ID]
+  private var signaturesByID: [ID: Set<SignatureDTO>]
 
   /// Per-entry containment index: a content entry → item IDs whose signature
   /// includes it.
@@ -20,8 +18,8 @@ struct SignatureIndex: Sendable {
   /// collisions) are filtered by the caller's authoritative `supersedes` confirm,
   /// so dedup correctness is unchanged — this is a candidate generator, not the
   /// decision.
-  private var idsByEntry: [ContentSignatureEntry: Set<ItemID>]
-  private var entriesByID: [ItemID: Set<ContentSignatureEntry>]
+  private var idsByEntry: [ContentSignatureEntry: Set<ID>]
+  private var entriesByID: [ID: Set<ContentSignatureEntry>]
 
   init() {
     idsBySignature = [:]
@@ -30,41 +28,18 @@ struct SignatureIndex: Sendable {
     entriesByID = [:]
   }
 
-  init(_ entries: [(SignatureDTO, ItemID)]) {
+  init(_ entries: [(SignatureDTO, ID)]) {
     self.init()
     bulkRegister(entries)
   }
 
-  init(from snapshots: [ItemSnapshotDTO]) {
-    self.init()
-    for snapshot in snapshots {
-      register(snapshot.signature, id: snapshot.id)
-    }
-  }
-
   /// Returns the id of the item with an exact-signature match, if any.
-  func lookup(_ signature: SignatureDTO) -> ItemID? {
+  func lookup(_ signature: SignatureDTO) -> ID? {
     idsBySignature[signature]
   }
 
-  /// Applies a `StoreEvent` to keep the index in sync with the committed store.
-  ///
-  /// `.added`/`.merged` register the carried snapshot; `.removed` drops the id;
-  /// `.cleared` resets the index. The snapshot is carried by the event, so no
-  /// separate snapshot parameter is needed.
-  mutating func merge(_ event: StoreEvent) {
-    switch event {
-    case .added(let snapshot), .merged(let snapshot):
-      register(snapshot.signature, id: snapshot.id)
-    case .removed(let itemID):
-      remove(id: itemID)
-    case .cleared:
-      self = SignatureIndex()
-    }
-  }
-
   /// Returns the exact-signature match for an ingest request, if any.
-  func candidates(for request: IngestRequest) -> [ItemID] {
+  func candidates(for request: IngestRequest) -> [ID] {
     let requestSignature = SignatureDTO(entries: request.contents.map {
       ContentSignatureEntry(type: $0.type, fingerprint: $0.fingerprint, size: $0.size)
     })
@@ -83,9 +58,9 @@ struct SignatureIndex: Sendable {
   /// confirms each candidate with the authoritative `supersedes` check (which
   /// rules out same-size and fingerprint collisions), so this generates
   /// candidates, not the final decision. Results are de-duped; order is unspecified.
-  func candidates(forEntries entries: [ContentSignatureEntry]) -> [ItemID] {
-    var seen = Set<ItemID>()
-    var result: [ItemID] = []
+  func candidates(forEntries entries: [ContentSignatureEntry]) -> [ID] {
+    var seen = Set<ID>()
+    var result: [ID] = []
     for entry in entries {
       guard let ids = idsByEntry[entry] else { continue }
       for id in ids where !seen.contains(id) {
@@ -97,7 +72,7 @@ struct SignatureIndex: Sendable {
   }
 
   /// Registers a signature for `id`, replacing any previous id bound to that signature.
-  mutating func register(_ signature: SignatureDTO, id: ItemID) {
+  mutating func register(_ signature: SignatureDTO, id: ID) {
     if let previousID = idsBySignature.updateValue(id, forKey: signature) {
       signaturesByID[previousID]?.remove(signature)
       if signaturesByID[previousID]?.isEmpty == true {
@@ -114,7 +89,7 @@ struct SignatureIndex: Sendable {
   }
 
   /// Removes `id` and all of its signatures and entries from the index.
-  mutating func remove(id: ItemID) {
+  mutating func remove(id: ID) {
     if let signatures = signaturesByID.removeValue(forKey: id) {
       for signature in signatures {
         idsBySignature.removeValue(forKey: signature)
@@ -137,7 +112,7 @@ struct SignatureIndex: Sendable {
   }
 
   /// Registers many `(signature, id)` pairs at once.
-  mutating func bulkRegister(_ entries: [(SignatureDTO, ItemID)]) {
+  mutating func bulkRegister(_ entries: [(SignatureDTO, ID)]) {
     for (signature, id) in entries {
       register(signature, id: id)
     }

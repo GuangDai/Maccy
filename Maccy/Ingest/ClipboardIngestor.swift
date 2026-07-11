@@ -103,12 +103,12 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   }
 
   /// The deletions one `commit` applied, for two consumers: the dedup-index keys
-  /// (`ItemID`, for `maintainDedupIndex`) and the fetchable persistent IDs the
+  /// (`StoredItemID`, for `maintainDedupIndex`) and the fetchable persistent IDs the
   /// main-thread observer needs to drop the corresponding decorators in O(deleted)
   /// without re-fetching every row on each copy (D4 / `NEW-history-spine-2`).
   /// Both are captured from the `@Model` refs before `context.delete`.
   private struct CommitDeletes: Sendable {
-    let dedupIDs: [ItemID]
+    let dedupIDs: [StoredItemID]
     let persistentIDs: [PersistentIdentifier]
   }
 
@@ -130,15 +130,15 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// replacing the per-copy full-table fetch plus O(n) `supersedes` scan with an
   /// O(hits) candidate lookup.
   ///
-  /// `persistentIDByItemID` bridges the index's `ItemID` (UUID) keys to the
+  /// `persistentIDByStoredID` bridges the index's stable keys to the
   /// `PersistentIdentifier` that `model(for:)` needs to fetch each candidate for
-  /// the authoritative `supersedes` confirm — `ItemID` is a UUID hash of the
-  /// persistent id, cheap to build and unit-test, but not itself fetchable. The
+  /// authoritative `supersedes` confirm. `StoredItemID` is not itself a fetch
+  /// handle, so the full `PersistentIdentifier` remains in this bridge. The
   /// index is built lazily on the first ingest, then maintained incrementally per
   /// commit (register the inserted item, unregister the duplicate plus the
   /// size-trim evictions).
-  private var signatureIndex = SignatureIndex()
-  private var persistentIDByItemID: [ItemID: PersistentIdentifier] = [:]
+  private var signatureIndex = SignatureIndex<StoredItemID>()
+  private var persistentIDByStoredID: [StoredItemID: PersistentIdentifier] = [:]
   private var dedupIndexInitialized = false
 
   /// Consecutive failures of the dedup-index init fetch, used to space retries
@@ -214,13 +214,13 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
       case .added(let item), .merged(let item):
         signatureIndex.register(item.signature, id: item.id)
         if let persistentID = item.persistentID {
-          persistentIDByItemID[item.id] = persistentID
+          persistentIDByStoredID[item.id] = persistentID
         }
       case .removed(let itemID):
         unregisterFromDedupIndex(itemID: itemID)
       case .cleared:
-        signatureIndex = SignatureIndex()
-        persistentIDByItemID.removeAll()
+        signatureIndex = SignatureIndex<StoredItemID>()
+        persistentIDByStoredID.removeAll()
         dedupIndexInitialized = false
         dedupInitConsecutiveFailures = 0
         dedupInitNextAttemptCall = 1
@@ -403,7 +403,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     let indexSignature = signatureDTO(of: item)
     var backfillCandidates: [HistoryItem] = []
     for candidateID in signatureIndex.candidates(forEntries: indexSignature.entries) {
-      guard let candidatePID = persistentIDByItemID[candidateID],
+      guard let candidatePID = persistentIDByStoredID[candidateID],
             let candidate = modelContext.model(for: candidatePID) as? HistoryItem,
             candidate != item else {
         continue
@@ -487,21 +487,21 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     let snap = snapshot(of: item)
     signatureIndex.register(snap.signature, id: snap.id)
     if let pid = snap.persistentID {
-      persistentIDByItemID[snap.id] = pid
+      persistentIDByStoredID[snap.id] = pid
     }
   }
 
   /// Removes one item's signature plus bridge entry (used for the duplicate and
   /// the size-trim-evicted items that `commit` deletes).
-  private func unregisterFromDedupIndex(itemID: ItemID) {
+  private func unregisterFromDedupIndex(itemID: StoredItemID) {
     signatureIndex.remove(id: itemID)
-    persistentIDByItemID.removeValue(forKey: itemID)
+    persistentIDByStoredID.removeValue(forKey: itemID)
   }
 
   /// Keeps the dedup index in sync with one committed transaction: drops the
   /// duplicate plus size-trim evictions, then registers the inserted item after
-  /// the save so its `persistentModelID` / `ItemID` are finalized.
-  private func maintainDedupIndex(inserted item: HistoryItem, deleted: [ItemID]) {
+  /// the save so its `persistentModelID` / `StoredItemID` are finalized.
+  private func maintainDedupIndex(inserted item: HistoryItem, deleted: [StoredItemID]) {
     for deletedID in deleted {
       unregisterFromDedupIndex(itemID: deletedID)
     }
@@ -540,7 +540,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// just-pinned item is excluded by construction (no in-memory pin cache to go
   /// stale → cannot evict a pinned item).
   ///
-  /// Returns the deletions (dedup-index `ItemID`s plus the fetchable persistent
+  /// Returns the deletions (dedup-index `StoredItemID`s plus the fetchable persistent
   /// IDs) so the caller can keep the dedup index in sync and hand the main
   /// observer the exact set of decorators to drop — captured from each item
   /// before it is deleted, since a post-save snapshot of a deleted `@Model`
@@ -551,7 +551,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     backfilling candidates: [HistoryItem],
     limit: Int
   ) throws -> CommitDeletes {
-    var deletedItemIDs: [ItemID] = []
+    var deletedItemIDs: [StoredItemID] = []
     var deletedPersistentIDs: [PersistentIdentifier] = []
     try modelContext.transaction {
       for candidate in candidates where candidate != dup {
