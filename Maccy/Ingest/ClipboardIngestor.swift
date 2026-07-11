@@ -367,14 +367,8 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// contents, so `supersedes` returns false and it is skipped.
   private func findDuplicate(of item: HistoryItem) -> HistoryItem? {
     let signature = item.duplicateSignature
-    let entries = item.contents.map { content in
-      ContentSignatureEntry(
-        type: content.type,
-        fingerprint: content.value.flatMap(ClipboardDataProcessor.fingerprintIfLarge),
-        size: content.value?.count ?? 0
-      )
-    }
-    for candidateID in signatureIndex.candidates(forEntries: entries) {
+    let indexSignature = signatureDTO(of: item)
+    for candidateID in signatureIndex.candidates(forEntries: indexSignature.entries) {
       guard let candidatePID = persistentIDByItemID[candidateID],
             let candidate = modelContext.model(for: candidatePID) as? HistoryItem,
             candidate != item else {

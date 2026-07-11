@@ -145,14 +145,7 @@ struct IngestMetrics: Equatable, Sendable {
 
 /// Projects a `@Model HistoryItem` into a `Sendable` `ItemSnapshotDTO`, computing its dedup signature and stable `ItemID`.
 func snapshot(of item: HistoryItem) -> ItemSnapshotDTO {
-  let signature = SignatureDTO(entries: item.contents.map { content in
-    let value = content.value
-    return ContentSignatureEntry(
-      type: content.type,
-      fingerprint: value.flatMap(ClipboardDataProcessor.fingerprintIfLarge),
-      size: value?.count ?? 0
-    )
-  })
+  let signature = signatureDTO(of: item)
   return ItemSnapshotDTO(
     id: itemID(for: item),
     persistentID: item.persistentModelID,
@@ -166,6 +159,19 @@ func snapshot(of item: HistoryItem) -> ItemSnapshotDTO {
     imageFingerprint: item.imageData.flatMap(ClipboardDataProcessor.fingerprintIfLarge),
     signature: signature
   )
+}
+
+/// Projects the index key for a history item from each content entry's type,
+/// derived fingerprint, and byte size.
+func signatureDTO(of item: HistoryItem) -> SignatureDTO {
+  SignatureDTO(entries: item.contents.map { content in
+    let value = content.value
+    return ContentSignatureEntry(
+      type: content.type,
+      fingerprint: value.flatMap(ClipboardDataProcessor.fingerprintIfLarge),
+      size: value?.count ?? 0
+    )
+  })
 }
 
 /// Projects a `@Model HistoryItem`'s contents into `Sendable` `ContentDTO` values.
