@@ -428,8 +428,8 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// Rows that existed before the fingerprint column was added migrate in with
   /// a nil column, so the dedup containment check falls back to a full byte
   /// comparison on every ingest that touches them. Computing and storing the
-  /// fingerprint once — inside the ingest transaction, after duplicate search
-  /// has returned its candidates — lets later ingests read the column. The write
+  /// fingerprint once — inside `commit`'s journaled actor scope, after duplicate
+  /// search has returned its candidates — lets later ingests read the column. The write
   /// is idempotent (entries that already have a fingerprint, or fall below the
   /// threshold, are skipped) and adds no transaction. A candidate that is about
   /// to be deleted as the duplicate is skipped by `commit`; surviving candidates
@@ -556,12 +556,11 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     var deletedItemIDs: [ItemID] = []
     var deletedPersistentIDs: [PersistentIdentifier] = []
     var backfilledContents: [HistoryItemContent] = []
+    for candidate in candidates where candidate != dup {
+      backfilledContents.append(contentsOf: backfillMissingFingerprints(in: candidate))
+    }
     do {
       try modelContext.transaction {
-        for candidate in candidates where candidate != dup {
-          backfilledContents.append(contentsOf: backfillMissingFingerprints(in: candidate))
-        }
-
         // Delete the duplicate first (pending) so the count and tail fetches below
         // exclude it via the live `pin == nil` predicate — no dup-membership flag
         // and no arithmetic subtraction (which would read `dup.pin` from the
