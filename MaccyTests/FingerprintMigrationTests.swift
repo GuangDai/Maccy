@@ -123,7 +123,14 @@ final class FingerprintMigrationTests: XCTestCase {
       content(type: stringType, value: Data("unrelated-success".utf8))
     ]))
 
-    let seeded = seededRow(matchingValue: largeValue)
+    // Read through a fresh context: the shared main context may retain the
+    // actor's transient `processPendingChanges` value even after rollback, but
+    // this regression is specifically about what the later save persisted.
+    let verificationContext = ModelContext(Storage.shared.container)
+    let stored = (try? verificationContext.fetch(FetchDescriptor<HistoryItem>())) ?? []
+    let seeded = stored.first { row in
+      row.contents.count == 1 && row.contents.first?.value == largeValue
+    }
     XCTAssertNotNil(seeded)
     XCTAssertNil(
       seeded?.contents.first?.fingerprint,
