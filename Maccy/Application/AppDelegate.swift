@@ -8,6 +8,7 @@ import SwiftUI
 class AppDelegate: NSObject, NSApplicationDelegate {
   /// The main floating panel hosting the content view.
   var panel: FloatingPanel<ContentView>!
+  private lazy var compositionRoot = CompositionRoot()
 
   #if DEBUG
   private let debugHooks = DebugHooks()
@@ -40,37 +41,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     debugHooks.prepareForLaunch()
     #endif
 
-    // Bridge FloatingPanel via AppDelegate.
-    AppState.shared.appDelegate = self
-    HistoryCommandServices.current = AppHistoryCommandService(
-      history: AppState.shared.history,
-      navigator: AppState.shared.navigator
-    )
-
-    // Wire the off-main ingest actor: the pasteboard snapshot is
-    // filtered/deduped/written on a background SwiftData context, and the
-    // resulting `StoreEvent` hops back to the main actor to reconcile the
-    // main-context history. `Clipboard.checkForChangesInPasteboard` dispatches
-    // each copy to this actor via `Task { ... }`.
-    //
-    // The same image processor instance backs the decorators' default
-    // processor, so thumbnails decoded during ingest are reused when the item
-    // is rendered — one thumbnail cache across the ingest + view paths.
-    Clipboard.shared.ingestor = BackgroundClipboardIngestor(
-      modelContainer: Storage.shared.container,
-      image: HistoryItemDecorator.defaultImageProcessor,
-      now: { Date() },
-      onEvent: { @MainActor event, trimmedPersistentIDs in
-        History.shared.consume(event, trimmedPersistentIDs: trimmedPersistentIDs)
-      }
-    )
-    Clipboard.shared.start()
-
-    Task {
-      for await _ in Defaults.updates(.clipboardCheckInterval, initial: false) {
-        Clipboard.shared.restart()
-      }
-    }
+    compositionRoot.prepareForLaunch(appDelegate: self)
 
     statusItemVisibilityObserver = observe(\.statusItem.isVisible, options: .new) { _, change in
       if let newValue = change.newValue, Defaults[.showInStatusBar] != newValue {
@@ -129,12 +100,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       ContentView()
     }
 
-    // Wire the memory governor — reclaim non-viewport image bitmaps + caches on
-    // `NSApplication.didReceiveMemoryWarningNotification`.
-    MainActor.assumeIsolated {
-      MemoryGovernor.shared.attach(history: History.shared)
-      MemoryGovernor.shared.start()
-    }
+    compositionRoot.finishLaunching()
 
     #if DEBUG
     debugHooks.install()

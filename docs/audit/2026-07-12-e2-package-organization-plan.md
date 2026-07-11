@@ -8,7 +8,7 @@ Three mechanical slices keep review and failure attribution local:
 
 1. Move `Search.swift`, `SearchActor.swift`, `SearchDTOs.swift`, and `SearchVisibility.swift` into `Maccy/Search/` without source edits.
 2. Add a DEBUG-only `DebugHooks` module that owns UI-test/performance distributed-notification names, observer tokens, Sparkle test suppression, install, dump, and removal. `AppDelegate` forwards its three lifecycle points to that module.
-3. Add `CompositionRoot`, initialized with the existing application objects. It installs the AppDelegate bridge and Intent command module, constructs the background ingestor, starts/restarts clipboard polling, and attaches memory governance. `AppDelegate` retains status-item/window/defaults UI responsibilities and calls the small lifecycle interface.
+3. Add `CompositionRoot`, initialized lazily with the existing application objects. It installs the AppDelegate bridge and Intent command module, constructs the background ingestor, starts/restarts clipboard polling, and attaches memory governance. Move `AppDelegate` and `MaccyApp` beside it under `Application/`; the delegate retains status-item/window/defaults UI responsibilities and calls the small lifecycle interface.
 
 No protocol is added: production and tests do not have two justified adapters. Concrete dependencies are accepted by `CompositionRoot` so wiring knowledge is localized without building a repository/service-locator layer.
 
