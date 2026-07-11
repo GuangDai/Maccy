@@ -165,6 +165,8 @@ Severity convention matches the design audit: **Medium** = real defect worth sch
 
 ### `NEW-storage-load-models-2` — `HistoryItem.init(contents:)` self-assigns timestamps (no-op, misleading)
 
+> **Resolved 2026-07-11 (`91d76b8`):** both no-op self-assignments were deleted; the property declarations remain the sole `Date.now` initialization source.
+
 | | |
 |--|--|
 | **Location** | `HistoryItem.swift:112-116` |

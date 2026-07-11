@@ -120,7 +120,7 @@ C6 deferred (Low); D4/D5 pair with BS-4/6 memory work
 | `NEW-dedup-ids-3` backfill cross-ingest commit | Low | C2.3 | ✅ refuted timing; coupling removed (`f9f0e85`) |
 | `NEW-clipboard-filter-1/2/3` dead helpers + doc rot | Low | C1 | ✅ done (`2ac325f`) |
 | `NEW-storage-load-models-1` dead newBackgroundContext + false doc | Med | D0 | ✅ ADR/docs done (`7852ea8`; APIs retained test-only) |
-| `NEW-storage-load-models-2` init self-assigns timestamps | Low | C (hygiene) | open |
+| `NEW-storage-load-models-2` init self-assigns timestamps | Low | C (hygiene) | ✅ done (`91d76b8`) |
 | `NEW-singletons-intents-misc-1` dead paste-stack subtree | Med (cleanup value) | E4 | ✅ done (`9849d00`) |
 | `NEW-singletons-intents-misc-2/3` intent dup + filtered-index ambiguity | Low/Med-Low | E1 | ✅ done (`cd368ea`) |
 
@@ -145,7 +145,8 @@ C6 deferred (Low); D4/D5 pair with BS-4/6 memory work
 4. ~~C2.2 — stop re-deriving incoming signature entries~~ — **done** (`10f8d90`; shared `signatureDTO(of:)`).
 5. ~~C2.3 — isolate lazy fingerprint backfill persistence semantics~~ — **done/refined** (`f9f0e85`; cross-ingest timing refuted, read-side mutation removed).
 6. ~~E1 — route App Intents through a stable full-history command port~~ — **done** (`cd368ea`; duplicated 1-based bounds removed, no `AppState.shared` remains under `Intents`).
-7. ~~E3 — keep clipboard polling coalescible and active during event tracking~~ — **done** (`32320cf`; tested tolerance + `.common`). Next: the isolated timestamp-init hygiene finding, then C5 or XcodeGen M2 while C3 remains gated by the deferred History seam.
+7. ~~E3 — keep clipboard polling coalescible and active during event tracking~~ — **done** (`32320cf`; tested tolerance + `.common`).
+8. ~~Remove `HistoryItem.init` timestamp self-assignments~~ — **done** (`91d76b8`; no behavior change, full matrix green). Next: XcodeGen M2 semantic CI equivalence, then C5.
 
 Parallel-safe: XcodeGen M2 remains a separate infrastructure track.
 

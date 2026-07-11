@@ -58,7 +58,7 @@ The audit scores *mechanism presence*. The verification scores *realized impact*
 | **`filteredTypes`** | `07-module-clipboard.md:61` says "private; not all used on live path." Actually **`internal` (no `private`)** and **zero call sites anywhere** (dead, not partially-used). Its sole caller `contents(from:)` was removed in `9cb7d3f`. |
 | **`Clipboard.contents(from:)`** | Does **not exist** in HEAD (removed `9cb7d3f`), yet **5 doc comments** still reference it as live (`IngestFilter.swift:7,64`; `ClipboardIngestor.swift:134,440`; `IngestFilterTests.swift:6`). `IngestFilter.swift:64` frames the whole module as its "twin." Doc rot. |
 | **ItemID "double FNV-1a fold"** | Accurate (`Dtos.swift:186-198`). **Distinguish** from the **xxh3 content dedup fingerprint** (`HistoryItemContent.fingerprint`). `CLAUDE.md`'s "FNV-1a retained but superseded" refers to the legacy *content*-hash path, **not** ItemID — the glossary correctly keeps them separate, but readers conflate them. |
-| **`HistoryItem.init(contents:)`** | The init body self-assigns `firstCopiedAt`/`lastCopiedAt` (`:112-116`) — no-op (no such params; RHS = the property's own default). Misleading dead code (`NEW-storage-load-models-2`). |
+| **`HistoryItem.init(contents:)`** | The baseline init body self-assigned `firstCopiedAt`/`lastCopiedAt` (`:112-116`) — no-op (no such params; RHS = the property's own default). **Resolved `91d76b8`:** both lines were deleted. |
 
 ---
 
