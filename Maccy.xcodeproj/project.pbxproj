@@ -170,6 +170,7 @@
 		B52F4729FDFA725E8A7AA4E0 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = E49392B85A4B5E9BD7F0D672 /* Localizable.strings */; };
 		B7BA4C4FFF1E658420E43783 /* CorpusGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A648D53BB5741CF6080A3DB /* CorpusGeneratorTests.swift */; };
 		B9AB8A458A3A5BB4DF298B42 /* SearchFieldView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE733F20FAFB82B9C691E53 /* SearchFieldView.swift */; };
+		B9AEE2A3094F9C760B6979A8 /* rich_text.rtf in Resources */ = {isa = PBXBuildFile; fileRef = BE7FBFC101412E78BAE1548E /* rich_text.rtf */; };
 		BA199ADD5E81E84E9A1D58E6 /* Delete.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7158F5F3D419CCAC046D5875 /* Delete.swift */; };
 		BCBB18F26753922409C03B2F /* History.swift in Sources */ = {isa = PBXBuildFile; fileRef = 029EBA57A9AC496359D25702 /* History.swift */; };
 		BEE262B0402A6209DD4E6341 /* ApplicationImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C717ADF202B62C8AE6F8976 /* ApplicationImage.swift */; };
@@ -586,6 +587,7 @@
 		BE00C4F3D19D50B506C8D0FA /* it */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = it; path = it.lproj/GeneralSettings.strings; sourceTree = "<group>"; };
 		BE69C079B13B00C15D350DB3 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/Localizable.strings; sourceTree = "<group>"; };
 		BE6FB9DF44B02079AA09215B /* ClipboardIngestor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardIngestor.swift; sourceTree = "<group>"; };
+		BE7FBFC101412E78BAE1548E /* rich_text.rtf */ = {isa = PBXFileReference; lastKnownFileType = text.rtf; path = rich_text.rtf; sourceTree = "<group>"; };
 		BE8074EDB662EA6040321276 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/StorageSettings.strings; sourceTree = "<group>"; };
 		BF8F156FDB7221E0E62698F8 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/PinsSettings.strings; sourceTree = "<group>"; };
 		C003EE698D02017A471CE470 /* MaccyTextProcessor.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MaccyTextProcessor.mm; sourceTree = "<group>"; };
@@ -831,6 +833,7 @@
 			children = (
 				86DB46ABF0333B8806304E21 /* guy.jpeg */,
 				FB9EE43FD25CB9CE9659C139 /* heavy_text.txt */,
+				BE7FBFC101412E78BAE1548E /* rich_text.rtf */,
 			);
 			path = Fixtures;
 			sourceTree = "<group>";
@@ -1377,6 +1380,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				65EAAD7301EC8473DC4431D0 /* guy.jpeg in Resources */,
+				B9AEE2A3094F9C760B6979A8 /* rich_text.rtf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
