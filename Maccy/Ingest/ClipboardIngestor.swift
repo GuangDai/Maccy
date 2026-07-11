@@ -1,5 +1,4 @@
 import AppKit
-import Defaults
 import Foundation
 import Logging
 import SwiftData
@@ -44,11 +43,11 @@ final class MainActorIngestorAdapter: ClipboardIngestor {
 /// Off-main clipboard ingest actor: the production replacement for the main-thread
 /// `History.add` path.
 ///
-/// The pipeline runs entirely off the main thread: filter the request contents,
-/// dedup against existing items, write a single SwiftData transaction, then emit a
-/// `Sendable` `StoreEvent` back to the main observer. `MainActorIngestorAdapter`
-/// is the byte-for-byte legacy equivalent kept as the runtime path until the
-/// off-main actor is wired in.
+/// The pipeline runs on the ingest actor: filter the request contents, dedup
+/// against existing items, write a single SwiftData transaction, then emit a
+/// `Sendable` `StoreEvent` back to the main observer. Only selected small
+/// RTF/HTML parsing hops to `MainActor`; file/plain/image copies stay entirely
+/// on the actor after `Clipboard` dispatches their value snapshots.
 ///
 /// ## Concurrency model
 /// - `modelContext` is the actor's isolated `ModelContext` (provided by the
@@ -85,14 +84,10 @@ final class MainActorIngestorAdapter: ClipboardIngestor {
 /// info into the actor's request.
 @ModelActor
 actor BackgroundClipboardIngestor: ClipboardIngestor {
-  /// The work computed once on the main actor per ingest: the filtered content
-  /// entries, the derived title, the full-text search body, and the history-size
-  /// snapshot. A value type so it crosses back to this actor as a `Sendable`.
-  private struct IngestMainWork: Sendable {
-    let filtered: [ContentDTO]
+  /// Title and full search body projected from one filtered content batch.
+  private struct TextProjection: Sendable {
     let title: String
     let searchText: String
-    let historyLimit: Int
   }
 
   /// Actor-internal duplicate-search result. Candidate models stay on this
@@ -233,59 +228,76 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   ///
   /// Steps (matching the legacy `History.add` flow, collapsed into a single
   /// transaction):
-  /// 1. Build an `IngestConfig` snapshot from `Defaults` and
-  ///    `IngestFilterRules` on the main actor. The built-in ignored types are
-  ///    shared with `Clipboard`'s fast type gate.
-  /// 2. Filter the request contents with the pure `filterContents` helper,
-  ///    timing it for `parseMs` via the injected clock. An empty result is a
-  ///    no-op ingest (no event, no write).
-  /// 3. Build the new `HistoryItem` on the actor's isolated `modelContext`.
-  /// 4. Dedup against existing items via the per-entry `SignatureIndex`
+  /// 1. Consume the `IngestPolicy` value captured by `Clipboard` while it was
+  ///    already on the main actor.
+  /// 2. Filter the request contents on this actor. Only the whitespace-string
+  ///    rich-text fallback enters the AppKit parser on `MainActor`.
+  /// 3. Project title/search text here for file/plain/image content, or on
+  ///    `MainActor` when small RTF/HTML parsing is actually selected.
+  /// 4. Build the new `HistoryItem` on the actor's isolated `modelContext`.
+  /// 5. Dedup against existing items via the per-entry `SignatureIndex`
   ///    (O(hits) candidate lookup plus authoritative `supersedes` confirm),
   ///    replacing the legacy full-table `findSimilarItem` scan.
-  /// 5. Merge fields from the duplicate if found (mirroring
+  /// 6. Merge fields from the duplicate if found (mirroring
   ///    `History.mergeDuplicateIfNeeded`).
-  /// 6. Single-transaction commit: trim unpinned items beyond the main-actor
-  ///    `Defaults[.size]` snapshot (oldest first), delete the duplicate, insert
+  /// 7. Single-transaction commit: trim unpinned items beyond the request's
+  ///    history-size snapshot (oldest first), delete the duplicate, insert
   ///    the new item, then one save.
-  /// 7. Emit `.added` (no duplicate) or `.merged` (duplicate found) with the
+  /// 8. Emit `.added` (no duplicate) or `.merged` (duplicate found) with the
   ///    item's `ItemSnapshotDTO`.
-  /// 8. Report `IngestMetrics`.
+  /// 9. Report `IngestMetrics`.
   ///
   /// - Returns: The `StoreEvent` (if any) plus metrics. On a persistence error
   ///   the event is `nil`, the error is logged, and the metrics reflect the
   ///   pre-commit state (dedup decision plus parse timing).
   func ingest(_ request: IngestRequest) async -> IngestResult {
     let filterStart = now()
-    // Defaults, filterContents (rich-text detection), title generation, and the
-    // full-text body extraction all stay on the main actor. The Defaults
-    // package is shared with UI state, and the rich-text paths parse via
-    // NSAttributedString/AppKit.
-    let mainWork = await MainActor.run { () -> IngestMainWork in
-      let config = Self.ingestConfig()
-      let filtered = filterContents(
-        request.contents, application: request.application, config: config
-      )
-      return IngestMainWork(
-        filtered: filtered,
-        title: Self.title(for: filtered),
-        searchText: Self.searchableBody(for: filtered),
-        historyLimit: max(1, Defaults[.size])
-      )
+    let config = request.policy.filter
+    let rawPlan = IngestMainActorPlan(contents: request.contents, config: config)
+    let richTextPresent: Bool
+    if rawPlan.contains(.richTextPresence) {
+      richTextPresent = await MainActor.run {
+        parseRichTextPresence(in: request.contents, config: config)
+      }
+    } else {
+      richTextPresent = oversizedRichTextPresent(in: request.contents, config: config)
     }
+
+    let filtered = filterContents(
+      request.contents,
+      application: request.application,
+      config: config,
+      richTextPresent: richTextPresent
+    )
     let parseMs = now().timeIntervalSince(filterStart) * 1000
 
-    guard !mainWork.filtered.isEmpty else {
+    guard !filtered.isEmpty else {
       return IngestResult(
         event: nil,
         metrics: IngestMetrics(dedupHits: 0, bytesHashed: 0, parseMs: parseMs)
       )
     }
 
+    let projectionPlan = IngestMainActorPlan(contents: filtered, config: config)
+    let projection: TextProjection
+    if projectionPlan.contains(.textProjection) {
+      projection = await MainActor.run {
+        Self.textProjection(
+          for: filtered,
+          showSpecialSymbols: request.policy.showSpecialSymbols
+        )
+      }
+    } else {
+      projection = Self.textProjection(
+        for: filtered,
+        showSpecialSymbols: request.policy.showSpecialSymbols
+      )
+    }
+
     let timestamp = now()
     let item = makeHistoryItem(
-      mainWork.filtered, application: request.application, timestamp: timestamp,
-      title: mainWork.title, searchText: mainWork.searchText
+      filtered, application: request.application, timestamp: timestamp,
+      title: projection.title, searchText: projection.searchText
     )
     ensureDedupIndexInitialized()
     let duplicateSearch = findDuplicate(of: item)
@@ -303,7 +315,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
         item,
         deleting: dup,
         backfilling: duplicateSearch.backfillCandidates,
-        limit: mainWork.historyLimit
+        limit: request.policy.historyLimit
       )
     } catch {
       modelContext.rollback()
@@ -334,9 +346,9 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// Builds the new `HistoryItem` from the filtered contents (mirroring
   /// `MainActorIngestorAdapter.historyItem(from:)`).
   ///
-  /// The title is pre-computed on the main actor (see `title(for:)`) because
-  /// `NSAttributedString` parsing cannot run off-main; image items get an empty
-  /// title (OCR was removed).
+  /// The title/search projection is computed before model construction. Plain,
+  /// file, and image paths run on this actor; selected rich text is projected on
+  /// the main actor because `NSAttributedString` parsing cannot run off-main.
   private func makeHistoryItem(
     _ contents: [ContentDTO],
     application: String?,
@@ -355,35 +367,26 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     return item
   }
 
-  /// Computes the item title from the filtered contents.
-  ///
-  /// Must run on the main actor: `HistoryItemEngine.generateTitle` parses
-  /// RTF/HTML via `NSAttributedString`, which is main-thread-affine
-  /// (AppKit/WebKit) and traps off-main. The actor hops to main for this (and
-  /// for `filterContents`); the dedup fetch and the single-transaction write stay
-  /// off-main.
-  @MainActor
-  private static func title(for contents: [ContentDTO]) -> String {
+  /// Projects both persisted text fields using `HistoryItemEngine`'s canonical
+  /// priority and formatting rules. The routing plan guarantees this executes
+  /// on `MainActor` whenever either engine call can reach RTF/HTML parsing.
+  private static func textProjection(
+    for contents: [ContentDTO],
+    showSpecialSymbols: Bool
+  ) -> TextProjection {
     let transient = contents.map { HistoryItemContent(type: $0.type, value: $0.value) }
-    return HistoryItemEngine.generateTitle(
-      contents: transient,
-      fallbackTitle: "",
-      maxLength: HistoryItem.titlePreviewLimit,
-      richTextParsingLimit: 512 * 1024,
-      showSpecialSymbols: Defaults[.showSpecialSymbols]
-    )
-  }
-
-  /// Extracts the full searchable body from the filtered contents, stored on
-  /// the item's `searchText` column so search can scan it later without
-  /// re-parsing rich text. Same main-actor requirement as `title(for:)` — the
-  /// RTF/HTML paths parse via `NSAttributedString`.
-  @MainActor
-  private static func searchableBody(for contents: [ContentDTO]) -> String {
-    let transient = contents.map { HistoryItemContent(type: $0.type, value: $0.value) }
-    return HistoryItemEngine.searchableBody(
-      contents: transient,
-      richTextParsingLimit: 512 * 1024
+    return TextProjection(
+      title: HistoryItemEngine.generateTitle(
+        contents: transient,
+        fallbackTitle: "",
+        maxLength: HistoryItem.titlePreviewLimit,
+        richTextParsingLimit: 512 * 1_024,
+        showSpecialSymbols: showSpecialSymbols
+      ),
+      searchText: HistoryItemEngine.searchableBody(
+        contents: transient,
+        richTextParsingLimit: 512 * 1_024
+      )
     )
   }
 
@@ -527,7 +530,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   }
 
   /// Single-transaction commit: delete the duplicate, trim unpinned items beyond
-  /// the main-actor `Defaults[.size]` snapshot (oldest first), insert the new
+  /// the request's history-size snapshot (oldest first), insert the new
   /// item, then one `processPendingChanges` plus `save`.
   ///
   /// D5 (`NEW-ingest-dualpath-1`): instead of faulting every unpinned `@Model`
@@ -605,27 +608,6 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     modelContext.processPendingChanges()
     try modelContext.save()
     return CommitDeletes(dedupIDs: deletedItemIDs, persistentIDs: deletedPersistentIDs)
-  }
-
-  /// Builds the pure filter's configuration from live defaults and the shared
-  /// built-in pasteboard type rules.
-  private static func ingestConfig() -> IngestConfig {
-    let enabledTypes = Set(Defaults[.enabledPasteboardTypes].map(\.rawValue))
-    let ignoredTypes = IngestFilterRules.builtInIgnoredTypes
-      .union(Defaults[.ignoredPasteboardTypes])
-
-    return IngestConfig(
-      supportedTypes: IngestFilterRules.supportedTypes,
-      enabledTypes: enabledTypes,
-      ignoredTypes: ignoredTypes,
-      maxValueSize: HistoryItemContent.maxValueSize,
-      richTextParsingLimit: 512 * 1024,
-      regularExpressionInputLimit: 2_000,
-      ignoreRegexp: Defaults[.ignoreRegexp],
-      ignoredApps: Defaults[.ignoredApps],
-      ignoreAllAppsExceptListed: Defaults[.ignoreAllAppsExceptListed],
-      titlePreviewLimit: HistoryItem.titlePreviewLimit
-    )
   }
 
   /// Approximates the byte volume that would be fingerprinted during this ingest:

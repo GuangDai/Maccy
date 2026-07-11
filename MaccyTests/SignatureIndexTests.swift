@@ -87,7 +87,8 @@ class SignatureIndexTests: XCTestCase {
         )
       ],
       application: nil,
-      now: Date(timeIntervalSince1970: 0)
+      now: Date(timeIntervalSince1970: 0),
+      policy: .standard
     )
 
     XCTAssertEqual(index.candidates(for: request), [itemID])
@@ -109,7 +110,8 @@ class SignatureIndexTests: XCTestCase {
         )
       ],
       application: nil,
-      now: Date(timeIntervalSince1970: 0)
+      now: Date(timeIntervalSince1970: 0),
+      policy: .standard
     )
 
     XCTAssertEqual(index.candidates(for: request), [])

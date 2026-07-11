@@ -1,4 +1,5 @@
 import AppKit
+import Defaults
 import Foundation
 
 /// Built-in pasteboard type rules shared by the fast main-actor gate, the
@@ -68,7 +69,158 @@ struct IngestConfig: Sendable, Equatable {
   var titlePreviewLimit: Int
 }
 
-/// Pure ingest decision: applies the `Clipboard` filtering/ignore rules to an
+/// Per-copy settings captured while `Clipboard` is already on the main actor.
+///
+/// The background ingestor consumes this immutable value without reading UI
+/// globals or hopping to `MainActor` merely to obtain configuration.
+struct IngestPolicy: Sendable, Equatable {
+  let filter: IngestConfig
+  let historyLimit: Int
+  let showSpecialSymbols: Bool
+
+  /// Captures the live defaults that affect one ingest.
+  @MainActor
+  static func liveSnapshot() -> IngestPolicy {
+    let enabledTypes = Set(Defaults[.enabledPasteboardTypes].map(\.rawValue))
+    let ignoredTypes = IngestFilterRules.builtInIgnoredTypes
+      .union(Defaults[.ignoredPasteboardTypes])
+
+    return IngestPolicy(
+      filter: IngestConfig(
+        supportedTypes: IngestFilterRules.supportedTypes,
+        enabledTypes: enabledTypes,
+        ignoredTypes: ignoredTypes,
+        maxValueSize: HistoryItemContent.maxValueSize,
+        richTextParsingLimit: 512 * 1_024,
+        regularExpressionInputLimit: 2_000,
+        ignoreRegexp: Defaults[.ignoreRegexp],
+        ignoredApps: Defaults[.ignoredApps],
+        ignoreAllAppsExceptListed: Defaults[.ignoreAllAppsExceptListed],
+        titlePreviewLimit: HistoryItem.titlePreviewLimit
+      ),
+      historyLimit: max(1, Defaults[.size]),
+      showSpecialSymbols: Defaults[.showSpecialSymbols]
+    )
+  }
+
+  /// Deterministic baseline for synthetic requests that never enter the
+  /// production background ingestor (DTO/index/adapter tests).
+  static let standard = IngestPolicy(
+    filter: IngestConfig(
+      supportedTypes: IngestFilterRules.supportedTypes,
+      enabledTypes: IngestFilterRules.supportedTypes,
+      ignoredTypes: IngestFilterRules.builtInIgnoredTypes,
+      maxValueSize: ClipboardContentSizeLimit.defaultMegabytes
+        * ClipboardContentSizeLimit.bytesPerMegabyte,
+      richTextParsingLimit: 512 * 1_024,
+      regularExpressionInputLimit: 2_000,
+      ignoreRegexp: [],
+      ignoredApps: [],
+      ignoreAllAppsExceptListed: false,
+      titlePreviewLimit: HistoryItem.titlePreviewLimit
+    ),
+    historyLimit: 200,
+    showSpecialSymbols: true
+  )
+}
+
+/// AppKit-affine rich-text operations required for a given content batch.
+///
+/// Planning is pure and conservative: a bit is set only when the matching
+/// `NSAttributedString` parser can actually be reached. Oversized rich text is
+/// handled without parsing and therefore does not request main-actor work.
+struct IngestMainActorPlan: OptionSet, Sendable {
+  let rawValue: UInt8
+
+  static let richTextPresence = IngestMainActorPlan(rawValue: 1 << 0)
+  static let textProjection = IngestMainActorPlan(rawValue: 1 << 1)
+
+  init(rawValue: UInt8) {
+    self.rawValue = rawValue
+  }
+
+  init(contents: [ContentDTO], config: IngestConfig) {
+    var plan: IngestMainActorPlan = []
+    if Self.needsRichTextPresenceParsing(contents, config: config) {
+      plan.insert(.richTextPresence)
+    }
+    if Self.needsRichTextProjection(contents, config: config) {
+      plan.insert(.textProjection)
+    }
+    self = plan
+  }
+
+  private static func needsRichTextPresenceParsing(
+    _ contents: [ContentDTO],
+    config: IngestConfig
+  ) -> Bool {
+    guard let stringData = firstData(for: .string, in: contents),
+          stringData.count <= config.titlePreviewLimit,
+          stringData.stringPrefix(maxBytes: config.titlePreviewLimit)?
+          .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true else {
+      return false
+    }
+
+    if let rtf = firstData(for: .rtf, in: contents) {
+      return rtf.count <= config.richTextParsingLimit
+    }
+    if let html = firstData(for: .html, in: contents) {
+      return html.count <= config.richTextParsingLimit
+    }
+    return false
+  }
+
+  private static func needsRichTextProjection(
+    _ contents: [ContentDTO],
+    config: IngestConfig
+  ) -> Bool {
+    guard hasSmallRichText(in: contents, limit: config.richTextParsingLimit) else {
+      return false
+    }
+    guard !hasUsableFileURL(in: contents) else { return false }
+    guard let stringData = firstData(for: .string, in: contents) else { return true }
+
+    let titleUsesPlainText = stringData
+      .stringPrefix(maxBytes: config.titlePreviewLimit)?.isEmpty == false
+    let bodyUsesPlainText = String(data: stringData, encoding: .utf8)?.isEmpty == false
+    return !titleUsesPlainText || !bodyUsesPlainText
+  }
+
+  private static func hasSmallRichText(in contents: [ContentDTO], limit: Int) -> Bool {
+    [.rtf, .html].contains { type in
+      guard let data = firstData(for: type, in: contents) else { return false }
+      return data.count <= limit
+    }
+  }
+
+  private static func hasUsableFileURL(in contents: [ContentDTO]) -> Bool {
+    let universalClipboard = firstData(for: .universalClipboard, in: contents) != nil
+    let concreteTypes: [NSPasteboard.PasteboardType] = [
+      .html, .tiff, .png, .jpeg, .rtf, .string, .heic
+    ]
+    if universalClipboard && concreteTypes.contains(where: {
+      firstData(for: $0, in: contents) != nil
+    }) {
+      return false
+    }
+
+    return contents.contains { content in
+      content.type == NSPasteboard.PasteboardType.fileURL.rawValue
+        && content.value.flatMap {
+          URL(dataRepresentation: $0, relativeTo: nil, isAbsolute: true)
+        } != nil
+    }
+  }
+
+  private static func firstData(
+    for type: NSPasteboard.PasteboardType,
+    in contents: [ContentDTO]
+  ) -> Data? {
+    contents.first { $0.type == type.rawValue && $0.value != nil }?.value
+  }
+}
+
+/// Applies the `Clipboard` filtering/ignore rules to an
 /// already-materialized, flat `[ContentDTO]`.
 ///
 /// `Clipboard.ingestRequestFromPasteboard()` merges every pasteboard item's
@@ -105,12 +257,9 @@ struct IngestConfig: Sendable, Equatable {
 /// 6. **Size cap** — any remaining content whose `value?.count` exceeds
 ///    `maxValueSize` is dropped.
 ///
-/// The function is pure: it reads no globals, mutates nothing, and touches only
-/// the value types it is given. `NSAttributedString(rtf:)/(html:)` is invoked
-/// for rich-text detection; under the project's `SWIFT_STRICT_CONCURRENCY =
-/// complete` setting. The caller currently runs it on the main actor because
-/// AppKit performs the rich-text parsing. The pure empty-string predicate is
-/// also exposed as
+/// This convenience overload performs AppKit rich-text detection on the main
+/// actor, then delegates all rules to the pure overload accepting an explicit
+/// `richTextPresent` value. The pure empty-string predicate is also exposed as
 /// `isEffectivelyEmpty(_:richTextPresent:titlePreviewLimit:)` so the decision can
 /// be unit-tested without `NSAttributedString`.
 ///
@@ -121,10 +270,27 @@ struct IngestConfig: Sendable, Equatable {
 ///   - config: The configuration snapshot.
 /// - Returns: The surviving contents in their original order, or `[]` if any
 ///   gate rules out the whole batch.
+@MainActor
 func filterContents(
   _ raw: [ContentDTO],
   application: String?,
   config: IngestConfig
+) -> [ContentDTO] {
+  filterContents(
+    raw,
+    application: application,
+    config: config,
+    richTextPresent: parseRichTextPresence(in: raw, config: config)
+  )
+}
+
+/// Applies ingest rules using a caller-supplied rich-text presence decision.
+/// This overload is pure and is the background actor's ordinary path.
+func filterContents(
+  _ raw: [ContentDTO],
+  application: String?,
+  config: IngestConfig,
+  richTextPresent: Bool
 ) -> [ContentDTO] {
   if shouldIgnoreApplication(application, config: config) {
     return []
@@ -141,7 +307,7 @@ func filterContents(
   let stringContent = raw.first { $0.type == NSPasteboard.PasteboardType.string.rawValue }
   if isEffectivelyEmpty(
     raw,
-    richTextPresent: richTextPresent(in: raw, config: config),
+    richTextPresent: richTextPresent,
     titlePreviewLimit: config.titlePreviewLimit
   ) {
     return []
@@ -209,7 +375,8 @@ private func shouldIgnoreTypes(_ types: Set<String>, config: IngestConfig) -> Bo
 /// Returns true when an RTF or HTML content exists and either exceeds
 /// `richTextParsingLimit` (the early-return-true path for oversized payloads) or
 /// parses to a non-empty attributed string.
-private func richTextPresent(in contents: [ContentDTO], config: IngestConfig) -> Bool {
+@MainActor
+func parseRichTextPresence(in contents: [ContentDTO], config: IngestConfig) -> Bool {
   let rtf = contents.first { $0.type == NSPasteboard.PasteboardType.rtf.rawValue }?.value
   if let rtf {
     guard rtf.count <= config.richTextParsingLimit else { return true }
@@ -227,6 +394,19 @@ private func richTextPresent(in contents: [ContentDTO], config: IngestConfig) ->
   }
 
   return false
+}
+
+/// Detects the only rich-text presence case that needs no parser: an RTF/HTML
+/// payload above the parsing limit is considered present by policy.
+func oversizedRichTextPresent(in contents: [ContentDTO], config: IngestConfig) -> Bool {
+  contents.contains { content in
+    let richTypes = [
+      NSPasteboard.PasteboardType.rtf.rawValue,
+      NSPasteboard.PasteboardType.html.rawValue
+    ]
+    return richTypes.contains(content.type)
+      && (content.value?.count ?? 0) > config.richTextParsingLimit
+  }
 }
 
 /// Returns whether the string content should be discarded by an `ignoreRegexp` pattern.

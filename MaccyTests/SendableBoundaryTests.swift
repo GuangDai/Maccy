@@ -18,12 +18,14 @@ final class SendableBoundaryTests: XCTestCase {
       ContentSignatureEntry.self,
       MaccyFingerprint.self,
       StoreEvent.self,
+      IngestPolicy.self,
+      IngestMainActorPlan.self,
       IngestRequest.self,
       IngestResult.self,
       IngestMetrics.self,
       CopyOrigin.self
     ]
 
-    XCTAssertEqual(sendableTypes.count, 11)
+    XCTAssertEqual(sendableTypes.count, 13)
   }
 }

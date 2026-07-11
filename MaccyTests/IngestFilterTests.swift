@@ -6,7 +6,8 @@ import XCTest
 /// Every test builds synthetic `ContentDTO` values and an `IngestConfig`
 /// snapshot, then exercises the authoritative filter without touching
 /// `NSPasteboard`, SwiftData, or the ingest actor.
-class IngestFilterTests: XCTestCase {
+@MainActor
+final class IngestFilterTests: XCTestCase {
   /// Standard pasteboard type raw values (UTIs). See `NSPasteboard.PasteboardType`.
   private let stringType = "public.utf8-plain-text"
   private let rtfType = "public.rtf"

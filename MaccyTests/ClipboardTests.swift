@@ -171,10 +171,10 @@ final class ClipboardTests: XCTestCase {
     Defaults[.showSpecialSymbols] = false
 
     setPasteboard(types: [.string], string: "policy", forType: .string)
-    let request = ingestRequestFromPasteboard()
+    let request = clipboard.ingestRequestFromPasteboard()
 
     XCTAssertEqual(request?.policy.historyLimit, 37)
-    XCTAssertFalse(try XCTUnwrap(request?.policy.showSpecialSymbols))
+    XCTAssertEqual(request?.policy.showSpecialSymbols, false)
     XCTAssertEqual(request?.policy.filter.ignoreRegexp, Defaults[.ignoreRegexp])
   }
 

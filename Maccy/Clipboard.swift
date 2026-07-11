@@ -264,7 +264,8 @@ class Clipboard {
       source: CopyOrigin(changeCount: source.changeCount),
       contents: contents,
       application: sourceApp?.bundleIdentifier,
-      now: Date()
+      now: Date(),
+      policy: .liveSnapshot()
     )
   }
 }

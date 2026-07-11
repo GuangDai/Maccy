@@ -21,7 +21,9 @@ without moving AppKit's RTF/HTML parsing off the main thread.
 ## TDD slices
 
 1. Add fixture-backed planning tests proving a large plain-text copy needs no
-   rich-text main-actor work, while RTF and whitespace-plus-RTF copies do.
+   rich-text main-actor work, an RTF-only copy needs projection, and a
+   whitespace-plus-RTF copy needs only the preservation check (the surviving
+   plain representation wins title/body priority).
 2. Add a request-shape test proving `Clipboard` captures the live policy values.
 3. Introduce the Sendable policy and a pure rich-text work planner. Split the
    filter so its ordinary rules can execute without AppKit parsing.

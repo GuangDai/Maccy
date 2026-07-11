@@ -106,6 +106,21 @@ struct IngestRequest: Equatable, Sendable {
   let contents: [ContentDTO]
   let application: String?
   let now: Date
+  let policy: IngestPolicy
+
+  init(
+    source: CopyOrigin,
+    contents: [ContentDTO],
+    application: String?,
+    now: Date,
+    policy: IngestPolicy
+  ) {
+    self.source = source
+    self.contents = contents
+    self.application = application
+    self.now = now
+    self.policy = policy
+  }
 }
 
 /// The planned disposition of an ingest, decided before writing.

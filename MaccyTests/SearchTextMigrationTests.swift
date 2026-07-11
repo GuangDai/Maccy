@@ -226,7 +226,8 @@ final class SearchTextMigrationTests: XCTestCase {
       source: CopyOrigin(changeCount: changeCount),
       contents: contents,
       application: nil,
-      now: Date(timeIntervalSince1970: 1_700_000_000)
+      now: Date(timeIntervalSince1970: 1_700_000_000),
+      policy: .liveSnapshot()
     )
   }
 }

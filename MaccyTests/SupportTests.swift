@@ -50,7 +50,8 @@ class SupportTests: XCTestCase {
       source: CopyOrigin(changeCount: 1),
       contents: [],
       application: nil,
-      now: Date(timeIntervalSince1970: 0)
+      now: Date(timeIntervalSince1970: 0),
+      policy: .standard
     )
 
     let result = await spy.ingest(request)

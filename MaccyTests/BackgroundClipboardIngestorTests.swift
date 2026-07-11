@@ -362,8 +362,10 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
     )
   }
 
-  /// Whitespace plain text plus real RTF needs both AppKit-affine operations.
-  func testWhitespaceAndRtfRequireBothMainActorRichTextOperations() throws {
+  /// Whitespace plain text plus real RTF needs the AppKit-affine presence check.
+  /// Once preserved, the existing plain representation wins title/body priority,
+  /// so projection itself does not parse RTF.
+  func testWhitespaceAndRtfRequireOnlyMainActorPresenceCheck() throws {
     let whitespace = Data("  ".utf8)
     let rtf = try FixtureLoader.data(named: "rich_text.rtf")
     let contents = [
@@ -376,13 +378,13 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
 
     XCTAssertEqual(
       IngestMainActorPlan(contents: contents, config: defaultIngestConfig),
-      [.richTextPresence, .textProjection]
+      [.richTextPresence]
     )
   }
 
   /// RTF/HTML title generation parses via `NSAttributedString`, which is
   /// main-thread-affine (AppKit/WebKit). The actor runs that parsing on the main
-  /// actor (see `BackgroundClipboardIngestor.title(for:)`). Driving the actor —
+  /// actor (see `BackgroundClipboardIngestor.textProjection(for:)`). Driving the actor —
   /// whose body runs on its off-main executor — with RTF would trap if
   /// `NSAttributedString` ran off-main, so this test guards that regression.
   func testIngestRtfContentDoesNotTrapOffMain() async {
@@ -399,7 +401,8 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
         source: CopyOrigin(changeCount: 1, name: "test"),
         contents: [ContentDTO(type: "public.rtf", value: rtf, fingerprint: nil, size: rtf.count)],
         application: nil,
-        now: Date(timeIntervalSince1970: 1_700_000_000)
+        now: Date(timeIntervalSince1970: 1_700_000_000),
+        policy: .liveSnapshot()
       )
     )
 
@@ -419,12 +422,11 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
   /// `BackgroundClipboardIngestor` is a `@ModelActor` actor, so Swift runs its
   /// fetch/dedup/transaction/save on the actor's serial executor off the main
   /// thread. An earlier main-thread-gap version of this test was flaky on the
-  /// shared CI runner — the actor's intentional
-  /// `MainActor.run { filterContents + title }` hop on a 31 KB payload
-  /// legitimately costs ~100-200 ms on the main thread (the designed on-main
-  /// parsing path), which is not an off-main leak. A strict sub-frame gate on
-  /// the copy path belongs in the dedicated performance-test target; the
-  /// off-main property is also guarded by
+  /// shared CI runner — the old actor's unconditional
+  /// `MainActor.run { filterContents + title }` hop on a 31 KB payload cost
+  /// ~100-200 ms on the main thread. D2 removes that hop for this fixture. A
+  /// strict sub-frame gate belongs in the dedicated performance-test target;
+  /// safe rich-text routing is also guarded by
   /// `testIngestRtfContentDoesNotTrapOffMain`.
   func testIngestUnderLoadCompletesAndTrimsToSizeLimit() async {
     let context = Storage.shared.context
@@ -446,7 +448,8 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       source: CopyOrigin(changeCount: 1, name: "test"),
       contents: [ContentDTO(type: stringType, value: heavy, fingerprint: nil, size: heavy?.count ?? 0)],
       application: nil,
-      now: Date(timeIntervalSince1970: 1_700_000_300)
+      now: Date(timeIntervalSince1970: 1_700_000_300),
+      policy: .liveSnapshot()
     )
 
     let collector = EventCollector()
@@ -572,7 +575,8 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
         ContentDTO(type: "com.test.richmarker", value: "bar".data(using: .utf8), fingerprint: nil, size: 3)
       ],
       application: nil,
-      now: Date(timeIntervalSince1970: 1_700_000_000)
+      now: Date(timeIntervalSince1970: 1_700_000_000),
+      policy: .liveSnapshot()
     )
     _ = await ingestor.ingest(rich)
 
@@ -581,7 +585,8 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
       source: CopyOrigin(changeCount: 2, name: "test"),
       contents: [ContentDTO(type: stringType, value: foo, fingerprint: nil, size: 3)],
       application: nil,
-      now: Date(timeIntervalSince1970: 1_700_000_000)
+      now: Date(timeIntervalSince1970: 1_700_000_000),
+      policy: .liveSnapshot()
     )
     let second = await ingestor.ingest(plain)
 
@@ -615,7 +620,8 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
           ContentDTO(type: stringType, value: heavy, fingerprint: nil, size: heavy?.count ?? 0)
         ],
         application: nil,
-        now: Date(timeIntervalSince1970: 1_700_000_000)
+        now: Date(timeIntervalSince1970: 1_700_000_000),
+        policy: .liveSnapshot()
       )
     }
 
@@ -705,7 +711,8 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
         ContentDTO(type: stringType, value: data, fingerprint: nil, size: data?.count ?? 0)
       ],
       application: nil,
-      now: Date(timeIntervalSince1970: 1_700_000_000)
+      now: Date(timeIntervalSince1970: 1_700_000_000),
+      policy: .liveSnapshot()
     )
   }
 }

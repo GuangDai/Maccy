@@ -19,7 +19,8 @@ class ClipboardIngestorTests: XCTestCase {
         )
       ],
       application: "org.example.App",
-      now: now
+      now: now,
+      policy: .standard
     )
 
     let item = MainActorIngestorAdapter.historyItem(from: request)
@@ -40,7 +41,8 @@ class ClipboardIngestorTests: XCTestCase {
         source: CopyOrigin(changeCount: 1),
         contents: [],
         application: nil,
-        now: Date(timeIntervalSince1970: 0)
+        now: Date(timeIntervalSince1970: 0),
+        policy: .standard
       )
     )
 

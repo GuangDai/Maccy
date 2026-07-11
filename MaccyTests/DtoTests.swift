@@ -14,6 +14,8 @@ class DtoTests: XCTestCase {
     requireSendable(MaccyFingerprint.self)
     requireSendable(ItemSnapshotDTO.self)
     requireSendable(StoreEvent.self)
+    requireSendable(IngestPolicy.self)
+    requireSendable(IngestMainActorPlan.self)
     requireSendable(IngestRequest.self)
     requireSendable(IngestPlan.self)
     requireSendable(IngestResult.self)

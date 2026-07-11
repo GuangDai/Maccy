@@ -227,7 +227,8 @@ final class ImageDecodePerformanceTests: PerformanceTestCase {
         ContentDTO(type: "public.utf8-plain-text", value: data, fingerprint: nil, size: data.count)
       ],
       application: nil,
-      now: Date(timeIntervalSince1970: 1_700_002_000)
+      now: Date(timeIntervalSince1970: 1_700_002_000),
+      policy: .liveSnapshot()
     )
   }
 
