@@ -44,12 +44,19 @@ class DtoRoundTripTests: XCTestCase {
     ])
   }
 
-  /// Projecting the same model twice yields a stable DTO id.
-  func testProjectedItemIDIsStableForSameModelIdentifier() {
+  /// A committed snapshot carries the model's exact stable store identity.
+  func testSnapshotUsesStoredItemIdentity() throws {
     let item = HistoryBuilder()
       .withContent(type: "public.utf8-plain-text", value: Data("hello".utf8))
       .build()
+    let context = Storage.shared.context
+    context.insert(item)
+    try context.save()
+    defer {
+      context.delete(item)
+      try? context.save()
+    }
 
-    XCTAssertEqual(snapshot(of: item).id, snapshot(of: item).id)
+    XCTAssertEqual(snapshot(of: item).id, item.persistentModelID.id)
   }
 }
