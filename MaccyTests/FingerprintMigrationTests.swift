@@ -104,6 +104,33 @@ final class FingerprintMigrationTests: XCTestCase {
     )
   }
 
+  /// A failed ingest must not leave a candidate backfill pending for an
+  /// unrelated later ingest to commit on the actor's long-lived context.
+  func testFailedCommitDoesNotLeakBackfillIntoLaterIngest() async {
+    let largeValue = Data(repeating: 0x41, count: thresholdSize)
+    seedRow(contents: [(stringType, largeValue)], forceFingerprintNil: true)
+    let ingestor = makeIngestor()
+
+    await ingestor.setCommitFailureForTesting(true)
+    let failed = await ingestor.ingest(request([
+      content(type: stringType, value: largeValue),
+      content(type: stringType, value: Data("failed-extra".utf8))
+    ]))
+    await ingestor.setCommitFailureForTesting(false)
+
+    XCTAssertTrue(failed.persistenceFailed)
+    _ = await ingestor.ingest(request([
+      content(type: stringType, value: Data("unrelated-success".utf8))
+    ]))
+
+    let seeded = seededRow(matchingValue: largeValue)
+    XCTAssertNotNil(seeded)
+    XCTAssertNil(
+      seeded?.contents.first?.fingerprint,
+      "A later successful ingest must not commit backfill left pending by the failed ingest."
+    )
+  }
+
   /// Content below the fingerprint threshold is never backfilled: it has no
   /// fingerprint to store, so its column stays nil.
   func testSmallContentIsNotBackfilled() async {
