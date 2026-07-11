@@ -187,7 +187,8 @@ struct IngestMainActorPlan: OptionSet, Sendable {
   }
 
   private static func hasSmallRichText(in contents: [ContentDTO], limit: Int) -> Bool {
-    [.rtf, .html].contains { type in
+    let richTypes: [NSPasteboard.PasteboardType] = [.rtf, .html]
+    return richTypes.contains { type in
       guard let data = firstData(for: type, in: contents) else { return false }
       return data.count <= limit
     }
