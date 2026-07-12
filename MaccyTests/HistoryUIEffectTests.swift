@@ -173,13 +173,71 @@ final class HistoryUIEffectTests: XCTestCase {
 }
 
 @MainActor
+final class AppStateRuntimeServicesTests: XCTestCase {
+  func testEmptySelectionCopiesSearchThroughInjectedRuntimeService() async {
+    let savedIgnoreEvents = Defaults[.ignoreEvents]
+    let savedIgnoreOnlyNextEvent = Defaults[.ignoreOnlyNextEvent]
+    let savedIngestor = Clipboard.shared.ingestor
+    defer {
+      Defaults[.ignoreEvents] = savedIgnoreEvents
+      Defaults[.ignoreOnlyNextEvent] = savedIgnoreOnlyNextEvent
+      Clipboard.shared.ingestor = savedIngestor
+    }
+    Defaults[.ignoreEvents] = true
+    Defaults[.ignoreOnlyNextEvent] = false
+    Clipboard.shared.ingestor = nil
+
+    let history = History(
+      persistence: RuntimeServicesPersistence(),
+      logsPersistenceErrors: false
+    )
+    var copiedText: [String] = []
+    let appState = AppState(
+      history: history,
+      footer: Footer(),
+      runtimeServices: AppStateRuntimeServices(
+        copyText: { copiedText.append($0) }
+      )
+    )
+    history.searchQuery = "copy injected query"
+
+    appState.select()
+    await Task.yield()
+
+    XCTAssertEqual(copiedText, ["copy injected query"])
+    XCTAssertEqual(history.searchQuery, "")
+  }
+
+  func testPrewarmUsesTheAppStatesInjectedHistory() async {
+    let persistence = RuntimeServicesPersistence()
+    let history = History(
+      persistence: persistence,
+      logsPersistenceErrors: false
+    )
+    let appState = AppState(history: history, footer: Footer())
+
+    appState.prewarmVisibleWindow()
+    for _ in 0..<100 where persistence.fetchAllCalls == 0 {
+      await Task.yield()
+    }
+
+    XCTAssertEqual(persistence.fetchAllCalls, 1)
+  }
+}
+
+@MainActor
 private final class RuntimeServicesPersistence: HistoryPersistence {
   func delete(_ item: HistoryItem) throws {}
   func delete(_ items: [HistoryItem]) throws {}
   func deleteUnpinned() throws {}
   func deleteAll() throws {}
   func save() throws {}
-  func fetchAll() throws -> [HistoryItem] { [] }
+  private(set) var fetchAllCalls = 0
+
+  func fetchAll() throws -> [HistoryItem] {
+    fetchAllCalls += 1
+    return []
+  }
   func model(for id: PersistentIdentifier) -> HistoryItem? { nil }
   func countHistoryItems() throws -> Int { 0 }
   func countHistoryItemContents() throws -> Int { 0 }

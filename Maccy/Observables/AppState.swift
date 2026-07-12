@@ -4,6 +4,14 @@ import Foundation
 import Settings
 import SwiftUI
 
+/// Runtime effects supplied when composing the top-level application state.
+@MainActor
+struct AppStateRuntimeServices {
+  let copyText: @MainActor (String) -> Void
+
+  static let inert = AppStateRuntimeServices(copyText: { _ in })
+}
+
 /// Top-level app state holding the shared observable models (`History`,
 /// `Footer`, `Popup`, `NavigationManager`, `SlideoutController`) and the
 /// actions the UI binds to (select, pin, delete, open preferences, …).
@@ -44,7 +52,11 @@ class AppState {
   /// removes itself (no accumulation across reopens).
   private var settingsWindowCloseObserver: NSObjectProtocol?
 
-  init(history: History, footer: Footer) {
+  init(
+    history: History,
+    footer: Footer,
+    runtimeServices: AppStateRuntimeServices = .inert
+  ) {
     self.history = history
     self.footer = footer
     popup = Popup()
