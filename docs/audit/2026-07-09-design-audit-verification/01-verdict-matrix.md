@@ -36,7 +36,7 @@
 | DS-030 | ✅ | Med→Med | High | `HistoryItemEngine` | **Resolved:** all engine APIs consume `[ContentDTO]`; ingest projects title/search directly from request values and no longer builds throwaway SwiftData models. |
 | DS-031 | ◐ | Low→Low | High | deletion after D1 | **Resolved with DS-017:** the unused plan/reason DTOs were deleted rather than promoted into the live actor pipeline. |
 | DS-032 | ✅ | Low→Low | High | `Application/DebugHooks.swift`; `72fa8f2` | **Resolved:** whole-file DEBUG module owns the test/perf bridge; `AppDelegate` only forwards lifecycle calls under `#if DEBUG`. |
-| DS-033 | ◐ | Low→Low | High | `StorageSettingsPane` reader injection; `bd238fe` | **Resolved:** the only production pane reads the current size through a composition-owned closure; its create/onAppear refresh behavior is unchanged. The Pins hit remains preview-only. Full matrix `29212071043`. |
+| DS-033 | ◐ | Low→Low | High | `StorageSettingsPane.ViewModel`; `bd238fe`, `f84ffa1` | **Resolved:** the only production pane reads the current size through a composition-owned closure; an injected sequence test proves creation and onAppear refresh semantics. The Pins hit remains preview-only. Full matrix `29213836925`. |
 | DS-034 | ✅ | Low→Low | High | `Maccy/Search/`; `2a06a58` | **Resolved:** all four search sources are colocated with zero source changes. |
 
 **Adversarial retrial column** (6 correctness-critical findings, skeptic re-read the code and argued the opposite):

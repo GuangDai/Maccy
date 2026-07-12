@@ -62,7 +62,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 | `Maccy/ImageProcessing/ImageProcessing.swift` + `ImageProcessor.swift` + `ImageDownsampler.swift` + `ThumbnailCache.swift` | ✅ ImageIO 降采样已接入(BS-3) |
 | `HistoryListState` / `HistorySearchSession` / `HistoryStoreProjector` / `HistoryMutations` | ✅ B2–B5 完成:列表变更单 chokepoint、actor 搜索语料/O(1) lookup、单 persistence 投影、fake-backed mutations + value UI effects。E5 首个 DI slice 又将 clipboard/event/current-event/log 服务构造注入；普通 `History` 实例 inert，live globals 仅在 `History.shared` composition factory。`History.swift` 978→346 LOC；full matrix `29210900842`。 |
 | `AppState` runtime boundary | ✅ E5 第二 slice (`ed664b2`):空选择 query copy 构造注入；prewarm 使用当前组合的 History；Settings close observer 弱捕获 owning AppState，不再回写 `AppState.shared`。文件内 shared 使用 8→3，剩余仅 composition/Settings 构建区；full matrix `29211587341`。 |
-| Footer action flow | ✅ `7d1d3e2`:FooterItem 携带 closed `FooterAction` value；click/confirmation/keyboard 统一交给 owning AppState 解释，Footer 内 5 个 `AppState.shared` 闭包删除；full matrix `29212815681`。 |
+| Footer action flow | ✅ `7d1d3e2`:FooterItem 携带 closed `FooterAction` value；click/confirmation/keyboard 统一交给 owning AppState 解释，Footer 内 5 个 `AppState.shared` 闭包删除。`f84ffa1` 又覆盖全部 interpreter cases，并把键盘 clear 路由从 title string 收敛为 typed lookup；full matrix `29213836925`。 |
 | D1 load 原型 | ✅ run `29176185359` 证明完整历史的 store-sorted 候选仅快约 1%，不具落地价值；窗口化又无内存收益且破坏完整搜索，因此 test-only loader/context 脚手架已删除。 |
 
 ---

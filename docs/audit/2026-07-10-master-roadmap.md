@@ -90,7 +90,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 | E2 | **Package moves — done** (`2a06a58`, `72fa8f2`, `9e54d77`, `19b7431`) | DS-026, DS-032, DS-034 | M | L | `Application/` owns lazy composition + DEBUG hooks + delegate/entry; all four `Search*` sources are colocated under `Search/`; full generated matrix/package green. |
 | E3 | **Clipboard Timer — done** (`32320cf`) | DS-024 | S | L | Effective interval retains its 100 ms floor, adds tested 10% tolerance, and runs in `.common`. |
 | E4 | **Dead paste-stack subtree deleted** (`9849d00`) | DS-028, `NEW-singletons-intents-misc-1` | S | L | Removed the unreachable model/views/state/key branches and always-false gate. |
-| E5 | Progressive DI vs `shared` | DS-006, DS-033 | ongoing | M | History/AppState runtime effects are injected; storage-size reading is composed; Footer's five global closures are closed values interpreted by AppState (`7d1d3e2`, `29212815681`). Continue boundary-by-boundary; don't big-bang. |
+| E5 | Progressive DI vs `shared` | DS-006, DS-033 | ongoing | M | History/AppState runtime effects are injected; storage-size reading is composed; Footer's five global closures are closed values interpreted by AppState (`7d1d3e2`, `29212815681`). Review hardening proves Storage create/refresh and every Footer interpreter case, and keys clear actions by typed value (`f84ffa1`–`a405089`, `29213836925`). Continue boundary-by-boundary; don't big-bang. |
 
 ### 3.5 Hard dependencies
 
