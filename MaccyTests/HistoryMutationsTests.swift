@@ -29,13 +29,14 @@ final class HistoryMutationsTests: XCTestCase {
 
     harness.subject.clear()
     let removedCorpusIDs = await waitForRemovedCorpus(in: harness.backend)
+    let effects = await waitForEffects(in: harness, count: 2)
 
     XCTAssertEqual(harness.persistence.deleteUnpinnedCalls, 1)
     XCTAssertEqual(harness.listState.all, [pinned])
     XCTAssertEqual(removedCorpusIDs, [unpinned.id])
     XCTAssertEqual(harness.storeEvents, [.removed(removedID)])
     XCTAssertEqual(harness.clipboard.clearCalls, 1)
-    XCTAssertEqual(effectNames(harness.effects), ["closePopup", "resizePopup"])
+    XCTAssertEqual(effectNames(effects), ["closePopup", "resizePopup"])
   }
 
   func testClearAllDrainsProjectionCorpusAndIndex() async {
@@ -45,13 +46,14 @@ final class HistoryMutationsTests: XCTestCase {
 
     harness.subject.clearAll()
     let clearCorpusCalls = await waitForClearCorpus(in: harness.backend)
+    let effects = await waitForEffects(in: harness, count: 2)
 
     XCTAssertEqual(harness.persistence.deleteAllCalls, 1)
     XCTAssertEqual(harness.listState.all, [])
     XCTAssertEqual(clearCorpusCalls, 1)
     XCTAssertEqual(harness.storeEvents, [.cleared])
     XCTAssertEqual(harness.clipboard.clearCalls, 1)
-    XCTAssertEqual(effectNames(harness.effects), ["closePopup", "resizePopup"])
+    XCTAssertEqual(effectNames(effects), ["closePopup", "resizePopup"])
   }
 
   private func makeHarness(_ decorators: [HistoryItemDecorator]) -> MutationHarness {
@@ -98,6 +100,17 @@ final class HistoryMutationsTests: XCTestCase {
       case .scrollTo: "scrollTo"
       }
     }
+  }
+
+  private func waitForEffects(
+    in harness: MutationHarness,
+    count: Int
+  ) async -> [HistoryUIEffect] {
+    for _ in 0..<100 {
+      if harness.effects.count >= count { return harness.effects }
+      try? await Task.sleep(for: .milliseconds(5))
+    }
+    return harness.effects
   }
 }
 

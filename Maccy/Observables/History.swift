@@ -74,6 +74,7 @@ class History: ItemsContainer {
   private let sorter = Sorter()
   @ObservationIgnored private let searchSession: HistorySearchSession
   @ObservationIgnored private let storeProjector: HistoryStoreProjector
+  @ObservationIgnored private let mutations: HistoryMutations
   var searchGeneration: Int { searchSession.generation }
 
   /// All history decorators, including those hidden by the current search.
@@ -110,6 +111,26 @@ class History: ItemsContainer {
       listState: listState,
       searchSession: searchSession
     )
+    let mutationLogger = Logger(label: "org.p0deje.Maccy")
+    self.mutations = HistoryMutations(
+      persistence: persistence,
+      listState: listState,
+      searchSession: searchSession,
+      sorter: Sorter(),
+      clipboard: HistoryClipboardActions(
+        clear: { Clipboard.shared.clear() },
+        copy: { item, removeFormatting in
+          Clipboard.shared.copy(item, removeFormatting: removeFormatting)
+        },
+        paste: { Clipboard.shared.paste() }
+      ),
+      modifierFlags: {
+        NSApp.currentEvent?.modifierFlags
+          .intersection(.deviceIndependentFlagsMask)
+          .subtracting([.capsLock, .numericPad, .function]) ?? []
+      },
+      log: { mutationLogger.info("\($0)") }
+    )
     self.logsPersistenceErrors = logsPersistenceErrors
 
     listState.configureWillMutate { [weak searchSession = self.searchSession] in
@@ -132,6 +153,15 @@ class History: ItemsContainer {
     }
     storeProjector.configureStoreEventSink { [weak self] events in
       self?.synchronizeIngestor(with: events)
+    }
+    mutations.configureUIEffectSink { [weak self] effect in
+      self?.emit(effect)
+    }
+    mutations.configureStoreEventSink { [weak self] events in
+      self?.synchronizeIngestor(with: events)
+    }
+    mutations.configureErrorSink { [weak self] message, error in
+      self?.recordPersistenceError(message, error)
     }
 
     Task { @MainActor in
@@ -286,62 +316,12 @@ class History: ItemsContainer {
   /// decorator's AppKit transients in an autorelease pool so a bulk clear
   /// doesn't pile them up.
   func clear() {
-    let removed = all.filter(\.isUnpinned)
-    let removedStoreIDs = removed.map { storedItemID(for: $0.item) }
-    let removedPersistentIDs = Set(removed.map { $0.item.persistentModelID })
-
-    do {
-      try withLogging("Clearing history") {
-        try persistence.deleteUnpinned()
-      }
-      let removedIDs = removed.map(\.id)
-      for item in removed {
-        autoreleasepool {
-          cleanup(item)
-        }
-      }
-      listState.removeStoredIDs(removedPersistentIDs)
-      listState.publishVisible(all)
-      searchSession.removeCorpus(removedIDs)
-      synchronizeIngestor(with: removedStoreIDs.map(StoreEvent.removed))
-    } catch {
-      recordPersistenceError("Failed to clear history", error)
-      return
-    }
-
-    Clipboard.shared.clear()
-    emit(.closePopup)
-    Task {
-      emit(.resizePopup)
-    }
+    mutations.clear()
   }
 
   /// Deletes every item (pins included), draining each decorator's transients.
   func clearAll() {
-    let removed = all
-
-    do {
-      try withLogging("Clearing all history") {
-        try persistence.deleteAll()
-      }
-      for item in removed {
-        autoreleasepool {
-          cleanup(item)
-        }
-      }
-      listState.replaceAll([])
-      searchSession.clearCorpus()
-      synchronizeIngestor(with: [.cleared])
-    } catch {
-      recordPersistenceError("Failed to clear all history", error)
-      return
-    }
-
-    Clipboard.shared.clear()
-    emit(.closePopup)
-    Task {
-      emit(.resizePopup)
-    }
+    mutations.clearAll()
   }
 
   /// Deletes a single decorator's backing item, removes it from `all`/`items`,
