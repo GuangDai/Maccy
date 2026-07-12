@@ -67,7 +67,16 @@ struct StorageSettingsPane: View {
   @Default(.sortBy) private var sortBy
 
   @State private var viewModel = ViewModel()
-  @State private var storageSize = Storage.shared.size
+  @State private var storageSize: String
+  private let readStorageSize: @MainActor () -> String
+
+  /// Creates the pane with the composition-owned reader for the current
+  /// on-disk storage size.
+  @MainActor
+  init(readStorageSize: @escaping @MainActor () -> String) {
+    self.readStorageSize = readStorageSize
+    _storageSize = State(initialValue: readStorageSize())
+  }
 
   private let sizeFormatter: NumberFormatter = {
     let formatter = NumberFormatter()
@@ -118,7 +127,7 @@ struct StorageSettingsPane: View {
             .foregroundStyle(.gray)
             .help(Text("CurrentSizeTooltip", tableName: "StorageSettings"))
             .onAppear {
-              storageSize = Storage.shared.size
+              storageSize = readStorageSize()
             }
         }
       }
@@ -155,6 +164,6 @@ struct StorageSettingsPane: View {
 }
 
 #Preview {
-  StorageSettingsPane()
+  StorageSettingsPane(readStorageSize: { "0 B" })
     .environment(\.locale, .init(identifier: "en"))
 }

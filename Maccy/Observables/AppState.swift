@@ -8,8 +8,12 @@ import SwiftUI
 @MainActor
 struct AppStateRuntimeServices {
   let copyText: @MainActor (String) -> Void
+  let readStorageSize: @MainActor () -> String
 
-  static let inert = AppStateRuntimeServices(copyText: { _ in })
+  static let inert = AppStateRuntimeServices(
+    copyText: { _ in },
+    readStorageSize: { "" }
+  )
 }
 
 /// Top-level app state holding the shared observable models (`History`,
@@ -25,7 +29,8 @@ class AppState {
       history: History.shared,
       footer: Footer(),
       runtimeServices: AppStateRuntimeServices(
-        copyText: { Clipboard.shared.copy($0) }
+        copyText: { Clipboard.shared.copy($0) },
+        readStorageSize: { Storage.shared.size }
       )
     )
   }
@@ -171,6 +176,7 @@ class AppState {
   @MainActor
   func openPreferences() {
     if settingsWindowController == nil {
+      let readStorageSize = runtimeServices.readStorageSize
       settingsWindowController = SettingsWindowController(
         panes: [
           Settings.Pane(
@@ -185,7 +191,7 @@ class AppState {
             title: NSLocalizedString("Title", tableName: "StorageSettings", comment: ""),
             toolbarIcon: NSImage.externaldrive ?? NSImage()
           ) {
-            StorageSettingsPane()
+            StorageSettingsPane(readStorageSize: readStorageSize)
           },
           Settings.Pane(
             identifier: Settings.PaneIdentifier.appearance,

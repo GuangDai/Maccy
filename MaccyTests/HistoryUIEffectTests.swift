@@ -196,7 +196,8 @@ final class AppStateRuntimeServicesTests: XCTestCase {
       history: history,
       footer: Footer(),
       runtimeServices: AppStateRuntimeServices(
-        copyText: { copiedText.append($0) }
+        copyText: { copiedText.append($0) },
+        readStorageSize: { "" }
       )
     )
     history.searchQuery = "copy injected query"
