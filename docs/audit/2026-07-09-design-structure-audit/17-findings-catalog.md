@@ -272,11 +272,17 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-025 — `deleteUnpinned` pending-vs-saved risk (SwiftData)
 
+> **Resolved 2026-07-12:** the previously dormant mechanism was reproduced:
+> an unsaved unpinned insert survived the predicate delete (red run
+> `29182928718`), while a pending pinned control row also remained. The port now
+> saves only when the main context has pending edits before issuing the batch
+> delete; the integration test passes in run `29183054806`.
+
 | | |
 |--|--|
 | **Evidence** | `SwiftDataHistoryPersistence.deleteUnpinned` uses predicate delete in transaction then save; architecture docs note predicate delete vs pending asymmetry |
 | **Impact** | If pending inserts unpinned exist, predicate may not match expectations |
-| **Recommendation** | Ensure save/pending discipline; tests around clear after unsaved inserts |
+| **Recommendation** | **Completed:** explicit pending-save discipline plus pinned/unpinned integration coverage. |
 | **Confidence** | Medium |
 
 ### DS-026 — Root Swift surface area / AppDelegate overload — RESOLVED (`2a06a58`, `72fa8f2`, `9e54d77`)

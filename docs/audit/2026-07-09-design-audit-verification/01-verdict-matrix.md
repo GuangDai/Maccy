@@ -28,7 +28,7 @@
 | DS-022 | ✅ | Med→Med | High | `History.swift` load/reconcile/syncAll/merge | Dual IO channel; fake `HistoryPersistence` can't intercept load. |
 | DS-023 | ✅ | Med→Med | High | `ContentView` `try?`; `AppState:101` `try?` | Load errors swallowed. |
 | DS-024 | ✅ `⟳` | Med→Med | High | `Clipboard.start` Timer | **Resolved `32320cf`:** tested 10% tolerance; explicit main-run-loop `.common` registration. |
-| DS-025 | ◐ `△over` `⟳` | Med→**Low** | Med | `History.swift:49-62` (**inline**, not a separate file) | No-save-before-predicate real, but **no prod path leaves a pending main-context insert**; trigger dormant. |
+| DS-025 | ◐ `△over` `⟳` | Med→**Low** | High | `HistoryPersistence.deleteUnpinned` | **Resolved:** a new integration test proved pending unpinned inserts survived predicate deletion (red run `29182928718`); the persistence port now commits pending main-context edits before the batch predicate delete while preserving pending pinned rows (green run `29183054806`). |
 | DS-026 | ✅ | Med→Med | High | E2 `2a06a58`/`72fa8f2`/`9e54d77` | **Resolved:** root Swift 29→22; composition and test/perf hooks left `AppDelegate` for `Application/` modules. |
 | DS-027 | ✅ | Med→Med | High | README re-checks | All 4 HEAD re-checks accurate (fingerprint candidate-only; `dataFromFileIfAllowed` nil-on-fail; `DecodedImageCache` gone; `item(before:)` guarded). |
 | DS-028 | ✅ `▽under` `⟳` | Low/Med→**High (cleanup)** | High | deletion `9849d00` | **Resolved:** the ~250 LOC dead paste-stack/multi-select subtree and always-false gate were deleted. |
