@@ -22,16 +22,18 @@ enum PerfHistoryFactory {
                          cacheDir: URL) throws -> History {
     let history = History.shared
     history.clearAll()
+    var items: [HistoryItem] = []
     for variant in 0..<count {
       let corpusVariant = variant % corpusVariantCount
       let data = try ImageFixtureGenerator.jpeg(bucket: bucket, variant: corpusVariant, cacheDir: cacheDir)
-      history.add(
+      items.append(
         HistoryBuilder()
           .withContent(type: "public.png", value: data)
           .withCopiedAt(Date(timeIntervalSince1970: Double(variant)))
           .build()
       )
     }
+    _ = try HistoryTestDriver.seed(items, in: history)
     return history
   }
 
@@ -42,6 +44,7 @@ enum PerfHistoryFactory {
     let history = History.shared
     history.clearAll()
     let heavy = try Data(contentsOf: FixtureLoader.heavyTextURL)
+    var items: [HistoryItem] = []
     for index in 0..<count {
       let value: Data
       if long {
@@ -49,13 +52,14 @@ enum PerfHistoryFactory {
       } else {
         value = Data("short #\(index)".utf8)
       }
-      history.add(
+      items.append(
         HistoryBuilder()
           .withContent(type: "public.utf8-plain-text", value: value)
           .withCopiedAt(Date(timeIntervalSince1970: Double(index)))
           .build()
       )
     }
+    _ = try HistoryTestDriver.seed(items, in: history)
     return history
   }
 
@@ -70,11 +74,12 @@ enum PerfHistoryFactory {
     history.clearAll()
     let heavy = try Data(contentsOf: FixtureLoader.heavyTextURL)
     let pairCount = min(images, texts)
+    var items: [HistoryItem] = []
     var timestamp = 0.0
     for index in 0..<pairCount {
       let variant = index % corpusVariantCount
       let imageData = try ImageFixtureGenerator.jpeg(bucket: bucket, variant: variant, cacheDir: cacheDir)
-      history.add(
+      items.append(
         HistoryBuilder()
           .withContent(type: "public.png", value: imageData)
           .withCopiedAt(Date(timeIntervalSince1970: timestamp))
@@ -82,7 +87,7 @@ enum PerfHistoryFactory {
       )
       timestamp += 1
       let textValue = heavy + Data("\n#mix-\(index)\n".utf8)
-      history.add(
+      items.append(
         HistoryBuilder()
           .withContent(type: "public.utf8-plain-text", value: textValue)
           .withCopiedAt(Date(timeIntervalSince1970: timestamp))
@@ -93,7 +98,7 @@ enum PerfHistoryFactory {
     for index in pairCount..<images {
       let variant = index % corpusVariantCount
       let imageData = try ImageFixtureGenerator.jpeg(bucket: bucket, variant: variant, cacheDir: cacheDir)
-      history.add(
+      items.append(
         HistoryBuilder()
           .withContent(type: "public.png", value: imageData)
           .withCopiedAt(Date(timeIntervalSince1970: timestamp))
@@ -103,7 +108,7 @@ enum PerfHistoryFactory {
     }
     for index in pairCount..<texts {
       let textValue = heavy + Data("\n#mix-\(index)\n".utf8)
-      history.add(
+      items.append(
         HistoryBuilder()
           .withContent(type: "public.utf8-plain-text", value: textValue)
           .withCopiedAt(Date(timeIntervalSince1970: timestamp))
@@ -111,6 +116,7 @@ enum PerfHistoryFactory {
       )
       timestamp += 1
     }
+    _ = try HistoryTestDriver.seed(items, in: history)
     return history
   }
 }

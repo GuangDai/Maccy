@@ -164,6 +164,27 @@ safe implementation sequence is:
 Each item is split further into red test, minimal implementation, and docs
 commits. Only code/test heads trigger CI; documentation-only commits do not.
 
+### B3 replacement coverage
+
+The removed legacy-writer assertions do not leave the live ingest behavior
+uncovered:
+
+- duplicate merge + single stored row:
+  `testIngestSameContentAgainEmitsMergedEventAndKeepsSingleItem`;
+- containment/superset merge:
+  `testIngestSubsetOfExistingRicherItemMerges`;
+- trim and pin preservation:
+  `testTrimRemovesOldestUnpinnedItemBeyondSizeLimit` and
+  `testCommitDoesNotEvictPinnedItemWhenTrimming`;
+- duplicate-count + distinct-item atomicity:
+  `testCommitPreservesDistinctItemsAndCountsDuplicateOnMerge`;
+- large-content fingerprint merge:
+  `testIngestLargeTextReCopyMergesViaFingerprint`.
+
+The old `sessionLog` modified-copy and `fromMaccy` adapter tests covered only
+the uninstantiated main-actor writer. They are deleted rather than recreating
+non-production behavior in the live-path driver.
+
 ## 5. Invariants and error handling
 
 - `@Model` values never cross actor boundaries; only existing Sendable DTOs and
