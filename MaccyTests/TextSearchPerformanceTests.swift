@@ -1,3 +1,5 @@
+import Defaults
+import SwiftData
 import XCTest
 @testable import Maccy
 
@@ -27,6 +29,38 @@ final class TextSearchPerformanceTests: PerformanceTestCase {
     report(scenario: "text-many-200-load", measured: measured)
   }
 
+  /// PROTOTYPE D1 — throwaway A/B gate; delete after capturing the CI result.
+  /// Compares only behavior-equivalent complete-retained-history load cores.
+  func testPrototypeD1StoreSortedRetainedLoad_N200() throws {
+    _ = try PerfHistoryFactory.makeTexts(count: 200, long: true)
+    let context = Storage.shared.context
+    let sorter = Sorter()
+    let iterations = 6
+
+    _ = try currentLoadCore(context: context, sorter: sorter)
+    _ = try candidateLoadCore(context: context)
+
+    var currentMs: [Double] = []
+    var candidateMs: [Double] = []
+    for iteration in 0..<iterations {
+      if iteration.isMultiple(of: 2) {
+        currentMs.append(try measureMilliseconds { try currentLoadCore(context: context, sorter: sorter) })
+        candidateMs.append(try measureMilliseconds { try candidateLoadCore(context: context) })
+      } else {
+        candidateMs.append(try measureMilliseconds { try candidateLoadCore(context: context) })
+        currentMs.append(try measureMilliseconds { try currentLoadCore(context: context, sorter: sorter) })
+      }
+    }
+
+    let currentAverage = currentMs.reduce(0, +) / Double(currentMs.count)
+    let candidateAverage = candidateMs.reduce(0, +) / Double(candidateMs.count)
+    let ratio = candidateAverage / currentAverage
+    print(
+      "D1_PROTO|items=200|current_avg_ms=\(currentAverage)" +
+        "|candidate_avg_ms=\(candidateAverage)|candidate_over_current=\(ratio)"
+    )
+  }
+
   /// Per-key actor search across n=200 long-text bodies (baseline). Measures the
   /// off-main actor latency and the main-thread gap during the search.
   func testActorSearchPerKey_N200() async throws {
@@ -50,6 +84,44 @@ final class TextSearchPerformanceTests: PerformanceTestCase {
   }
 
   // MARK: - Shared timing helpers
+
+  /// Current production load core: full fetch, Swift sort, decorate everything.
+  private func currentLoadCore(context: ModelContext, sorter: Sorter) throws -> Int {
+    let fetched = try context.fetch(FetchDescriptor<HistoryItem>())
+    return autoreleasepool {
+      sorter.sort(fetched).map(HistoryItemDecorator.init).count
+    }
+  }
+
+  /// Candidate core: store-side ordering with complete retained history.
+  private func candidateLoadCore(context: ModelContext) throws -> Int {
+    let sortDescriptor = SortDescriptor(\HistoryItem.lastCopiedAt, order: .reverse)
+    let pinnedDescriptor = FetchDescriptor<HistoryItem>(
+      predicate: #Predicate { $0.pin != nil },
+      sortBy: [sortDescriptor]
+    )
+    var unpinnedDescriptor = FetchDescriptor<HistoryItem>(
+      predicate: #Predicate { $0.pin == nil },
+      sortBy: [sortDescriptor]
+    )
+    unpinnedDescriptor.fetchLimit = max(1, Defaults[.size])
+
+    let pinned = try context.fetch(pinnedDescriptor)
+    let unpinned = try context.fetch(unpinnedDescriptor)
+    let retained = Defaults[.pinTo] == .top ? pinned + unpinned : unpinned + pinned
+    return autoreleasepool {
+      retained.map(HistoryItemDecorator.init).count
+    }
+  }
+
+  private func measureMilliseconds(_ operation: () throws -> Int) rethrows -> Double {
+    let clock = ContinuousClock()
+    let start = clock.now
+    _ = try operation()
+    let components = start.duration(to: clock.now).components
+    return Double(components.seconds) * 1_000
+      + Double(components.attoseconds) / 1_000_000_000_000_000
+  }
 
   /// Measures the average `load()` duration over `iterations` runs while sampling
   /// the worst main-thread stall, returning both.
