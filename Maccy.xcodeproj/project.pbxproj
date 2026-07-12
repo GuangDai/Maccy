@@ -41,6 +41,7 @@
 		24E63FC1AA4A147E8A862001 /* NSImage+Names.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE51E14B926DB460143E9916 /* NSImage+Names.swift */; };
 		25F93BCE32370F65AA1AC403 /* HistoryBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78B90F3C4D97DDAFBD027A9 /* HistoryBuilder.swift */; };
 		2623B0694F1309D608FC21E3 /* SearchHighlightIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35F28A7F68CB6ECCE283E0EC /* SearchHighlightIndexTests.swift */; };
+		290DEAA3D928EBA0F6CBE425 /* HistoryStoreProjectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87241084255783D586710CDD /* HistoryStoreProjectorTests.swift */; };
 		29358B24FE0D88B94F36F2AC /* Fuse in Frameworks */ = {isa = PBXBuildFile; productRef = B49B08C359B21D3F26623B71 /* Fuse */; };
 		29453373BF957D300A571096 /* AppearanceSettings.strings in Resources */ = {isa = PBXBuildFile; fileRef = 53B45D2DD19F203FCB2F41C9 /* AppearanceSettings.strings */; };
 		2BD54B91FC868913C76BAAAD /* PreviewRefreshUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC88C969980D46C1941F6EF /* PreviewRefreshUITests.swift */; };
@@ -189,6 +190,7 @@
 		CFB90758D9049D705C7966BE /* DataLikelyEqualContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DAACC923CB6637D0DF4DD4 /* DataLikelyEqualContractTests.swift */; };
 		D02E642DEADEEB22C4EF623F /* Storage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89DA91EF8D6ED4412DDC3F26 /* Storage.swift */; };
 		D09BB00C2FF6656ABF35CCDF /* IngestMailbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960CCDF8AC8240DC059CE39B /* IngestMailbox.swift */; };
+		D183E9A9E42A1BE5D54643E6 /* HistoryStoreProjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF90E60834B44C67950244DB /* HistoryStoreProjector.swift */; };
 		D525F5EB2CEDAEBEB9CC6C9F /* FixtureLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC936048769330136502C7A /* FixtureLoader.swift */; };
 		D72B6E3C2FB357B06FD34253 /* ApplicationImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7AFAE6386CA79050A90A264 /* ApplicationImageCache.swift */; };
 		D7BD03C9A5F852011C17A5D9 /* AppImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758FC098E8DA75E1A50FF457 /* AppImageView.swift */; };
@@ -500,6 +502,7 @@
 		853EDD4AF94536CC0CCFF234 /* sl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = sl; path = sl.lproj/AdvancedSettings.strings; sourceTree = "<group>"; };
 		86DB46ABF0333B8806304E21 /* guy.jpeg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = guy.jpeg; sourceTree = "<group>"; };
 		86EDD387EE5B5207C599EF6E /* SearchDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchDTOs.swift; sourceTree = "<group>"; };
+		87241084255783D586710CDD /* HistoryStoreProjectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStoreProjectorTests.swift; sourceTree = "<group>"; };
 		875F94396B02C66D801FCCD5 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/AdvancedSettings.strings"; sourceTree = "<group>"; };
 		89DA91EF8D6ED4412DDC3F26 /* Storage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Storage.swift; sourceTree = "<group>"; };
 		8B7DAD09FBF5AA9C0CBF6A60 /* MaccyUITests-Common.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "MaccyUITests-Common.xcconfig"; sourceTree = "<group>"; };
@@ -678,6 +681,7 @@
 		ED7D3FD6F2228B3673731C0D /* be */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = be; path = be.lproj/PreviewItemView.strings; sourceTree = "<group>"; };
 		EE1B70CC8C5335BCAD6149B3 /* cs */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = cs; path = cs.lproj/Localizable.strings; sourceTree = "<group>"; };
 		EEB81373033FE70A45AE6610 /* HistoryItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryItemTests.swift; sourceTree = "<group>"; };
+		EF90E60834B44C67950244DB /* HistoryStoreProjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStoreProjector.swift; sourceTree = "<group>"; };
 		EFB09C01659CB5ABFB9F0355 /* String+Identifiable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Identifiable.swift"; sourceTree = "<group>"; };
 		F01B8A26A8EB9F5432660D68 /* it */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = it; path = it.lproj/AppearanceSettings.strings; sourceTree = "<group>"; };
 		F074D3EA8FB011FE16FA7998 /* SearchMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchMode.swift; sourceTree = "<group>"; };
@@ -856,6 +860,7 @@
 				12AE5B0B83CAD9D3C946C7FF /* HistoryItemDecorator.swift */,
 				5E7C4E218FAE4FFE31191316 /* HistoryListState.swift */,
 				E9998DF64420BE2CB5549CE5 /* HistoryPersistence.swift */,
+				EF90E60834B44C67950244DB /* HistoryStoreProjector.swift */,
 				968B35CA27A97D36D6489357 /* HistoryUIEffect.swift */,
 				C1531DB71834B9367565EA2C /* MemoryGovernance.swift */,
 				F7E936E395B3187A03BC8022 /* ModifierFlags.swift */,
@@ -944,6 +949,7 @@
 				B46EBCD6D0DA4BD2DA3BC932 /* HistoryListStateTests.swift */,
 				13A5643E4D8887C4AF0C8647 /* HistoryPinPersistenceTests.swift */,
 				162727EBE2A48FC21F2099AF /* HistorySearchSessionTests.swift */,
+				87241084255783D586710CDD /* HistoryStoreProjectorTests.swift */,
 				1B09DC43F1E467251A5B3B10 /* HistoryTests.swift */,
 				E0C8DB5D765CA295AC791426 /* HistoryUIEffectTests.swift */,
 				10850ABC31D347398C712A8E /* ImageDecodePerformanceTests.swift */,
@@ -1452,6 +1458,7 @@
 				A4063E6D29F5CB534E11FB19 /* HistoryListView.swift in Sources */,
 				9037DAE04D9648E2480D4797 /* HistoryPersistence.swift in Sources */,
 				F0D8103E82DF9D48C5A0FF9D /* HistorySearchSession.swift in Sources */,
+				D183E9A9E42A1BE5D54643E6 /* HistoryStoreProjector.swift in Sources */,
 				434D0B19B16D15BA6E093D6F /* HistoryUIEffect.swift in Sources */,
 				5833D028CE5A963E8FEA799B /* HoverSelectionModifier.swift in Sources */,
 				18BA3526CBFAF2612B482111 /* IgnoreApplicationsSettingsView.swift in Sources */,
@@ -1560,6 +1567,7 @@
 				C73F8EB366E0816C2FE4A18A /* HistoryListStateTests.swift in Sources */,
 				E1D433CBDE54450708368309 /* HistoryPinPersistenceTests.swift in Sources */,
 				1C2F03769C6EE09B1E5A2644 /* HistorySearchSessionTests.swift in Sources */,
+				290DEAA3D928EBA0F6CBE425 /* HistoryStoreProjectorTests.swift in Sources */,
 				F2C2236BBC6CC40F502F1FF4 /* HistoryTests.swift in Sources */,
 				383380EE98390D90DCFEF775 /* HistoryUIEffectTests.swift in Sources */,
 				54F8CBF7D40A5F6778661659 /* ImageDecodePerformanceTests.swift in Sources */,
