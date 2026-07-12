@@ -86,7 +86,11 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 > and mutation logging as runtime services. Ordinary constructed histories are
 > inert; live `Clipboard.shared`/`NSApp` access is confined to the
 > `History.shared` composition factory. Full matrix `29210900842` is green.
-> E5 remains progressive because other modules still contain shared access.
+> The next slice (`ed664b2`) injects AppState text copy, prewarms its composed
+> History, and weakly captures the owning AppState in the Settings close
+> observer instead of mutating `AppState.shared`; full matrix `29211587341` is
+> green. E5 remains progressive because other modules still contain shared
+> access.
 
 | | |
 |--|--|
