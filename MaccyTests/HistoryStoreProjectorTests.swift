@@ -21,9 +21,13 @@ final class HistoryStoreProjectorTests: XCTestCase {
   func testLoadFailurePreservesOldListAndRecordsError() async {
     let persistence = RecordingProjectorPersistence()
     persistence.fetchError = ProjectorTestError.expected
-    let history = History(persistence: persistence, logsPersistenceErrors: false)
     let existing = decorator(item(title: "existing"))
-    history.all = [existing]
+    let listState = HistoryListState(decorators: [existing])
+    let history = History(
+      persistence: persistence,
+      listState: listState,
+      logsPersistenceErrors: false
+    )
 
     await history.loadAndRecordError()
 
@@ -51,8 +55,12 @@ final class HistoryStoreProjectorTests: XCTestCase {
     let duplicate = item(title: "duplicate")
     let survivor = item(title: "survivor")
     persistence.models[survivor.persistentModelID] = survivor
-    let history = History(persistence: persistence, logsPersistenceErrors: false)
-    history.all = [decorator(duplicate)]
+    let listState = HistoryListState(decorators: [decorator(duplicate)])
+    let history = History(
+      persistence: persistence,
+      listState: listState,
+      logsPersistenceErrors: false
+    )
 
     history.consume(
       .merged(snapshot(of: survivor)),
@@ -68,8 +76,12 @@ final class HistoryStoreProjectorTests: XCTestCase {
     let stored = item(title: "stored")
     persistence.fetchedItems = [stored]
     let existing = decorator(stored)
-    let history = History(persistence: persistence, logsPersistenceErrors: false)
-    history.all = [existing]
+    let listState = HistoryListState(decorators: [existing])
+    let history = History(
+      persistence: persistence,
+      listState: listState,
+      logsPersistenceErrors: false
+    )
 
     history.consume(.cleared)
 

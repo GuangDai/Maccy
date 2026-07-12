@@ -16,14 +16,7 @@ class History: ItemsContainer {
   let logger = Logger(label: "org.p0deje.Maccy")
 
   @ObservationIgnored private let listState: HistoryListState
-  #if DEBUG
-  var items: [HistoryItemDecorator] {
-    get { listState.items }
-    set { listState.publishVisible(newValue) }
-  }
-  #else
   var items: [HistoryItemDecorator] { listState.items }
-  #endif
   var lastPersistError: Error?
 
   /// Pinned decorators only.
@@ -78,14 +71,7 @@ class History: ItemsContainer {
 
   /// All history decorators, including those hidden by the current search.
   /// `items` holds only the visible (filtered) subset.
-  #if DEBUG
-  var all: [HistoryItemDecorator] {
-    get { listState.all }
-    set { listState.replaceAll(newValue) }
-  }
-  #else
   var all: [HistoryItemDecorator] { listState.all }
-  #endif
 
   @ObservationIgnored
   private let logsPersistenceErrors: Bool
@@ -224,31 +210,10 @@ class History: ItemsContainer {
     uiEffectSink(effect)
   }
 
-  #if DEBUG
-  /// Test-only: when set, `load()` fails, simulating a transient store error
-  /// so the no-silent-swallow path is exercisable. Compiled out of Release.
-  private var forceLoadFailure = false
-
-  /// Error injected by `forceLoadFailure`.
-  private enum ForcedLoadFailure: Error {
-    case forced
-  }
-
-  /// Test-only setter for `forceLoadFailure`.
-  func setLoadFailureForTesting(_ enabled: Bool) {
-    forceLoadFailure = enabled
-  }
-  #endif
-
   /// Fetches all items, sorts them, decorates each, and applies the size limit.
   /// Decorator construction is wrapped in `autoreleasepool` to bound the
   /// AppKit transients (e.g. `ApplicationImageCache` misses) to this call.
   func load() async throws {
-    #if DEBUG
-    if forceLoadFailure {
-      throw ForcedLoadFailure.forced
-    }
-    #endif
     try storeProjector.load()
 
     updateShortcuts()

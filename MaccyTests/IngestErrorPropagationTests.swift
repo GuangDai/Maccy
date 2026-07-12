@@ -9,10 +9,13 @@ class IngestErrorPropagationTests: XCTestCase {
   func testClearSurfacesDeleteErrorAndKeepsMemoryState() {
     let persistence = FailingHistoryPersistence()
     persistence.deleteUnpinnedError = TestPersistenceError.expected
-    let history = History(persistence: persistence, logsPersistenceErrors: false)
     let item = HistoryItemDecorator(HistoryItem())
-    history.all = [item]
-    history.items = [item]
+    let listState = HistoryListState(decorators: [item])
+    let history = History(
+      persistence: persistence,
+      listState: listState,
+      logsPersistenceErrors: false
+    )
 
     history.clear()
 

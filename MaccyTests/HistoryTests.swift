@@ -188,10 +188,13 @@ class HistoryTests: XCTestCase {
     XCTAssertEqual(events, [.cleared])
   }
 
-  func testHistoryCommandServiceUsesFullHistoryWhileItemsAreFiltered() throws {
+  func testHistoryCommandServiceUsesFullHistoryWhileItemsAreFiltered() async throws {
     let older = try HistoryTestDriver.seed(historyItem("older"), in: history)
     let newer = try HistoryTestDriver.seed(historyItem("newer"), in: history)
-    history.items = [older]
+    history.searchQuery = "older"
+    history.refreshForModeChange()
+    await history.waitForInFlightSearch()
+    XCTAssertEqual(history.items, [older])
     let service = AppHistoryCommandService(
       history: history,
       navigator: AppState.shared.navigator
