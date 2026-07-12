@@ -131,12 +131,12 @@ final class HistorySearchSessionTests: XCTestCase {
   }
 
   private func decorator(title: String, body: String) -> HistoryItemDecorator {
-    HistoryItemDecorator(
-      HistoryBuilder()
-        .withContent(type: "public.utf8-plain-text", value: Data(body.utf8))
-        .withTitle(title)
-        .build()
-    )
+    let item = HistoryBuilder()
+      .withContent(type: "public.utf8-plain-text", value: Data(body.utf8))
+      .withTitle(title)
+      .build()
+    item.searchText = body
+    return HistoryItemDecorator(item)
   }
 
   private func match(_ decorator: HistoryItemDecorator) -> SearchMatchDTO {
