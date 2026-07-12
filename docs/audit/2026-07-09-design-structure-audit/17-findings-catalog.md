@@ -89,8 +89,10 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 > The next slice (`ed664b2`) injects AppState text copy, prewarms its composed
 > History, and weakly captures the owning AppState in the Settings close
 > observer instead of mutating `AppState.shared`; full matrix `29211587341` is
-> green. E5 remains progressive because other modules still contain shared
-> access.
+> green. `7d1d3e2` then replaces Footer's five `AppState.shared` closures with
+> closed `FooterAction` values interpreted by its owning AppState; full matrix
+> `29212815681` is green. E5 remains progressive because other modules still
+> contain shared access.
 
 | | |
 |--|--|
