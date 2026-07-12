@@ -7,6 +7,8 @@ struct StorageSettingsPane: View {
   /// Syncs the save-files/images/text toggles with `enabledPasteboardTypes`.
   @Observable
   class ViewModel {
+    private(set) var storageSize = ""
+
     /// Adds or removes the file UTIs from `enabledPasteboardTypes` when toggled.
     var saveFiles = false {
       didSet {
@@ -56,6 +58,14 @@ struct StorageSettingsPane: View {
         self.saveText = change.newValue.isSuperset(of: StorageType.text.types)
       }
     }
+
+    /// Creates a storage-size-aware model. The reader is wired in the GREEN
+    /// step after the behavior contract is proven RED.
+    convenience init(readStorageSize: @escaping @MainActor () -> String) {
+      self.init()
+    }
+
+    func refreshStorageSize() {}
 
     deinit {
       observer?.invalidate()

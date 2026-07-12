@@ -227,6 +227,22 @@ final class AppStateRuntimeServicesTests: XCTestCase {
 }
 
 @MainActor
+final class StorageSettingsViewModelTests: XCTestCase {
+  func testStorageSizeReadsAtCreationAndRefresh() {
+    var sizes = ["initial", "refreshed"]
+    let viewModel = StorageSettingsPane.ViewModel(
+      readStorageSize: { sizes.removeFirst() }
+    )
+
+    XCTAssertEqual(viewModel.storageSize, "initial")
+
+    viewModel.refreshStorageSize()
+
+    XCTAssertEqual(viewModel.storageSize, "refreshed")
+  }
+}
+
+@MainActor
 final class FooterActionTests: XCTestCase {
   func testFixedItemsExposeClosedActions() {
     XCTAssertEqual(
