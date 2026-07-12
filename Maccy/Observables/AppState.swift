@@ -58,6 +58,25 @@ class AppState {
       })
     preview.contentWidth = Defaults[.windowSize].width
     preview.slideoutWidth = Defaults[.previewWidth]
+    history.configureUIEffectSink { [weak self] effect in
+      self?.applyHistoryUIEffect(effect)
+    }
+  }
+
+  /// Interprets outward history requests at the composition boundary.
+  private func applyHistoryUIEffect(_ effect: HistoryUIEffect) {
+    switch effect {
+    case .closePopup:
+      popup.close()
+    case .resizePopup:
+      popup.needsResize = true
+    case .select(let item):
+      navigator.select(item: item)
+    case .highlightFirst:
+      navigator.highlightFirst()
+    case .scrollTo(let id):
+      navigator.scrollTarget = id
+    }
   }
 
   /// Resolves the current selection into an action: a single history item is

@@ -97,6 +97,8 @@ class History: ItemsContainer {
   private let persistence: HistoryPersistence
   @ObservationIgnored
   private let logsPersistenceErrors: Bool
+  @ObservationIgnored
+  private var uiEffectSink: HistoryUIEffectSink = { _ in }
 
   /// Creates the history model with its persistence backend and config flags,
   /// and starts listeners that react to relevant Defaults changes.
@@ -166,6 +168,17 @@ class History: ItemsContainer {
     }
   }
 
+  /// Installs the composition-owned interpreter for outward UI requests.
+  /// Tests and non-UI consumers keep the default no-op sink.
+  func configureUIEffectSink(_ sink: @escaping HistoryUIEffectSink) {
+    uiEffectSink = sink
+  }
+
+  /// Emits one request through the output port configured by `AppState`.
+  private func emit(_ effect: HistoryUIEffect) {
+    uiEffectSink(effect)
+  }
+
   #if DEBUG
   /// Test-only: when set, `load()` fails, simulating a transient store error
   /// so the no-silent-swallow path is exercisable. Compiled out of Release.
@@ -207,7 +220,7 @@ class History: ItemsContainer {
     await searchActor.replaceCorpus(all.map { corpusEntry(for: $0) })
     // Ensure that panel size is proper *after* loading all items.
     Task {
-      AppState.shared.popup.needsResize = true
+      emit(.resizePopup)
     }
   }
 
@@ -319,9 +332,9 @@ class History: ItemsContainer {
     }
     refreshVisibleItems()
     if searchQuery.isEmpty {
-      AppState.shared.navigator.select(item: unpinnedItems.first ?? pinnedItems.first)
+      emit(.select(unpinnedItems.first ?? pinnedItems.first))
     }
-    AppState.shared.popup.needsResize = true
+    emit(.resizePopup)
   }
 
   /// Drops `all` decorators whose backing item the ingest actor deleted this
@@ -385,9 +398,9 @@ class History: ItemsContainer {
     Task { await actor.replaceCorpus(entries) }
     refreshVisibleItems()
     if searchQuery.isEmpty {
-      AppState.shared.navigator.select(item: unpinnedItems.first ?? pinnedItems.first)
+      emit(.select(unpinnedItems.first ?? pinnedItems.first))
     }
-    AppState.shared.popup.needsResize = true
+    emit(.resizePopup)
   }
 
   /// Runs `block` under DEBUG-only before/after row-count logging. The count
@@ -442,9 +455,9 @@ class History: ItemsContainer {
     }
 
     Clipboard.shared.clear()
-    AppState.shared.popup.close()
+    emit(.closePopup)
     Task {
-      AppState.shared.popup.needsResize = true
+      emit(.resizePopup)
     }
   }
 
@@ -472,9 +485,9 @@ class History: ItemsContainer {
     }
 
     Clipboard.shared.clear()
-    AppState.shared.popup.close()
+    emit(.closePopup)
     Task {
-      AppState.shared.popup.needsResize = true
+      emit(.resizePopup)
     }
   }
 
@@ -503,7 +516,7 @@ class History: ItemsContainer {
     synchronizeIngestor(with: [.removed(removedStoreID)])
     updateUnpinnedShortcuts()
     Task {
-      AppState.shared.popup.needsResize = true
+      emit(.resizePopup)
     }
   }
 
@@ -539,7 +552,7 @@ class History: ItemsContainer {
     let modifierFlags = currentModifierFlags()
 
     if modifierFlags.isEmpty {
-      AppState.shared.popup.close()
+      emit(.closePopup)
       Clipboard.shared.copy(item.item, removeFormatting: Defaults[.removeFormattingByDefault])
       if Defaults[.pasteByDefault] {
         Clipboard.shared.paste()
@@ -547,14 +560,14 @@ class History: ItemsContainer {
     } else {
       switch HistoryItemAction(modifierFlags) {
       case .copy:
-        AppState.shared.popup.close()
+        emit(.closePopup)
         Clipboard.shared.copy(item.item)
       case .paste:
-        AppState.shared.popup.close()
+        emit(.closePopup)
         Clipboard.shared.copy(item.item)
         Clipboard.shared.paste()
       case .pasteWithoutFormatting:
-        AppState.shared.popup.close()
+        emit(.closePopup)
         Clipboard.shared.copy(item.item, removeFormatting: true)
         Clipboard.shared.paste()
       case .unknown:
@@ -605,7 +618,7 @@ class History: ItemsContainer {
     searchQuery = ""
     updateUnpinnedShortcuts()
     if item.isUnpinned {
-      AppState.shared.navigator.scrollTarget = item.id
+      emit(.scrollTo(item.id))
     }
   }
 
@@ -688,8 +701,8 @@ class History: ItemsContainer {
       // Byte-identical to the legacy didSet empty path: search.search("") returns
       // all items with empty ranges; updateItems clears each highlight.
       updateItems(search.search(string: "", within: all))
-      AppState.shared.navigator.select(item: unpinnedItems.first)
-      AppState.shared.popup.needsResize = true
+      emit(.select(unpinnedItems.first))
+      emit(.resizePopup)
       return
     }
 
@@ -756,11 +769,11 @@ class History: ItemsContainer {
     updateUnpinnedShortcuts()
 
     if query.isEmpty {
-      AppState.shared.navigator.select(item: unpinnedItems.first)
+      emit(.select(unpinnedItems.first))
     } else {
-      AppState.shared.navigator.highlightFirst()
+      emit(.highlightFirst)
     }
-    AppState.shared.popup.needsResize = true
+    emit(.resizePopup)
   }
 
   /// Converts a DTO range (Character/grapheme offsets, exclusive upper bound)
