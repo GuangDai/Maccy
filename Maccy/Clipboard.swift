@@ -34,6 +34,9 @@ class Clipboard {
 
   private var timer: Timer?
 
+  /// Serializes burst dispatch without dropping already-observed copies.
+  private let ingestMailbox = IngestMailbox()
+
   /// The application currently in the foreground when a copy is observed.
   private var sourceApp: NSRunningApplication? { NSWorkspace.shared.frontmostApplication }
 
@@ -173,8 +176,9 @@ class Clipboard {
   /// paths over pasteboard types and the source app) stay here on the main
   /// thread because they are O(types) and must run before any pasteboard read.
   /// Once the gates clear, the pasteboard is snapshotted into plain value
-  /// types via `NSPasteboardSource().snapshot()` and handed to the actor inside
-  /// a `Task`; the actor's `filterContents` is the comprehensive,
+  /// types via `NSPasteboardSource().snapshot()` and handed to the lossless FIFO
+  /// ingest mailbox; its single drain task calls the actor one request at a time.
+  /// The actor's `filterContents` is the comprehensive,
   /// unit-tested filter — the `shouldIgnore` calls above are only a fast path,
   /// not the authoritative filter. When `ingestor` is `nil` the dispatch is a
   /// no-op (the gates still ran), which keeps legacy unwired callers/tests
@@ -216,9 +220,8 @@ class Clipboard {
       return
     }
 
-    Task {
-      let result = await ingestor.ingest(request)
-      surfaceIngestFailureIfNeeded(result)
+    ingestMailbox.submit(request, to: ingestor) { [weak self] result in
+      self?.surfaceIngestFailureIfNeeded(result)
     }
   }
 

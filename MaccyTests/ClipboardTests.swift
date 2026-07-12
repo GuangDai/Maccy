@@ -339,7 +339,7 @@ final class ClipboardTests: XCTestCase {
     clipboard.changeCount = pasteboard.changeCount - 1
   }
 
-  /// `checkForChangesInPasteboard` dispatches via `Task { await ingestor?.ingest }`,
+  /// `checkForChangesInPasteboard` dispatches through the mailbox's async drain,
   /// so the spy's `requests` won't be populated synchronously. Poll for up to
   /// ~1s (the spy is an `actor`, so each access is `await`ed).
   private func waitForSpy(_ spy: IngestorSpy, expectedRequestCount: Int) async {
