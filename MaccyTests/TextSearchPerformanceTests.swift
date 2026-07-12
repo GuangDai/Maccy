@@ -93,7 +93,7 @@ final class TextSearchPerformanceTests: PerformanceTestCase {
   private func currentLoadCore(context: ModelContext, sorter: Sorter) throws -> Int {
     let fetched = try context.fetch(FetchDescriptor<HistoryItem>())
     return autoreleasepool {
-      sorter.sort(fetched).map(HistoryItemDecorator.init).count
+      sorter.sort(fetched).map { HistoryItemDecorator($0) }.count
     }
   }
 
@@ -114,7 +114,7 @@ final class TextSearchPerformanceTests: PerformanceTestCase {
     let unpinned = try context.fetch(unpinnedDescriptor)
     let retained = Defaults[.pinTo] == .top ? pinned + unpinned : unpinned + pinned
     return autoreleasepool {
-      retained.map(HistoryItemDecorator.init).count
+      retained.map { HistoryItemDecorator($0) }.count
     }
   }
 
