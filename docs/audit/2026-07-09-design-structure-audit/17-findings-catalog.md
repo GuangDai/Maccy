@@ -394,7 +394,7 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 |----|---------|------------|
 | DS-031 | **Resolved with DS-017:** unused plan/reason DTO surface deleted | High |
 | DS-032 | **Resolved (`72fa8f2`):** whole-file DEBUG `Application/DebugHooks.swift` | High |
-| DS-033 | Settings panes read Storage.shared directly | High |
+| DS-033 | **Resolved (`bd238fe`):** production storage pane receives its current-size reader from composition | High |
 | DS-034 | **Resolved (`2a06a58`):** all four sources under `Maccy/Search/` | High |
 
 ---
