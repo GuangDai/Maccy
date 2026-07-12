@@ -25,7 +25,7 @@
 
 **What this closed:** the entire **silent-failure cluster** (4 distinct swallow sites — now all surface to `lastPersistError`) and the **search-generation bug class** (3 sites now bump generation like their siblings). The most dangerous correctness defects in the verification are gone.
 
-**Post-roadmap progress (through 2026-07-12):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), C5 (`76a2a53` + generated project `b49b462`), C6 (`1393143`), E1 (`cd368ea`), E2 (`2a06a58`, `72fa8f2`, `9e54d77` + generated project `19b7431`), E3 (`32320cf`), and timestamp hygiene (`91d76b8`) are complete. XcodeGen M0–M3 is complete through `94ca913`: production project output is generated, and normal CI/release enforce repeatability + zero drift.
+**Post-roadmap progress (through 2026-07-12):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), D1 (measured no-go + confirmed deletion; run `29176185359`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), C5 (`76a2a53` + generated project `b49b462`), C6 (`1393143`), E1 (`cd368ea`), E2 (`2a06a58`, `72fa8f2`, `9e54d77` + generated project `19b7431`), E3 (`32320cf`), and timestamp hygiene (`91d76b8`) are complete. XcodeGen M0–M3 is complete through `94ca913`: production project output is generated, and normal CI/release enforce repeatability + zero drift.
 
 **What remains:** structure debt (the deferred god-object split), load/memory work beyond the completed D0/D4–D6 steps, single search-engine/domain cleanup, package organization, and progressive dependency injection.
 
@@ -75,7 +75,7 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 | # | Step | Closes | Effort | Risk |
 |---|------|--------|--------|------|
 | D0 | **Load ADR — done** (`7852ea8`) | DS-004, `NEW-storage-load-models-1` | S | — | Keep the loader/background APIs test-only; production claims were removed. This records the current decision without pretending the larger DS-004 memory problem is fixed. |
-| D1 | Implement the load decision | DS-004 | L | H | Windowed load (or confirmed deletion). The big memory win — unbounded `load` faults the whole table into `mainContext`. Needs memory-suite literacy. |
+| D1 | **Load decision implemented — measured no-go + deletion** | DS-004 | — | — | Complete-history store sorting was only ~1% faster (34.202 vs 34.551 ms, run `29176185359`), inside noise. Windowing has ~0 memory value and breaks complete search, so it was rejected; obsolete loader/context test scaffolding was deleted. |
 | D2 | **Shrink the MainActor hop — done** (`a487276`, `70e1d23`) | DS-011 | M | M | `Clipboard` attaches a live Sendable policy snapshot; pure filtering and file/plain/image projection stay on the ingest actor; fixture-backed routing keeps only selected small RTF/HTML parsing on `MainActor`. |
 | D3 | **Lossless ingest mailbox — done** (`b754ac6`, `9fbb6e6`) | DS-020 | M | M | One FIFO drain Task per burst; at most one outstanding ingest; every observed request retained in order. Rejects latest-wins because dropping an observed copy violates clipboard-history semantics. |
 | D4 | **`syncAllToStore` O(n)→O(deleted) — done** (`9c8728c`) | `NEW-history-spine-2` | M | M | Ingest returns deleted persistent IDs and main applies only those removals. |
@@ -119,7 +119,7 @@ C6 complete (`1393143`); D4/D5 pair with BS-4/6 memory work
 | `NEW-dedup-ids-2` findDuplicate re-derives signature | Low | C2.2 | ✅ done (`10f8d90`) |
 | `NEW-dedup-ids-3` backfill cross-ingest commit | Low | C2.3 | ✅ refuted timing; coupling removed (`f9f0e85`) |
 | `NEW-clipboard-filter-1/2/3` dead helpers + doc rot | Low | C1 | ✅ done (`2ac325f`) |
-| `NEW-storage-load-models-1` dead newBackgroundContext + false doc | Med | D0 | ✅ ADR/docs done (`7852ea8`; APIs retained test-only) |
+| `NEW-storage-load-models-1` dead newBackgroundContext + false doc | Med | D0/D1 | ✅ false claim fixed at D0; dead helper/loader deleted after D1 no-go |
 | `NEW-storage-load-models-2` init self-assigns timestamps | Low | C (hygiene) | ✅ done (`91d76b8`) |
 | `NEW-singletons-intents-misc-1` dead paste-stack subtree | Med (cleanup value) | E4 | ✅ done (`9849d00`) |
 | `NEW-singletons-intents-misc-2/3` intent dup + filtered-index ambiguity | Low/Med-Low | E1 | ✅ done (`cd368ea`) |
@@ -128,7 +128,7 @@ C6 complete (`1393143`); D4/D5 pair with BS-4/6 memory work
 
 ## 5. Decision forks (resolved and remaining)
 
-1. **D0 — Load: CLOSED** — keep the loader/background APIs test-only and correct the false production docs (`7852ea8`). DS-004's larger production load/memory work remains separate.
+1. **D0/D1 — Load: CLOSED** — D0 corrected the false production claims; D1 then measured a behavior-equivalent alternative at only ~1% faster and rejected it. Windowing is not a sound memory lever and would degrade full-history UX, so the dead loader/context test scaffolding was deleted.
 2. **E4 — Dead paste-stack / multi-select subtree: CLOSED** — delete it (`9849d00`).
 3. **B0 — History split granularity:** ~~the full 5–7 types, or a smaller first cut?~~ **CLOSED** — defer split entirely until forcing-gate; see [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/).
 4. **C6 — Stored identity: CLOSED** — use `PersistentIdentifier.ID` directly (`1393143`). It supplies the stable, store-scoped, `Hashable`/`Sendable` identity the index needs; neither the undocumented string fold nor a redundant UUID column remains.
@@ -153,7 +153,8 @@ C6 complete (`1393143`); D4/D5 pair with BS-4/6 memory work
 12. ~~E2 — organize Application/Search packages~~ — **done** (`2a06a58`, `72fa8f2`, `9e54d77`, `19b7431`; generated-project full matrix + Release package green in `29167115880`; B2-gated work stays gated).
 13. ~~C6 — settle stored item identity~~ — **done** (`1393143`; Apple-documented stable ID, no schema, string/FNV projection deleted; full matrix green in `29167878876`).
 14. ~~D2 — shrink the ingest MainActor hop~~ — **done** (`a487276`, `70e1d23`; request policy snapshot + pure routing plan; heavy plain-text fixture requires no main work, RTF stays safely main-affine; full generated matrix green in `29168784563`). Next: D3.
-15. ~~D3 — replace one-Task-per-change with a lossless FIFO mailbox~~ — **done** (`b754ac6`, `9fbb6e6`; one drain Task per burst, no concurrent/reentrant ingest calls, no dropped requests; full generated matrix green in `29175614620`). Next: D1 and remaining non-B2-gated work.
+15. ~~D3 — replace one-Task-per-change with a lossless FIFO mailbox~~ — **done** (`b754ac6`, `9fbb6e6`; one drain Task per burst, no concurrent/reentrant ingest calls, no dropped requests; full generated matrix green in `29175614620`).
+16. ~~D1 — measure complete-history startup alternatives~~ — **done/no-go** (run `29176185359`: 34.202 vs 34.551 ms, ~1% inside noise; no partial-history tradeoff; dead window loader/context scaffolding deleted). Next: remaining non-B2-gated work.
 
 XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
@@ -176,4 +177,4 @@ XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
 ---
 
-**One-line summary:** Wave A plus D0/D2–D6, C1/C2/C5/C6, E1–E4, and XcodeGen M0–M3 are complete. Next is D1 and remaining non-B2-gated work; C3/C4 remain behind their documented B2 dependency, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.
+**One-line summary:** Wave A plus D0–D6, C1/C2/C5/C6, E1–E4, and XcodeGen M0–M3 are complete. D1 closed as a measured no-go without sacrificing complete-history UX. Next is remaining non-B2-gated work; C3/C4 remain behind their documented B2 dependency, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.

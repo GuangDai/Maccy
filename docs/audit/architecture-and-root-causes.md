@@ -46,7 +46,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Stor
 ### 1.3 隔离规则(全流程不变性)
 
 - **跨 actor 载荷必须是 `Sendable`**(DTO/值类型/`Data`/`UUID`)。`@Model HistoryItem` / `HistoryItemContent` **不跨 actor**——跨边界前投影为 DTO(`ItemSnapshotDTO` 等,见 `Maccy/Ingest/Dtos.swift`)。
-- **上下文线程归属**:`mainContext` 仅 main;`Storage.newBackgroundContext()`(`Storage+Background.swift:17`)仅所属 actor。**禁止跨域共用同一 context**。
+- **上下文线程归属**:`mainContext` 仅 main；后台 ingestor 的 `@ModelActor` 自建并独占 context。**禁止跨域共用同一 context**。
 - **单一真相源**:数据真相是 SwiftData(后台 context 单事务写);主线程 `@Observable` 是其投影。
 - **主线程禁做可迁移重活**:`NSImage(data:)` 解码、resize、SwiftData 重 fetch/save、正则、去重比对禁止在 main。AppKit 的 `NSAttributedString(rtf:/html:)` 已被实证为 off-main 会 trap，因此只允许 planner 选中的小型 RTF/HTML 在 main 解析；普通 file/plain/image ingest 不回 main。
 
@@ -58,7 +58,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Stor
 | `Maccy/Ingest/SignatureIndex.swift` | ✅ 纯值去重索引 `[SignatureDTO: ItemID]`,接入 ingestor(BS-4.2) |
 | `Maccy/Ingest/ClipboardIngestor.swift` | ✅ 已接入 live copy 路径(BS-2) |
 | `Maccy/ImageProcessing/ImageProcessing.swift` + `ImageProcessor.swift` + `ImageDownsampler.swift` + `ThumbnailCache.swift` | ✅ ImageIO 降采样已接入(BS-3) |
-| `Maccy/Persistence/Storage+Background.swift` | ⚠️ `newBackgroundContext()` 与 `VisibleWindowLoader.fetchWindow` 都仅测试使用；生产 ingestor 由 `@ModelActor` 自建 context，window loader 从未接进 `History.load()`(D0 已记录)。 |
+| D1 load 原型 | ✅ run `29176185359` 证明完整历史的 store-sorted 候选仅快约 1%，不具落地价值；窗口化又无内存收益且破坏完整搜索，因此 test-only loader/context 脚手架已删除。 |
 
 ---
 
@@ -84,7 +84,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Stor
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| `load()` 全表 fetch+排序+装饰在主线程 | [未修] | `load-no-pipeline-offload` / `load-fetch-all-no-predicate-limit-sort`:**`History.swift:218-219` 仍是裸 `FetchDescriptor<HistoryItem>()`**(无 `fetchLimit`/`sortBy`/`propertiesToFetch`/`returnsObjectsAsFaults`)。冷开 load() 实测 ~44–55ms。`VisibleWindowLoader` 已存在但**未接线**(最高 ROI 的 Swift 改动) |
+| `load()` 完整 fetch+排序+装饰 | [已决策保留] | D1 用同一批 200 条完整历史 A/B：当前 34.551ms，store-sorted 候选 34.202ms（run `29176185359`），约 1% 属噪声。窗口化 `all` 无内存价值且令搜索漏项，因此不以 UX 换内存/启动指标。 |
 | 插入时整表重排 | [已修] | `insert-resorts-whole-array`:增量 consume 用二分插入(`Sorter.BinaryInsertion.index`,`O(log n)`) |
 | 容量裁剪多 save 风暴 | [部分] | `limit-multi-save-storm`:`limitHistorySize` 仍逐条 `delete()`(主上下文) |
 | `withLogging` 每次 clear/delete 双 fetchCount | [未修] | `fetchcount-withLogging-on-every-mutation`:release 也跑 4 次 DB round-trip 纯诊断 |
@@ -199,11 +199,13 @@ heap 证据:624 个 `HistoryItemContent` + 624 个 `_KKMDBackingData`(对应 556
 
 ### 4.6 待做(去重后真实 ~20–35MB,C5/C7/F1 共享 17.5MB blob 池**不能相加**)
 
-1. 接入 `VisibleWindowLoader`(C5,load 全表→可见窗口):6–13MB,主杠杆(但见 §4.3 坑 2)
-2. 延迟 `HistoryItem.contents` fault(C7):3–8MB
-3. AttributeGraph 视图树瘦身:3–8MB(需 MallocStackLogging 实证 AG 占比)
-4. 接通 `releaseTransientImages(.previewHidden)`(C6,代码已存在零调用):1–2MB(免费)
-5. F1 独立 blob 存储(BS-8):把 blob 池压到 ~3–5MB 再省 ~8–12MB
+1. 延迟 `HistoryItem.contents` fault(C7):3–8MB
+2. AttributeGraph 视图树瘦身:3–8MB(需 MallocStackLogging 实证 AG 占比)
+3. 接通 `releaseTransientImages(.previewHidden)`(C6,代码已存在零调用):1–2MB(免费)
+4. F1 独立 blob 存储(BS-8):把 blob 池压到 ~3–5MB 再省 ~8–12MB
+
+`VisibleWindowLoader` 已由 D1 否决并删除：06-27 实测确认其内存收益约 0，
+且会破坏完整历史搜索；07-12 的等价语义候选也只有噪声级启动差异。
 
 **前置**:`MallocStackLogging=1` 重抓(D1,零代码),把 41.7MB 盲区从推断变实测。
 
@@ -219,7 +221,7 @@ heap 证据:624 个 `HistoryItemContent` + 624 个 `_KKMDBackingData`(对应 556
 | **BS-1** 并发脚手架 | 完成 | — | DTO/actor/context 模型 | — |
 | **BS-2** 摄取→actor | 完成 | — | copy 路径离主线程 | 标题/富文本仍回主线程 |
 | **BS-3** 图片管线 | 完成 | — | ImageIO 降采样 off-main | 缩略图缓存键未切 xxh3 |
-| **BS-4** 数据管线 | 部分 | ⚠️ | 增量 consume/reconcile | `load()` 仍全表 fetch;`VisibleWindowLoader` 死代码;`findSimilarItem`/`History.add` 死代码未删 |
+| **BS-4** 数据管线 | 部分 | ⚠️ | 增量 consume/reconcile | D1 已量测保留完整 load 并删除 loader 死代码；`findSimilarItem`/`History.add` 死代码未删 |
 | **BS-5** 文本搜索 | **2/13** | ❌ | off-main ✓(已达成) | **07-F-010 高亮错位 commit 夸大("bug-2 fix" 是空描述);07-F-013 静默丢高亮未修**;5.1/5.2/5.5/5.7/5.8/5.9/5.10 跳过;G-search 测 legacy 非 actor |
 | **BS-6** 内存治理 | **5/12** | ❌ | decoded-image bounded to visible | **`DecodedImageCache` 死代码**(`setImage/image(for:)` 零调用);`.previewHidden` 死枚举;G-memory 闸门未建;6.11 测试套件 0/6 |
 | **BS-7** Swift 6 | **13/17** | ⚠️ | complete 模式 CI 绿、零 @unchecked ✓(达成) | **7.13(唯一行为级改动)跳过**:`synchronizeItemPin/Title` 仍 recursive `withObservationTracking`+`DispatchQueue.main.async`;4 个测试文件缺;`Sorter`/`Throttler` 仍裸 class |
@@ -233,7 +235,7 @@ heap 证据:624 个 `HistoryItemContent` + 624 个 `_KKMDBackingData`(对应 556
 2. **BS-5 07-F-010**:写 emoji fuzzy 高亮落位断言,核实 Fuse 偏移语义;若 UTF-16 再补 `toGrapheneRange`,否则删夸大注释。
 3. **BS-8 8.5 backfill**:补老数据行指纹回填。
 4. **BS-6 `DecodedImageCache`**:要么接通要么删除死代码。
-5. **BS-4 `VisibleWindowLoader` 接线**:load 全表→可见窗口(内存 §4.6 + load §2.2 双重收益)。
+5. **BS-4 legacy `History.add` 清理**:先迁移测试，再删除已退出生产路径的 adapter/legacy 写路径。
 
 ---
 
@@ -316,7 +318,7 @@ heap 证据:624 个 `HistoryItemContent` + 624 个 `_KKMDBackingData`(对应 556
 | `M3` | `sessionLog` → `PersistentIdentifier` | 已修 |
 | `M4/M5/M9` | ApplicationImageCache / ignoredRegexps / ColorImage NSCache | 已修 |
 | `C1/C2/C3` | MemoryGovernance / VisibilityTracker / releaseTransientImages | 已修(框架) |
-| `C5` | 接入 `VisibleWindowLoader`(load 全表→可见窗口) | **未做(死代码)** |
+| `C5` | 接入 `VisibleWindowLoader`(load 全表→可见窗口) | **D1 否决并删除**（~0 内存价值、破坏完整搜索、等价启动候选仅快约 1%） |
 | `C6` | 接通 `releaseTransientImages(.previewHidden)` | **未做(死枚举)** |
 | `C7` | 延迟 `HistoryItem.contents` fault | 未做 |
 | `F1` | 大内容移出 SwiftData,独立 blob 存储(BS-8) | 未做(升为可能强制项) |

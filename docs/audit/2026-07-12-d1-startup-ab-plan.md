@@ -33,3 +33,25 @@ is deleted after the CI measurement.
 - If B is slower, equal within noise, or needs partial-history/search behavior,
   do not ship it. Record the no-go and delete the obsolete test-only
   `VisibleWindowLoader` scaffolding instead of leaving a misleading future path.
+
+## Result
+
+GitHub Actions run `29176185359`, `shard (perf-text)`, measured six alternating
+samples after warming both paths. Both returned all 200 retained items.
+
+| Path | Samples (ms) | Average |
+|------|--------------|---------|
+| A/current | 31.365, 30.761, 32.015, 42.689, 30.650, 39.825 | 34.551 ms |
+| B/store-sorted | 30.753, 33.010, 35.010, 45.253, 31.247, 29.939 | 34.202 ms |
+
+`candidate / current = 0.9899`: about 1% faster, well inside run-to-run noise
+and not a material startup improvement.
+
+## Verdict
+
+**No-go.** Keep the current complete-history load semantics. Do not window
+`History.all`, do not weaken complete search, and do not add two store queries
+for an unproven startup gain. The throwaway benchmark was removed after the
+measurement. The production-dead `VisibleWindowLoader`, its dedicated tests,
+and its otherwise-unused `Storage.newBackgroundContext()` helper were deleted;
+the ingest actor continues to own and construct its own context.

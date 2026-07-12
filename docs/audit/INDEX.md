@@ -2,7 +2,7 @@
 
 > **本文件是审计文档仓库的单一权威导航中心,自包含。** 阅读任何审计文档前先读此页,以避免把"冻结的设计意图"或"历史快照"误读为"当前状态"。
 >
-> 最近更新:**2026-07-12**(D3 `b754ac6`:lossless FIFO ingest mailbox 用一个 drain Task 服务 burst，最多一个 outstanding ingest，所有已观察 copy 按序保留；拒绝 latest-wins 丢历史。D2 `a487276`/`70e1d23`:live policy 随请求快照，普通 file/plain/image 不再整块回 MainActor，只有 AppKit RTF/HTML 解析留在 main。计划/证据见 `2026-07-12-d3-ingest-mailbox-plan.md`、`2026-07-12-d2-mainactor-hop-plan.md`。C6/E2/C5 与 XcodeGen M0–M3 也已完成；`project.yml` 是真相源。) Earlier **2026-07-10**:`2026-07-10-history-split-plan/` — expanded B0 authority: **defer History split**; D4 measure-first; DS-022-standalone hollow-as-B1; forcing-gate + S0–S7 board. + `2026-07-10-master-roadmap.md` global post-Wave-A order. Earlier 2026-07-09:`2026-07-09-design-audit-verification/` — **27/34 findings confirmed; 6 severity-overstated; DS-019 refuted; 19 new issues**. Earlier 2026-07-05:`2026-07-05-applicationimage-mainactor-crash/`. Phase-1 整理(2026-06-29)仍适用。
+> 最近更新:**2026-07-12**(D1 run `29176185359`:完整历史 store-sorted 候选 34.202ms，对照 34.551ms，仅约 1% 噪声差；窗口化已证实约 0 内存价值且破坏完整搜索，故不落地并删除 test-only loader/context 脚手架。D3 `b754ac6`:lossless FIFO ingest mailbox；D2 `a487276`/`70e1d23`:仅 AppKit RTF/HTML 解析留在 main。计划/证据见 `2026-07-12-d1-startup-ab-plan.md`、`2026-07-12-d3-ingest-mailbox-plan.md`、`2026-07-12-d2-mainactor-hop-plan.md`。C6/E2/C5 与 XcodeGen M0–M3 也已完成；`project.yml` 是真相源。) Earlier **2026-07-10**:`2026-07-10-history-split-plan/` — expanded B0 authority: **defer History split**; D4 measure-first; DS-022-standalone hollow-as-B1; forcing-gate + S0–S7 board. + `2026-07-10-master-roadmap.md` global post-Wave-A order. Earlier 2026-07-09:`2026-07-09-design-audit-verification/` — **27/34 findings confirmed; 6 severity-overstated; DS-019 refuted; 19 new issues**. Earlier 2026-07-05:`2026-07-05-applicationimage-mainactor-crash/`. Phase-1 整理(2026-06-29)仍适用。
 
 ## 0. 三大权威源 + spec-of-record(reading order)
 
@@ -22,7 +22,7 @@
 - **BS-1**:完成(并发脚手架,纯加法)。
 - **BS-2**:完成(摄取管线迁入 actor)。
 - **BS-3**:完成(图片管线;IMG-023 预览取消 stopgap 已补)。
-- **BS-4**:部分完成 — 4.2/4.5(去重收敛)、4.4a(增量 reconcile,G-copy 9.34→0.99ms)、4.7(预温)落地;4.3(load 重写)/4.6/4.8 延后;**`VisibleWindowLoader.fetchWindow` 仍是死代码**(从未接入 `load()`)。
+- **BS-4**:部分完成 — 4.2/4.5(去重收敛)、4.4a(增量 reconcile,G-copy 9.34→0.99ms)、4.7(预温)落地；D1 已用等价语义 A/B 确认没有实质启动收益，并拒绝破坏完整搜索的窗口化，`VisibleWindowLoader` 死代码已删除；4.6/4.8 仍延后。
 - **BS-5**:部分完成 **2/13** — `SearchActor` + generation 守卫真实且正确;**但 07-F-010(高亮 UTF-16/字素错位)与 07-F-013(静默高亮丢弃)未修**,虽提交 `4fa4946` 称"bug-2 fix"(`toGrapheneRange` 从未编写);resize 仍在热路径;`showSpecialSymbols` 未触碰;G-search gate 仅基线测量 legacy `Search()`。**→ 用户决定 2026-07-04「重设计」BS-5(扩范围:全文搜索 + 预览高亮/滚动 + 模式循环按钮),见 `2026-07-04-bs5-search-redesign/`。**
 - **BS-6**:部分完成 **5/12** — `DecodedImageCache` 为**死代码**(`setImage`/`image(for:)` 零调用);`.previewHidden` 零调用方;6 个测试文件缺失;G-memory gate 从未构建。
 - **BS-7**:大部分完成 **13/17**(最扎实)— Swift 6.0 complete mode 上线,零 `@unchecked`/`nonisolated(unsafe)`;7.13(唯一行为变更)**被跳过**;4 个测试文件缺失;52 处冗余 per-method `@MainActor` 残留。
