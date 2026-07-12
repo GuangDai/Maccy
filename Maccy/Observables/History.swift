@@ -12,7 +12,9 @@ import SwiftData
 @MainActor
 @Observable
 class History: ItemsContainer {
-  static let shared: History = {
+  static let shared = makeShared()
+
+  private static func makeShared() -> History {
     let mutationLogger = Logger(label: "org.p0deje.Maccy")
     return History(runtimeServices: HistoryRuntimeServices(
       clipboard: HistoryClipboardActions(
@@ -34,7 +36,8 @@ class History: ItemsContainer {
       },
       log: { mutationLogger.info("\($0)") }
     ))
-  }()
+  }
+
   let logger = Logger(label: "org.p0deje.Maccy")
 
   @ObservationIgnored private let listState: HistoryListState
