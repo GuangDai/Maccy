@@ -127,22 +127,22 @@ final class HistoryMutationsTests: XCTestCase {
     }
     Defaults[.pasteByDefault] = false
     Defaults[.removeFormattingByDefault] = false
-    let scenarios: [(NSEvent.ModifierFlags, Bool, Int)] = [
-      (.command, false, 0),
-      (.option, false, 1),
-      ([.option, .shift], true, 1)
+    let scenarios = [
+      MutationSelectScenario(flags: .command, removeFormatting: false, pasteCalls: 0),
+      MutationSelectScenario(flags: .option, removeFormatting: false, pasteCalls: 1),
+      MutationSelectScenario(flags: [.option, .shift], removeFormatting: true, pasteCalls: 1)
     ]
 
-    for (flags, removeFormatting, pasteCalls) in scenarios {
+    for scenario in scenarios {
       let selected = decorator(item(title: "selected"))
-      let harness = makeHarness([selected], modifierFlags: flags)
+      let harness = makeHarness([selected], modifierFlags: scenario.flags)
       harness.searchSession.query = "needle"
 
       harness.subject.select(selected)
       await waitForEmptyQuery(in: harness.searchSession)
 
-      assertSingleCopy(in: harness, item: selected.item, removeFormatting: removeFormatting)
-      XCTAssertEqual(harness.clipboard.pasteCalls, pasteCalls)
+      assertSingleCopy(in: harness, item: selected.item, removeFormatting: scenario.removeFormatting)
+      XCTAssertEqual(harness.clipboard.pasteCalls, scenario.pasteCalls)
       XCTAssertEqual(effectNames(harness.effects), ["closePopup"])
       XCTAssertEqual(harness.searchSession.query, "")
     }
@@ -244,6 +244,12 @@ final class HistoryMutationsTests: XCTestCase {
 
 private enum MutationTestError: Error {
   case expected
+}
+
+private struct MutationSelectScenario {
+  let flags: NSEvent.ModifierFlags
+  let removeFormatting: Bool
+  let pasteCalls: Int
 }
 
 @MainActor
