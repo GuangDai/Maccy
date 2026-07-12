@@ -106,18 +106,24 @@ private enum MutationTestError: Error {
 
 @MainActor
 private final class MutationHarness {
-  let persistence = MutationPersistence()
+  let persistence: MutationPersistence
   let listState: HistoryListState
-  let backend = MutationSearchBackend()
-  let clipboard = MutationClipboardRecorder()
+  let backend: MutationSearchBackend
+  let clipboard: MutationClipboardRecorder
   let subject: HistoryMutations
   var effects: [HistoryUIEffect] = []
   var storeEvents: [StoreEvent] = []
   var errors: [(String, Error)] = []
 
   init(decorators: [HistoryItemDecorator]) {
+    let persistence = MutationPersistence()
     let listState = HistoryListState(decorators: decorators)
+    let backend = MutationSearchBackend()
+    let clipboard = MutationClipboardRecorder()
+    self.persistence = persistence
     self.listState = listState
+    self.backend = backend
+    self.clipboard = clipboard
     let searchSession = HistorySearchSession(
       listState: listState,
       backend: backend,
