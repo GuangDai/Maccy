@@ -65,7 +65,8 @@ final class HistoryMutationsTests: XCTestCase {
     try? await Task.sleep(for: .milliseconds(20))
     let removedCorpusIDs = await harness.backend.removedIDs
 
-    XCTAssertEqual(harness.persistence.deletedItems, [target.item])
+    XCTAssertEqual(harness.persistence.deletedItems.count, 1)
+    XCTAssertTrue(harness.persistence.deletedItems.first === target.item)
     XCTAssertEqual(harness.listState.all, [target])
     XCTAssertEqual(removedCorpusIDs, [])
     XCTAssertEqual(harness.storeEvents, [])
@@ -83,7 +84,8 @@ final class HistoryMutationsTests: XCTestCase {
     let removedCorpusIDs = await waitForRemovedCorpus(in: harness.backend)
     let effects = await waitForEffects(in: harness, count: 1)
 
-    XCTAssertEqual(harness.persistence.deletedItems, [target.item])
+    XCTAssertEqual(harness.persistence.deletedItems.count, 1)
+    XCTAssertTrue(harness.persistence.deletedItems.first === target.item)
     XCTAssertEqual(harness.listState.all, [survivor])
     XCTAssertEqual(removedCorpusIDs, [target.id])
     XCTAssertEqual(harness.storeEvents, [.removed(removedStoreID)])
