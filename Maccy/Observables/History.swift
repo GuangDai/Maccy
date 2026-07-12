@@ -75,7 +75,6 @@ class History: ItemsContainer {
   @ObservationIgnored private let searchSession: HistorySearchSession
   @ObservationIgnored private let storeProjector: HistoryStoreProjector
   var searchGeneration: Int { searchSession.generation }
-  private var historySizeLimit: Int { max(1, Defaults[.size]) }
 
   /// All history decorators, including those hidden by the current search.
   /// `items` holds only the visible (filtered) subset.
@@ -130,6 +129,9 @@ class History: ItemsContainer {
     }
     storeProjector.configureDidPublishVisible { [weak self] in
       self?.updateUnpinnedShortcuts()
+    }
+    storeProjector.configureStoreEventSink { [weak self] events in
+      self?.synchronizeIngestor(with: events)
     }
 
     Task { @MainActor in
@@ -222,8 +224,6 @@ class History: ItemsContainer {
     #endif
     try storeProjector.load()
 
-    limitHistorySize(to: historySizeLimit)
-
     updateShortcuts()
     // Ensure that panel size is proper *after* loading all items.
     Task {
@@ -241,15 +241,6 @@ class History: ItemsContainer {
       try await load()
     } catch {
       recordPersistenceError(message, error)
-    }
-  }
-
-  /// Trims unpinned decorators past `maxSize`, deleting the overflow.
-  private func limitHistorySize(to maxSize: Int) {
-    let maxSize = max(0, maxSize)
-    let unpinned = all.filter(\.isUnpinned)
-    if unpinned.count > maxSize {
-      unpinned[maxSize...].forEach(delete)
     }
   }
 

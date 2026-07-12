@@ -34,6 +34,8 @@ private final class FailingHistoryPersistence: HistoryPersistence {
 
   func delete(_ item: HistoryItem) throws {}
 
+  func delete(_ items: [HistoryItem]) throws {}
+
   func deleteUnpinned() throws {
     if let deleteUnpinnedError {
       throw deleteUnpinnedError

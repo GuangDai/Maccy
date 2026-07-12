@@ -12,6 +12,7 @@ final class HistoryStoreProjector {
   private var uiEffectSink: HistoryUIEffectSink = { _ in }
   private var errorSink: @MainActor (String, Error) -> Void = { _, _ in }
   private var didPublishVisible: @MainActor () -> Void = {}
+  private var storeEventSink: @MainActor ([StoreEvent]) -> Void = { _ in }
 
   init(
     persistence: HistoryPersistence,
@@ -37,14 +38,34 @@ final class HistoryStoreProjector {
     didPublishVisible = action
   }
 
-  /// Replaces the complete projection from the injected persistence adapter.
+  func configureStoreEventSink(_ sink: @escaping @MainActor ([StoreEvent]) -> Void) {
+    storeEventSink = sink
+  }
+
+  /// Replaces the complete projection and commits size overflow in one batch.
   func load() throws {
     let models = try persistence.fetchAll()
     let decorators = autoreleasepool {
       sorter.sort(models).map { HistoryItemDecorator($0) }
     }
-    listState.replaceAll(decorators)
-    searchSession.replaceCorpus(decorators)
+    let unpinnedOverflow = Array(
+      decorators.filter(\.isUnpinned).dropFirst(max(1, Defaults[.size]))
+    )
+    let events = unpinnedOverflow.map { StoreEvent.removed(storedItemID(for: $0.item)) }
+    if !unpinnedOverflow.isEmpty {
+      try persistence.delete(unpinnedOverflow.map(\.item))
+    }
+
+    let overflowIDs = Set(unpinnedOverflow.map(\.id))
+    for decorator in unpinnedOverflow {
+      decorator.invalidate()
+    }
+    let retained = decorators.filter { !overflowIDs.contains($0.id) }
+    listState.replaceAll(retained)
+    searchSession.replaceCorpus(retained)
+    if !events.isEmpty {
+      storeEventSink(events)
+    }
   }
 
   /// Applies one committed store event, falling back to fake-backed reconcile.

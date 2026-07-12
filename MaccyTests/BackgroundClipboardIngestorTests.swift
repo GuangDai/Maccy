@@ -210,8 +210,8 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
   /// Beyond the size limit, the oldest unpinned item is evicted before each insert.
   func testTrimRemovesOldestUnpinnedItemBeyondSizeLimit() async {
     // With size=2 the trim keeps (size-1)=1 unpinned before each insert, so after
-    // the 3rd ingest only the two most-recent survive — mirroring the
-    // `limitHistorySize(to: historySizeLimit - 1)` contract.
+    // the 3rd ingest only the two most-recent survive — matching the load-side
+    // rule that retains at most the configured number of unpinned rows.
     Defaults[.size] = 2
     let collector = EventCollector()
     let clock = TestClock(start: Date(timeIntervalSince1970: 1_700_000_000))

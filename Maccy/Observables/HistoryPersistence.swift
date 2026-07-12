@@ -6,6 +6,8 @@ protocol HistoryPersistence {
   @MainActor
   func delete(_ item: HistoryItem) throws
   @MainActor
+  func delete(_ items: [HistoryItem]) throws
+  @MainActor
   func deleteUnpinned() throws
   @MainActor
   func deleteAll() throws
@@ -29,6 +31,19 @@ struct SwiftDataHistoryPersistence: HistoryPersistence {
     Storage.shared.context.delete(item)
     Storage.shared.context.processPendingChanges()
     try Storage.shared.context.save()
+  }
+
+  @MainActor
+  func delete(_ items: [HistoryItem]) throws {
+    guard !items.isEmpty else { return }
+    let context = Storage.shared.context
+    try context.transaction {
+      for item in items {
+        context.delete(item)
+      }
+    }
+    context.processPendingChanges()
+    try context.save()
   }
 
   @MainActor

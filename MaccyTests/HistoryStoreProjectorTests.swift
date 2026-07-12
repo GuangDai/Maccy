@@ -166,6 +166,9 @@ private final class RecordingProjectorPersistence: HistoryPersistence {
   func delete(_ item: HistoryItem) throws {
     deletedBatches.append([item])
   }
+  func delete(_ items: [HistoryItem]) throws {
+    deletedBatches.append(items)
+  }
   func deleteUnpinned() throws {}
   func deleteAll() throws {}
   func save() throws {}
