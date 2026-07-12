@@ -186,6 +186,7 @@
 		C8BD37BFC433EB0E3DB292C3 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9036E774BF774E69B54D5B2A /* AppDelegate.swift */; };
 		CFB90758D9049D705C7966BE /* DataLikelyEqualContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DAACC923CB6637D0DF4DD4 /* DataLikelyEqualContractTests.swift */; };
 		D02E642DEADEEB22C4EF623F /* Storage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89DA91EF8D6ED4412DDC3F26 /* Storage.swift */; };
+		D09BB00C2FF6656ABF35CCDF /* IngestMailbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960CCDF8AC8240DC059CE39B /* IngestMailbox.swift */; };
 		D525F5EB2CEDAEBEB9CC6C9F /* FixtureLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC936048769330136502C7A /* FixtureLoader.swift */; };
 		D72B6E3C2FB357B06FD34253 /* ApplicationImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7AFAE6386CA79050A90A264 /* ApplicationImageCache.swift */; };
 		D7BD03C9A5F852011C17A5D9 /* AppImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758FC098E8DA75E1A50FF457 /* AppImageView.swift */; };
@@ -519,6 +520,7 @@
 		9450D0DA1BA765EADB5E26E0 /* SearchActorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchActorTests.swift; sourceTree = "<group>"; };
 		94C4016EEFBA44FE90008963 /* pt-BR */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "pt-BR"; path = "pt-BR.lproj/IgnoreSettings.strings"; sourceTree = "<group>"; };
 		957F6330DC24747F26A18237 /* FingerprintSymmetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FingerprintSymmetryTests.swift; sourceTree = "<group>"; };
+		960CCDF8AC8240DC059CE39B /* IngestMailbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestMailbox.swift; sourceTree = "<group>"; };
 		9660BDC080478AEB16685F40 /* nb */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nb; path = nb.lproj/StorageSettings.strings; sourceTree = "<group>"; };
 		979F90841F90C98A37DE33A7 /* AdvancedSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSettingsPane.swift; sourceTree = "<group>"; };
 		97DD60DFCD3CF6DF06DE8D7E /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/Localizable.strings; sourceTree = "<group>"; };
@@ -1109,6 +1111,7 @@
 				BE6FB9DF44B02079AA09215B /* ClipboardIngestor.swift */,
 				649A17306F0EE6B716DC5CF9 /* Dtos.swift */,
 				300D428672BCF555E0511425 /* IngestFilter.swift */,
+				960CCDF8AC8240DC059CE39B /* IngestMailbox.swift */,
 				7BEA4BF3F28F1D6D0EFCE3F1 /* PasteboardSource.swift */,
 				AD1D6E4841C4CC5594235299 /* SignatureIndex.swift */,
 			);
@@ -1447,6 +1450,7 @@
 				C641F7B9B7C0BD44B467AC13 /* ImageProcessing.swift in Sources */,
 				648EECED7D15AEDA7E477635 /* ImageProcessor.swift in Sources */,
 				5126C661F2263ED29A8D672C /* IngestFilter.swift in Sources */,
+				D09BB00C2FF6656ABF35CCDF /* IngestMailbox.swift in Sources */,
 				5159195DABCBC8312819E3F9 /* ItemsProtocol.swift in Sources */,
 				350206F2854662EF16F542CA /* KeyChord.swift in Sources */,
 				56A136F7B2F294274BCC05BE /* KeyHandlingView.swift in Sources */,
