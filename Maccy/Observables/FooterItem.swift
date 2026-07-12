@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// Closed application intents exposed by the fixed footer menu.
+enum FooterAction: Equatable {
+  case clearHistory
+  case clearAllHistory
+  case openPreferences
+  case openAbout
+  case quit
+}
+
 /// A single footer action (clear, clear all, preferences, about, quit): its
 /// title, keyboard shortcut, optional confirmation prompt, and the closure to
 /// run when invoked.
@@ -32,6 +41,7 @@ class FooterItem: Equatable, Identifiable, HasVisibility {
   var suppressConfirmation: Binding<Bool>?
   var isVisible: Bool = true
   var action: () -> Void
+  let intent: FooterAction?
 
   /// Creates a footer item with its title, optional shortcut/confirmation, and
   /// the action closure to run on invoke.
@@ -41,6 +51,7 @@ class FooterItem: Equatable, Identifiable, HasVisibility {
     help: LocalizedStringKey? = nil,
     confirmation: Confirmation? = nil,
     suppressConfirmation: Binding<Bool>? = nil,
+    intent: FooterAction? = nil,
     action: @escaping () -> Void
   ) {
     self.title = title
@@ -48,6 +59,7 @@ class FooterItem: Equatable, Identifiable, HasVisibility {
     self.help = help
     self.confirmation = confirmation
     self.suppressConfirmation = suppressConfirmation
+    self.intent = intent
     self.action = action
   }
 }

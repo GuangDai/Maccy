@@ -227,6 +227,49 @@ final class AppStateRuntimeServicesTests: XCTestCase {
 }
 
 @MainActor
+final class FooterActionTests: XCTestCase {
+  func testFixedItemsExposeClosedActions() {
+    XCTAssertEqual(
+      Footer().items.compactMap(\.intent),
+      [.clearHistory, .clearAllHistory, .openPreferences, .openAbout, .quit]
+    )
+  }
+
+  func testClearActionMutatesTheComposedHistory() async {
+    let savedSuppressClearAlert = Defaults[.suppressClearAlert]
+    let savedClearSystemClipboard = Defaults[.clearSystemClipboard]
+    let savedIngestor = Clipboard.shared.ingestor
+    defer {
+      Defaults[.suppressClearAlert] = savedSuppressClearAlert
+      Defaults[.clearSystemClipboard] = savedClearSystemClipboard
+      Clipboard.shared.ingestor = savedIngestor
+    }
+    Defaults[.suppressClearAlert] = true
+    Defaults[.clearSystemClipboard] = false
+    Clipboard.shared.ingestor = nil
+
+    let item = HistoryItemDecorator(
+      HistoryBuilder()
+        .withContent(type: "public.utf8-plain-text", value: Data("local".utf8))
+        .build()
+    )
+    let history = History(
+      persistence: RuntimeServicesPersistence(),
+      listState: HistoryListState(decorators: [item]),
+      logsPersistenceErrors: false
+    )
+    let footer = Footer()
+    let appState = AppState(history: history, footer: footer)
+    appState.navigator.select(footerItem: footer.items[0])
+
+    appState.select()
+    await Task.yield()
+
+    XCTAssertTrue(history.all.isEmpty)
+  }
+}
+
+@MainActor
 private final class RuntimeServicesPersistence: HistoryPersistence {
   func delete(_ item: HistoryItem) throws {}
   func delete(_ items: [HistoryItem]) throws {}
