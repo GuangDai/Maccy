@@ -5,6 +5,7 @@ import Settings
 /// Storage settings: which content types to save, history size, max item size, and sort order.
 struct StorageSettingsPane: View {
   /// Syncs the save-files/images/text toggles with `enabledPasteboardTypes`.
+  @MainActor
   @Observable
   class ViewModel {
     private(set) var storageSize: String
