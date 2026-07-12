@@ -59,3 +59,52 @@ struct HistoryBuilder {
     return item
   }
 }
+
+/// Seeds test history through the committed store + `StoreEvent` projection
+/// used by the live background-ingest path, never through legacy `History.add`.
+@MainActor
+enum HistoryTestDriver {
+  enum SeedError: Error {
+    case missingDecorator
+  }
+
+  /// Commits and consumes one item, returning its projected decorator.
+  static func seed(
+    _ item: HistoryItem,
+    in history: History = .shared
+  ) throws -> HistoryItemDecorator {
+    let seeded = try seed([item], in: history)
+    guard let decorator = seeded.first else {
+      throw SeedError.missingDecorator
+    }
+    return decorator
+  }
+
+  /// Commits all items in one save, consumes their added events in order, and
+  /// returns the decorators resolved by stable persistent identity.
+  static func seed(
+    _ items: [HistoryItem],
+    in history: History = .shared
+  ) throws -> [HistoryItemDecorator] {
+    let context = Storage.shared.context
+    for item in items {
+      context.insert(item)
+    }
+    context.processPendingChanges()
+    try context.save()
+
+    for item in items {
+      history.consume(.added(snapshot(of: item)))
+    }
+
+    let decoratorsByID = Dictionary(
+      uniqueKeysWithValues: history.all.map { ($0.item.persistentModelID, $0) }
+    )
+    return try items.map { item in
+      guard let decorator = decoratorsByID[item.persistentModelID] else {
+        throw SeedError.missingDecorator
+      }
+      return decorator
+    }
+  }
+}
