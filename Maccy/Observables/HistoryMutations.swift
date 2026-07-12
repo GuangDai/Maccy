@@ -155,7 +155,36 @@ final class HistoryMutations {
     Task { searchSession.query = "" }
   }
 
-  func togglePin(_ item: HistoryItemDecorator?) {}
+  func togglePin(_ item: HistoryItemDecorator?) {
+    guard let item else { return }
+
+    let previousPin = item.item.pin
+    item.togglePin()
+    do {
+      try persistence.save()
+    } catch {
+      item.item.pin = previousPin
+      errorSink("Failed to save pinned history item", error)
+      return
+    }
+
+    let sortedModels = sorter.sort(listState.all.map(\.item))
+    var reordered = listState.all
+    if let currentIndex = reordered.firstIndex(of: item),
+       let newIndex = sortedModels.firstIndex(of: item.item) {
+      reordered.remove(at: currentIndex)
+      reordered.insert(item, at: newIndex)
+      listState.replaceAll(reordered)
+      searchSession.removeCorpus([item.id])
+      searchSession.insertCorpus(item, at: newIndex)
+    }
+
+    searchSession.query = ""
+    updateUnpinnedShortcuts()
+    if item.isUnpinned {
+      uiEffectSink(.scrollTo(item.id))
+    }
+  }
 
   private func finishClear() {
     clipboard.clear()
@@ -163,7 +192,7 @@ final class HistoryMutations {
     Task { uiEffectSink(.resizePopup) }
   }
 
-  private func updateUnpinnedShortcuts() {
+  func updateUnpinnedShortcuts() {
     let visible = listState.items.filter { $0.isUnpinned && $0.isVisible }
     for item in visible {
       item.shortcuts = []

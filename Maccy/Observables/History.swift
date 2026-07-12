@@ -71,7 +71,6 @@ class History: ItemsContainer {
     return items.first { $0.shortcuts.contains(where: { $0.key == key }) }
   }
 
-  private let sorter = Sorter()
   @ObservationIgnored private let searchSession: HistorySearchSession
   @ObservationIgnored private let storeProjector: HistoryStoreProjector
   @ObservationIgnored private let mutations: HistoryMutations
@@ -89,8 +88,6 @@ class History: ItemsContainer {
   #endif
 
   @ObservationIgnored
-  private let persistence: HistoryPersistence
-  @ObservationIgnored
   private let logsPersistenceErrors: Bool
   @ObservationIgnored
   private var uiEffectSink: HistoryUIEffectSink = { _ in }
@@ -102,7 +99,6 @@ class History: ItemsContainer {
     listState: HistoryListState = HistoryListState(),
     logsPersistenceErrors: Bool = true
   ) {
-    self.persistence = persistence
     self.listState = listState
     let searchSession = HistorySearchSession(listState: listState)
     self.searchSession = searchSession
@@ -112,7 +108,7 @@ class History: ItemsContainer {
       searchSession: searchSession
     )
     let mutationLogger = Logger(label: "org.p0deje.Maccy")
-    self.mutations = HistoryMutations(
+    let mutations = HistoryMutations(
       persistence: persistence,
       listState: listState,
       searchSession: searchSession,
@@ -131,6 +127,7 @@ class History: ItemsContainer {
       },
       log: { mutationLogger.info("\($0)") }
     )
+    self.mutations = mutations
     self.logsPersistenceErrors = logsPersistenceErrors
 
     listState.configureWillMutate { [weak searchSession = self.searchSession] in
@@ -139,8 +136,8 @@ class History: ItemsContainer {
     searchSession.configureUIEffectSink { [weak self] effect in
       self?.emit(effect)
     }
-    searchSession.configureDidPublishVisible { [weak self] in
-      self?.updateUnpinnedShortcuts()
+    searchSession.configureDidPublishVisible { [weak mutations] in
+      mutations?.updateUnpinnedShortcuts()
     }
     storeProjector.configureUIEffectSink { [weak self] effect in
       self?.emit(effect)
@@ -148,8 +145,8 @@ class History: ItemsContainer {
     storeProjector.configureErrorSink { [weak self] message, error in
       self?.recordPersistenceError(message, error)
     }
-    storeProjector.configureDidPublishVisible { [weak self] in
-      self?.updateUnpinnedShortcuts()
+    storeProjector.configureDidPublishVisible { [weak mutations] in
+      mutations?.updateUnpinnedShortcuts()
     }
     storeProjector.configureStoreEventSink { [weak self] events in
       self?.synchronizeIngestor(with: events)
@@ -322,38 +319,7 @@ class History: ItemsContainer {
 
   /// Toggles an item's pin, persists it, re-sorts `all`, and clears the query.
   func togglePin(_ item: HistoryItemDecorator?) {
-    guard let item else { return }
-
-    let previousPin = item.item.pin
-    item.togglePin()
-    do {
-      try persistence.save()
-    } catch {
-      item.item.pin = previousPin
-      recordPersistenceError("Failed to save pinned history item", error)
-      return
-    }
-
-    let sortedItems = sorter.sort(all.map(\.item))
-    var reordered = all
-    if let currentIndex = reordered.firstIndex(of: item),
-       let newIndex = sortedItems.firstIndex(of: item.item) {
-      reordered.remove(at: currentIndex)
-      reordered.insert(item, at: newIndex)
-      listState.replaceAll(reordered)
-      // The pin change moved the item in `all`; mirror the move in the
-      // search-actor corpus so subsequent exact/regexp results keep its place.
-      let movedID = item.id
-      let session = searchSession
-      session.removeCorpus([movedID])
-      session.insertCorpus(item, at: newIndex)
-    }
-
-    searchQuery = ""
-    updateUnpinnedShortcuts()
-    if item.isUnpinned {
-      emit(.scrollTo(item.id))
-    }
+    mutations.togglePin(item)
   }
 
   /// Reloads the history after a Defaults change that affects ordering/display
@@ -379,7 +345,7 @@ class History: ItemsContainer {
   private func refreshVisibleItems() {
     if searchQuery.isEmpty {
       listState.publishVisible(all)
-      updateUnpinnedShortcuts()
+      mutations.updateUnpinnedShortcuts()
     } else {
       searchSession.refresh(mode: Defaults[.searchMode])
     }
@@ -393,7 +359,7 @@ class History: ItemsContainer {
       }
     }
 
-    updateUnpinnedShortcuts()
+    mutations.updateUnpinnedShortcuts()
   }
 
   /// Sets both the decorator's and model's title.
@@ -402,19 +368,6 @@ class History: ItemsContainer {
     item.item.title = title
   }
 
-  /// Assigns `1`–`9` shortcuts to the first nine visible unpinned items.
-  private func updateUnpinnedShortcuts() {
-    let visibleUnpinnedItems = unpinnedItems.filter(\.isVisible)
-    for item in visibleUnpinnedItems {
-      item.shortcuts = []
-    }
-
-    var index = 1
-    for item in visibleUnpinnedItems.prefix(9) {
-      item.shortcuts = KeyShortcut.create(character: String(index))
-      index += 1
-    }
-  }
 }
 
 extension History: HistoryRef {
