@@ -1,3 +1,4 @@
+import AppKit
 import AsyncAlgorithms
 import Defaults
 import Foundation
