@@ -101,7 +101,26 @@ final class HistoryMutations {
     finishClear()
   }
 
-  func delete(_ item: HistoryItemDecorator?) {}
+  func delete(_ item: HistoryItemDecorator?) {
+    guard let item else { return }
+    let removedStoreID = storedItemID(for: item.item)
+
+    do {
+      try withLogging("Removing history item") {
+        try persistence.delete(item.item)
+      }
+    } catch {
+      errorSink("Failed to delete history item", error)
+      return
+    }
+
+    item.invalidate()
+    listState.remove(item)
+    searchSession.removeCorpus([item.id])
+    storeEventSink([.removed(removedStoreID)])
+    updateUnpinnedShortcuts()
+    Task { uiEffectSink(.resizePopup) }
+  }
 
   func select(_ item: HistoryItemDecorator?) {}
 
@@ -111,6 +130,16 @@ final class HistoryMutations {
     clipboard.clear()
     uiEffectSink(.closePopup)
     Task { uiEffectSink(.resizePopup) }
+  }
+
+  private func updateUnpinnedShortcuts() {
+    let visible = listState.items.filter { $0.isUnpinned && $0.isVisible }
+    for item in visible {
+      item.shortcuts = []
+    }
+    for (index, item) in visible.prefix(9).enumerated() {
+      item.shortcuts = KeyShortcut.create(character: String(index + 1))
+    }
   }
 
   private func withLogging(_ message: String, _ operation: () throws -> Void) rethrows {

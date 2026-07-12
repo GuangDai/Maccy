@@ -288,30 +288,6 @@ class History: ItemsContainer {
     storeProjector.consume(event, trimmedPersistentIDs: trimmedPersistentIDs)
   }
 
-  /// Runs `block` under DEBUG-only before/after row-count logging. The count
-  /// round-trips are diagnostics only, so release builds skip them and run just
-  /// the operation.
-  private func withLogging(_ msg: String, _ block: () throws -> Void) rethrows {
-    #if DEBUG
-    func dataCounts() -> String {
-      do {
-        let historyItemCount = try persistence.countHistoryItems()
-        let historyContentCount = try persistence.countHistoryItemContents()
-        return "HistoryItem=\(historyItemCount) HistoryItemContent=\(historyContentCount)"
-      } catch {
-        recordPersistenceError("Failed to count history items", error)
-        return "HistoryItem=0 HistoryItemContent=0"
-      }
-    }
-
-    logger.info("\(msg) Before: \(dataCounts())")
-    try block()
-    logger.info("\(msg) After: \(dataCounts())")
-    #else
-    try block()
-    #endif
-  }
-
   /// Deletes all unpinned items (keeping pins), draining each removed
   /// decorator's AppKit transients in an autorelease pool so a bulk clear
   /// doesn't pile them up.
@@ -327,32 +303,7 @@ class History: ItemsContainer {
   /// Deletes a single decorator's backing item, removes it from `all`/`items`,
   /// and reassigns unpinned shortcuts.
   func delete(_ item: HistoryItemDecorator?) {
-    guard let item else { return }
-
-    let removedStoreID = storedItemID(for: item.item)
-    do {
-      try withLogging("Removing history item") {
-        try persistence.delete(item.item)
-      }
-    } catch {
-      recordPersistenceError("Failed to delete history item", error)
-      return
-    }
-
-    cleanup(item)
-    let removedID = item.id
-    listState.remove(item)
-    searchSession.removeCorpus([removedID])
-    synchronizeIngestor(with: [.removed(removedStoreID)])
-    updateUnpinnedShortcuts()
-    Task {
-      emit(.resizePopup)
-    }
-  }
-
-  /// Invalidates a decorator, releasing its transient images.
-  private func cleanup(_ item: HistoryItemDecorator) {
-    item.invalidate()
+    mutations.delete(item)
   }
 
   /// Forwards committed main-context deletions to the actor-owned dedup index
