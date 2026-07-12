@@ -37,8 +37,8 @@ final class TextSearchPerformanceTests: PerformanceTestCase {
     let sorter = Sorter()
     let iterations = 6
 
-    _ = try currentLoadCore(context: context, sorter: sorter)
-    _ = try candidateLoadCore(context: context)
+    let currentCount = try currentLoadCore(context: context, sorter: sorter)
+    let candidateCount = try candidateLoadCore(context: context)
 
     var currentMs: [Double] = []
     var candidateMs: [Double] = []
@@ -55,9 +55,13 @@ final class TextSearchPerformanceTests: PerformanceTestCase {
     let currentAverage = currentMs.reduce(0, +) / Double(currentMs.count)
     let candidateAverage = candidateMs.reduce(0, +) / Double(candidateMs.count)
     let ratio = candidateAverage / currentAverage
+    let currentSamples = currentMs.map(String.init(describing:)).joined(separator: ",")
+    let candidateSamples = candidateMs.map(String.init(describing:)).joined(separator: ",")
     print(
-      "D1_PROTO|items=200|current_avg_ms=\(currentAverage)" +
-        "|candidate_avg_ms=\(candidateAverage)|candidate_over_current=\(ratio)"
+      "D1_PROTO|current_count=\(currentCount)|candidate_count=\(candidateCount)" +
+        "|current_samples_ms=[\(currentSamples)]|candidate_samples_ms=[\(candidateSamples)]" +
+        "|current_avg_ms=\(currentAverage)|candidate_avg_ms=\(candidateAverage)" +
+        "|candidate_over_current=\(ratio)"
     )
   }
 
