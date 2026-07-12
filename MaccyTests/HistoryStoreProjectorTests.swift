@@ -1,3 +1,4 @@
+import Defaults
 import Foundation
 import SwiftData
 import XCTest
@@ -76,9 +77,37 @@ final class HistoryStoreProjectorTests: XCTestCase {
     XCTAssertTrue(history.all.first === existing)
   }
 
-  private func item(title: String) -> HistoryItem {
+  func testLoadDeletesExactUnpinnedOverflowInOneBatch() async throws {
+    let savedSize = Defaults[.size]
+    defer { Defaults[.size] = savedSize }
+    Defaults[.size] = 1
+
+    let newest = item(title: "newest", copiedAt: 4)
+    let firstOverflow = item(title: "first-overflow", copiedAt: 3)
+    let secondOverflow = item(title: "second-overflow", copiedAt: 2)
+    let pinned = item(title: "pinned", copiedAt: 1, pin: "p")
+    let persistence = RecordingProjectorPersistence()
+    persistence.fetchedItems = [secondOverflow, pinned, newest, firstOverflow]
+    let history = History(persistence: persistence, logsPersistenceErrors: false)
+
+    try await history.load()
+
+    XCTAssertEqual(Set(history.all.map(\.title)), ["newest", "pinned"])
+    XCTAssertEqual(
+      persistence.deletedBatches.map { $0.map(\.title) },
+      [["first-overflow", "second-overflow"]]
+    )
+  }
+
+  private func item(
+    title: String,
+    copiedAt: TimeInterval = 0,
+    pin: String? = nil
+  ) -> HistoryItem {
     HistoryBuilder()
       .withContent(type: "public.utf8-plain-text", value: Data(title.utf8))
+      .withCopiedAt(Date(timeIntervalSince1970: copiedAt))
+      .withPin(pin)
       .withTitle(title)
       .build()
   }
@@ -99,6 +128,7 @@ private final class RecordingProjectorPersistence: HistoryPersistence {
   var models: [PersistentIdentifier: HistoryItem] = [:]
   private(set) var fetchAllCalls = 0
   private(set) var modelCalls: [PersistentIdentifier] = []
+  private(set) var deletedBatches: [[HistoryItem]] = []
 
   func model(for id: PersistentIdentifier) -> HistoryItem? {
     modelCalls.append(id)
@@ -111,7 +141,9 @@ private final class RecordingProjectorPersistence: HistoryPersistence {
     return fetchedItems
   }
 
-  func delete(_ item: HistoryItem) throws {}
+  func delete(_ item: HistoryItem) throws {
+    deletedBatches.append([item])
+  }
   func deleteUnpinned() throws {}
   func deleteAll() throws {}
   func save() throws {}
