@@ -23,7 +23,7 @@
 | DS-017 | ✅ `△over` | Med→**Low** | High | `Dtos.swift:110` + `DtoTests.swift:17` | Nominal; only `requireSendable` references it. |
 | DS-018 | ✅ | Med→Med | High | 8 sites: Get×3, Select×2, Delete×2, Clear×1 | Intents → `AppState.shared`. |
 | DS-019 | ✗ `△over` `⟳` | Med→**Low** | High | `StoredItemID`; `1393143` | **Resolved after refutation:** the latent string-format risk is gone; the index directly uses Apple's stable `PersistentIdentifier.ID`, with no schema column. |
-| DS-020 | ✅ | Med→Med | High | `Clipboard.swift:237` | One `Task` per changeCount; no coalesce. |
+| DS-020 | ✅ `⟳` | Med→Med | High | `IngestMailbox`; `b754ac6`, `9fbb6e6` | **Resolved:** one FIFO drain Task serves a burst, with at most one outstanding `ingest`; every observed request is delivered exactly once in order. Latest-wins was rejected as silent clipboard-history data loss. |
 | DS-021 | ✅ | Med→Med | Med | `History.swift:383` | `model.title == snapshot.title` gate → full reconcile on mismatch. |
 | DS-022 | ✅ | Med→Med | High | `History.swift` load/reconcile/syncAll/merge | Dual IO channel; fake `HistoryPersistence` can't intercept load. |
 | DS-023 | ✅ | Med→Med | High | `ContentView` `try?`; `AppState:101` `try?` | Load errors swallowed. |

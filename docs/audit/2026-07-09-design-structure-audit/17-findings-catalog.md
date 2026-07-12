@@ -215,6 +215,11 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-020 — No ingest coalesce
 
+> **Resolved 2026-07-12 (`b754ac6`, `9fbb6e6`):** `IngestMailbox` uses one
+> FIFO drain Task per burst and permits only one outstanding ingest. It retains
+> every observed request in order; latest-wins was rejected because dropping an
+> already-snapshotted copy violates clipboard-history semantics.
+
 | | |
 |--|--|
 | **Evidence** | Each changeCount → new `Task { await ingest }` |

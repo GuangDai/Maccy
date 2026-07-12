@@ -43,7 +43,7 @@ Production wiring (`AppDelegate.applicationWillFinishLaunching`):
 | **Action** | Equal → return. Unequal → `changeCount = pasteboard.changeCount` **before** later gates finish work |
 | **Side effect** | Consumes the change for this process even if later gates ignore the copy |
 | **Output** | Proceed or stop |
-| **Issue** | One Task per change; no coalesce (DS-020) |
+| **Issue** | **Resolved D3 (`b754ac6`):** one lossless FIFO mailbox drain per burst; no request dropping. |
 
 ---
 
@@ -99,6 +99,10 @@ Production wiring (`AppDelegate.applicationWillFinishLaunching`):
 
 ## A.6 Async dispatch
 
+> **Current update (D3, `b754ac6`):** `Clipboard` submits snapshots to
+> `IngestMailbox`. One drain Task delivers every request FIFO with at most one
+> outstanding ingest. Task creation is coalesced; clipboard data is not.
+
 ```text
 Task { await ingestor.ingest(request) }
 ```
@@ -106,8 +110,8 @@ Task { await ingestor.ingest(request) }
 | | |
 |--|--|
 | **If `ingestor == nil`** | Gates ran; **no write** (legacy/unwired tests) |
-| **Ordering** | Multiple Tasks may queue; actor serializes `ingest` |
-| **Backpressure** | None |
+| **Ordering** | FIFO mailbox; every observed request delivered exactly once |
+| **Backpressure** | One outstanding ingest; later requests remain in the main-actor queue |
 
 ---
 

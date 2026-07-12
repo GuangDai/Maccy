@@ -31,3 +31,15 @@ surfacing part of the same ordered drain.
 No bounded/drop policy is added. At the 500 ms poll cadence, a FIFO queue is
 already bounded by observed pasteboard changes in practice; inventing a cap
 would reintroduce an implicit data-loss decision.
+
+## Result
+
+- `IngestMailbox` owns an O(n) indexed FIFO drain (no `removeFirst()` shifts).
+- `Clipboard` submits the captured request, ingestor, and main-actor result
+  callback; failure surfacing therefore remains ordered with ingest completion.
+- The blocking-actor test proves requests 2 and 3 do not enter a reentrant actor
+  while request 1 is suspended, then proves delivery order `[1, 2, 3]` after
+  release.
+- Implementation: `b754ac6`; generated Xcode project artifact: `9fbb6e6`.
+- Verification: generation/zero drift, strict SwiftLint/build, unit, both UI
+  shards, perf-text, and perf-image all green in `29175614620`.

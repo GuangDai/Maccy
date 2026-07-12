@@ -74,7 +74,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Stor
 | 富文本/标题解析回主线程 | [已修/安全例外] | D2(`a487276`):`Clipboard` 随请求捕获 live policy；纯过滤与 file/plain/image 标题/正文投影都在 ingest actor。仅 `IngestMainActorPlan` 选中的小型 RTF/HTML 因 AppKit 亲和回 main；heavy-text/RTF fixture 与 no-trap 集成测试锁定边界。 |
 | 去重全表 fetch | [已修] | `findsimilar-full-refetch`:live 路径改走 `SignatureIndex`(`O(h)` 命中候选数,非 `O(n)`)。legacy `History.findSimilarItem` / `History.add` **已不在生产路径**(死代码,见 §2.2) |
 | 单复制多次 save | [已修] | `add-does-3-pending-changes-saves`:ingestor 单事务写后台 context |
-| copy 风暴无合并 | [未修] | `no-coalesce-of-ingest-writes`:每个 `changeCount` 变化跑一次完整管线 |
+| copy 风暴无背压 | [已修] | D3(`b754ac6`):`IngestMailbox` 用一个 FIFO drain Task 服务 burst，同一时刻最多一个 ingest；已观察请求全部按序保留，不采用会丢历史的 latest-wins。 |
 | `shouldIgnore` 正则全在主线程 | [已修] | D2 后正则规则在 ingest actor 的纯 `filterContents(...richTextPresent:)` 路径执行；只有必要的 AppKit 富文本 presence 解析回 main。 |
 | Timer 无 tolerance / 非 common mode | [已修] | E3(`32320cf`):有效 interval 10% tolerance + `.common` run-loop mode。 |
 

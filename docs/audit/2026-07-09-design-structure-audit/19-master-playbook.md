@@ -103,7 +103,7 @@ Correctness (DS-002…)
 | DS-017 | IngestPlan unused | Med | L | A1 | 08 | — |
 | DS-018 | Intent→AppState | Med | M | E1 | 15,03 | — |
 | DS-019 | ItemID String(describing) | Med | M–H | C6 | glossary,08 | A |
-| DS-020 | no ingest coalesce | Med | M | D3 | 07 | A |
+| DS-020 | no ingest coalesce — resolved `b754ac6` | Med | M | D3 | 07 | A |
 | DS-021 | title gate over-reconcile | Med | M | B/D | 04 | A |
 | DS-022 | dual persistence channel | Med | M | B2 | 04,11 | * |
 | DS-023 | load/prewarm try? | Med | L | A0/A1 | 03,14 | B |
@@ -140,7 +140,7 @@ Correctness (DS-002…)
 | 15 | **D0** | Load ADR | 004 | M | Decision | Design | 0.5 | [ ] |
 | 16 | **D1** | Implement load decision | 004 | H | High | Read path | 3–5 | [ ] |
 | 17 | **D2** | Shrink MainActor hop | 011 | H | M–H | Perf/struct | 2–3 | [ ] |
-| 18 | **D3** | Ingest coalesce (optional) | 020 | M | Med | Perf | 1–2 | [ ] |
+| 18 | **D3** | Lossless FIFO ingest mailbox | 020 | M | Med | Perf | 1–2 | [x] `b754ac6` |
 | 19 | **E1** | Intent port | 018 | M | Low | Boundary | 1 | [ ] |
 | 20 | **E2** | Package moves (no behavior) | 026,034 | M | L–M | Hygiene | 1–2 | [ ] |
 | 21 | **E3** | Timer / multiSelect | 024,028 | L | Low | Hygiene | 0.5 | [ ] |
@@ -414,7 +414,7 @@ DS-002 verified?
 - [ ] DS-017 IngestPlan cleaned  
 - [ ] DS-018 Intent port  
 - [ ] DS-019 ItemID strategy documented  
-- [ ] DS-020 coalesce decision recorded  
+- [x] DS-020 lossless FIFO coalesce decision + implementation recorded (`b754ac6`)
 - [ ] DS-021–034 addressed or explicitly deferred with owner  
 
 When all checked: structure campaign phase-complete (memory BS targets remain separate).
