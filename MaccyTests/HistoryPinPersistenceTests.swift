@@ -27,9 +27,9 @@ final class HistoryPinPersistenceTests: XCTestCase {
   }
 
   /// A pinned item persists across `clear()` (which removes only unpinned items), and its pin value round-trips through the committed store.
-  func testClearingUnpinnedAfterPinPersistsPinnedItem() {
-    let pinned = history.add(historyItem("foo"))
-    history.add(historyItem("bar"))
+  func testClearingUnpinnedAfterPinPersistsPinnedItem() throws {
+    let pinned = try HistoryTestDriver.seed(historyItem("foo"), in: history)
+    _ = try HistoryTestDriver.seed(historyItem("bar"), in: history)
 
     history.togglePin(pinned)
     let pin = pinned.item.pin
@@ -61,6 +61,7 @@ final class HistoryPinPersistenceTests: XCTestCase {
   /// Pin availability is queried through the caller-provided context and excludes assigned keys.
   func testPinServiceExcludesAssignedPins() throws {
     let assigned = historyItem("assigned")
+    Storage.shared.context.insert(assigned)
     assigned.pin = "b"
     try Storage.shared.context.save()
 
@@ -74,6 +75,7 @@ final class HistoryPinPersistenceTests: XCTestCase {
     let expected = try XCTUnwrap(PinService.supportedPins.sorted().first)
     for pin in PinService.supportedPins.subtracting([expected]) {
       let assigned = historyItem("assigned-\(pin)")
+      Storage.shared.context.insert(assigned)
       assigned.pin = pin
     }
     try Storage.shared.context.save()
@@ -87,7 +89,6 @@ final class HistoryPinPersistenceTests: XCTestCase {
   /// Builds a single-string-content `HistoryItem` inserted into the shared context, with title derived from its content.
   private func historyItem(_ value: String) -> HistoryItem {
     let item = HistoryItem()
-    Storage.shared.context.insert(item)
     item.contents = [
       HistoryItemContent(
         type: NSPasteboard.PasteboardType.string.rawValue,

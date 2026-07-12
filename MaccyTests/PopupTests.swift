@@ -26,9 +26,9 @@ final class PopupTests: XCTestCase {
 
   /// Opening the popup re-selects the newest history item, regardless of the
   /// navigator's prior selection.
-  func testOpenSelectsNewestHistoryItem() {
-    let older = history.add(historyItem("bar"))
-    let newest = history.add(historyItem("foo"))
+  func testOpenSelectsNewestHistoryItem() throws {
+    let older = try HistoryTestDriver.seed(historyItem("bar"), in: history)
+    let newest = try HistoryTestDriver.seed(historyItem("foo"), in: history)
     AppState.shared.navigator.select(item: older)
 
     AppState.shared.popup.open(height: 0)
@@ -70,7 +70,6 @@ final class PopupTests: XCTestCase {
   /// into the shared context, with its title derived from the value.
   private func historyItem(_ value: String) -> HistoryItem {
     let item = HistoryItem()
-    Storage.shared.context.insert(item)
     item.contents = [
       HistoryItemContent(
         type: NSPasteboard.PasteboardType.string.rawValue,
