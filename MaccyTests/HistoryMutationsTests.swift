@@ -1,3 +1,5 @@
+import AppKit.NSEvent
+import Defaults
 import Foundation
 import SwiftData
 import XCTest
@@ -94,8 +96,77 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertTrue(harness.errors.isEmpty)
   }
 
-  private func makeHarness(_ decorators: [HistoryItemDecorator]) -> MutationHarness {
-    MutationHarness(decorators: decorators)
+  func testSelectWithoutModifiersUsesDefaultCopyAndPastePolicy() async {
+    let savedPasteByDefault = Defaults[.pasteByDefault]
+    let savedRemoveFormatting = Defaults[.removeFormattingByDefault]
+    defer {
+      Defaults[.pasteByDefault] = savedPasteByDefault
+      Defaults[.removeFormattingByDefault] = savedRemoveFormatting
+    }
+    Defaults[.pasteByDefault] = true
+    Defaults[.removeFormattingByDefault] = true
+    let selected = decorator(item(title: "selected"))
+    let harness = makeHarness([selected])
+    harness.searchSession.query = "needle"
+
+    harness.subject.select(selected)
+    await waitForEmptyQuery(in: harness.searchSession)
+
+    assertSingleCopy(in: harness, item: selected.item, removeFormatting: true)
+    XCTAssertEqual(harness.clipboard.pasteCalls, 1)
+    XCTAssertEqual(effectNames(harness.effects), ["closePopup"])
+    XCTAssertEqual(harness.searchSession.query, "")
+  }
+
+  func testSelectMapsModifierActionsToClipboardCommands() async {
+    let savedPasteByDefault = Defaults[.pasteByDefault]
+    let savedRemoveFormatting = Defaults[.removeFormattingByDefault]
+    defer {
+      Defaults[.pasteByDefault] = savedPasteByDefault
+      Defaults[.removeFormattingByDefault] = savedRemoveFormatting
+    }
+    Defaults[.pasteByDefault] = false
+    Defaults[.removeFormattingByDefault] = false
+    let scenarios: [(NSEvent.ModifierFlags, Bool, Int)] = [
+      (.command, false, 0),
+      (.option, false, 1),
+      ([.option, .shift], true, 1)
+    ]
+
+    for (flags, removeFormatting, pasteCalls) in scenarios {
+      let selected = decorator(item(title: "selected"))
+      let harness = makeHarness([selected], modifierFlags: flags)
+      harness.searchSession.query = "needle"
+
+      harness.subject.select(selected)
+      await waitForEmptyQuery(in: harness.searchSession)
+
+      assertSingleCopy(in: harness, item: selected.item, removeFormatting: removeFormatting)
+      XCTAssertEqual(harness.clipboard.pasteCalls, pasteCalls)
+      XCTAssertEqual(effectNames(harness.effects), ["closePopup"])
+      XCTAssertEqual(harness.searchSession.query, "")
+    }
+  }
+
+  func testSelectWithUnknownModifiersHasNoSideEffects() async {
+    let selected = decorator(item(title: "selected"))
+    let harness = makeHarness([selected], modifierFlags: .control)
+    harness.searchSession.query = "needle"
+
+    harness.subject.select(selected)
+    try? await Task.sleep(for: .milliseconds(20))
+
+    XCTAssertTrue(harness.clipboard.copies.isEmpty)
+    XCTAssertEqual(harness.clipboard.pasteCalls, 0)
+    XCTAssertTrue(harness.effects.isEmpty)
+    XCTAssertEqual(harness.searchSession.query, "needle")
+  }
+
+  private func makeHarness(
+    _ decorators: [HistoryItemDecorator],
+    modifierFlags: NSEvent.ModifierFlags = []
+  ) -> MutationHarness {
+    MutationHarness(decorators: decorators, modifierFlags: modifierFlags)
   }
 
   private func item(title: String, pin: String? = nil) -> HistoryItem {
@@ -150,6 +221,25 @@ final class HistoryMutationsTests: XCTestCase {
     }
     return harness.effects
   }
+
+  private func waitForEmptyQuery(in searchSession: HistorySearchSession) async {
+    for _ in 0..<100 {
+      if searchSession.query.isEmpty { return }
+      try? await Task.sleep(for: .milliseconds(5))
+    }
+  }
+
+  private func assertSingleCopy(
+    in harness: MutationHarness,
+    item: HistoryItem,
+    removeFormatting: Bool,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    XCTAssertEqual(harness.clipboard.copies.count, 1, file: file, line: line)
+    XCTAssertTrue(harness.clipboard.copies.first?.0 === item, file: file, line: line)
+    XCTAssertEqual(harness.clipboard.copies.first?.1, removeFormatting, file: file, line: line)
+  }
 }
 
 private enum MutationTestError: Error {
@@ -162,12 +252,16 @@ private final class MutationHarness {
   let listState: HistoryListState
   let backend: MutationSearchBackend
   let clipboard: MutationClipboardRecorder
+  let searchSession: HistorySearchSession
   let subject: HistoryMutations
   var effects: [HistoryUIEffect] = []
   var storeEvents: [StoreEvent] = []
   var errors: [(String, Error)] = []
 
-  init(decorators: [HistoryItemDecorator]) {
+  init(
+    decorators: [HistoryItemDecorator],
+    modifierFlags: NSEvent.ModifierFlags
+  ) {
     let persistence = MutationPersistence()
     let listState = HistoryListState(decorators: decorators)
     let backend = MutationSearchBackend()
@@ -181,6 +275,7 @@ private final class MutationHarness {
       backend: backend,
       debounce: nil
     )
+    self.searchSession = searchSession
     searchSession.replaceCorpus(decorators)
     subject = HistoryMutations(
       persistence: persistence,
@@ -194,7 +289,7 @@ private final class MutationHarness {
         },
         paste: { [clipboard] in clipboard.pasteCalls += 1 }
       ),
-      modifierFlags: { [] },
+      modifierFlags: { modifierFlags },
       log: { _ in }
     )
     subject.configureUIEffectSink { [weak self] in self?.effects.append($0) }
