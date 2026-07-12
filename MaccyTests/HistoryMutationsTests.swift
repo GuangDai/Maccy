@@ -1,5 +1,4 @@
 import Foundation
-import Logging
 import SwiftData
 import XCTest
 @testable import Maccy
@@ -138,7 +137,7 @@ private final class MutationHarness {
         paste: { [clipboard] in clipboard.pasteCalls += 1 }
       ),
       modifierFlags: { [] },
-      logger: Logger(label: "HistoryMutationsTests")
+      log: { _ in }
     )
     subject.configureUIEffectSink { [weak self] in self?.effects.append($0) }
     subject.configureStoreEventSink { [weak self] in self?.storeEvents.append(contentsOf: $0) }

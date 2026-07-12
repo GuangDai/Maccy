@@ -1,5 +1,4 @@
 import AppKit.NSEvent
-import Logging
 
 /// Clipboard commands supplied by the composition owner to history mutations.
 @MainActor
@@ -19,7 +18,7 @@ final class HistoryMutations {
     sorter: Sorter,
     clipboard: HistoryClipboardActions,
     modifierFlags: @escaping @MainActor () -> NSEvent.ModifierFlags,
-    logger: Logger
+    log: @escaping @MainActor (String) -> Void
   ) {}
 
   func configureUIEffectSink(_ sink: @escaping HistoryUIEffectSink) {}
