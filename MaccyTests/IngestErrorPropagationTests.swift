@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 @testable import Maccy
 
@@ -45,6 +46,10 @@ private final class FailingHistoryPersistence: HistoryPersistence {
 
   func fetchAll() throws -> [HistoryItem] {
     []
+  }
+
+  func model(for id: PersistentIdentifier) -> HistoryItem? {
+    nil
   }
 
   func countHistoryItems() throws -> Int {

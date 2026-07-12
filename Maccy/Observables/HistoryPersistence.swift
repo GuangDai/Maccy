@@ -14,6 +14,8 @@ protocol HistoryPersistence {
   @MainActor
   func fetchAll() throws -> [HistoryItem]
   @MainActor
+  func model(for id: PersistentIdentifier) -> HistoryItem?
+  @MainActor
   func countHistoryItems() throws -> Int
   @MainActor
   func countHistoryItemContents() throws -> Int
@@ -68,6 +70,11 @@ struct SwiftDataHistoryPersistence: HistoryPersistence {
   @MainActor
   func fetchAll() throws -> [HistoryItem] {
     try Storage.shared.context.fetch(FetchDescriptor<HistoryItem>())
+  }
+
+  @MainActor
+  func model(for id: PersistentIdentifier) -> HistoryItem? {
+    Storage.shared.context.model(for: id) as? HistoryItem
   }
 
   @MainActor

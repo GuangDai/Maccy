@@ -73,6 +73,7 @@ class History: ItemsContainer {
 
   private let sorter = Sorter()
   @ObservationIgnored private let searchSession: HistorySearchSession
+  @ObservationIgnored private let storeProjector: HistoryStoreProjector
   var searchGeneration: Int { searchSession.generation }
   private var historySizeLimit: Int { max(1, Defaults[.size]) }
 
@@ -103,7 +104,13 @@ class History: ItemsContainer {
   ) {
     self.persistence = persistence
     self.listState = listState
-    self.searchSession = HistorySearchSession(listState: listState)
+    let searchSession = HistorySearchSession(listState: listState)
+    self.searchSession = searchSession
+    self.storeProjector = HistoryStoreProjector(
+      persistence: persistence,
+      listState: listState,
+      searchSession: searchSession
+    )
     self.logsPersistenceErrors = logsPersistenceErrors
 
     listState.configureWillMutate { [weak searchSession = self.searchSession] in
@@ -113,6 +120,15 @@ class History: ItemsContainer {
       self?.emit(effect)
     }
     searchSession.configureDidPublishVisible { [weak self] in
+      self?.updateUnpinnedShortcuts()
+    }
+    storeProjector.configureUIEffectSink { [weak self] effect in
+      self?.emit(effect)
+    }
+    storeProjector.configureErrorSink { [weak self] message, error in
+      self?.recordPersistenceError(message, error)
+    }
+    storeProjector.configureDidPublishVisible { [weak self] in
       self?.updateUnpinnedShortcuts()
     }
 
@@ -204,19 +220,11 @@ class History: ItemsContainer {
       throw ForcedLoadFailure.forced
     }
     #endif
-    let descriptor = FetchDescriptor<HistoryItem>()
-    let results = try Storage.shared.context.fetch(descriptor)
-    let decorators = autoreleasepool {
-      sorter.sort(results).map { HistoryItemDecorator($0) }
-    }
-    listState.replaceAll(decorators)
+    try storeProjector.load()
 
     limitHistorySize(to: historySizeLimit)
 
     updateShortcuts()
-    // Seed the search actor's corpus once, after the size trim, so the first
-    // keystroke searches a corpus that already matches `all`.
-    searchSession.replaceCorpus(all)
     // Ensure that panel size is proper *after* loading all items.
     Task {
       emit(.resizePopup)
@@ -256,145 +264,7 @@ class History: ItemsContainer {
   /// any `nil`-persistentID snapshot or `model(for:)` miss, fall back to the
   /// full `reconcileWithStore`. The final `all` order matches the old full sort.
   func consume(_ event: StoreEvent, trimmedPersistentIDs: [PersistentIdentifier] = []) {
-    switch event {
-    case .added(let snapshot), .merged(let snapshot):
-      insertIncrementally(snapshot, trimmedPersistentIDs: trimmedPersistentIDs)
-    case .removed, .cleared:
-      // The ingest actor only emits .added/.merged today; handle the others
-      // defensively by full reconcile, so a future emitter stays correct.
-      reconcileWithStore()
-    }
-  }
-
-  /// Incremental path for `.added`/`.merged`: fetch the one committed @Model on
-  /// main, remove any existing decorator for it (`.merged` re-insert + duplicate
-  /// safety), binary-insert it at the sorted position, then drop the decorators
-  /// the ingestor deleted this ingest (the duplicate plus size-trim evictions)
-  /// via the actor-supplied `trimmedPersistentIDs` in O(deleted) — instead of
-  /// re-fetching every row identifier on each copy (D4 / `NEW-history-spine-2`).
-  /// An empty set (the actor deleted nothing this copy — the common plain-copy
-  /// case) is a no-op. Falls back to `reconcileWithStore` on any guard failure
-  /// (nil persistentID, `model(for:)` miss, title mismatch) so correctness never
-  /// depends on the fast path.
-  private func insertIncrementally(_ snapshot: ItemSnapshotDTO, trimmedPersistentIDs: [PersistentIdentifier]) {
-    guard let persistentID = snapshot.persistentID else {
-      reconcileWithStore()
-      return
-    }
-    // A `.merged` re-insert replaces the prior decorator (a fresh id) for the
-    // same persistentID; capture its id so the search-actor corpus drops it.
-    var supersededSearchID: UUID?
-    if let existing = all.firstIndex(where: { $0.item.persistentModelID == persistentID }) {
-      let existingDecorator = all[existing]
-      supersededSearchID = existingDecorator.id
-      cleanup(existingDecorator)
-      listState.remove(existingDecorator)
-    }
-    // `model(for:)` returns the faulted model for a committed id; the title check
-    // guards against an un-faulted shell (it returns an unsaved shell for ids it
-    // doesn't know). Fall back to the full reconcile if either fails.
-    guard let model = Storage.shared.context.model(for: persistentID) as? HistoryItem,
-          model.title == snapshot.title else {
-      reconcileWithStore()
-      return
-    }
-    let decorator = HistoryItemDecorator(model)
-    let position = BinaryInsertion.index(
-      for: decorator,
-      in: all,
-      by: { sorter.areInIncreasingOrder($0.item, $1.item) }
-    )
-    listState.insert(decorator, at: position)
-    let superseded = supersededSearchID
-    let session = searchSession
-    // Drop the superseded id (if any) then register the new entry at the same
-    // index its decorator occupies in `all`. The session updates its lookup
-    // synchronously and serializes actor updates ahead of the next search.
-    if let superseded {
-      session.removeCorpus([superseded])
-    }
-    session.insertCorpus(decorator, at: position)
-    // D4: drop exactly the decorators the ingest actor deleted this ingest (the
-    // duplicate plus size-trim evictions), in O(deleted). An empty set means the
-    // actor deleted nothing this copy, so there is nothing to reconcile — a
-    // no-op, which is the win on the common plain-copy path (the old code
-    // re-fetched every row identifier here on every copy). For a `.merged`
-    // ingest this also removes the dup's orphan decorator, which the
-    // persistentID check above cannot (the merged survivor has a fresh id; the
-    // dup's is only in `trimmedPersistentIDs`). Guard failures above already
-    // fell through to `reconcileWithStore`.
-    if !trimmedPersistentIDs.isEmpty {
-      removeDecorators(forPersistentIDs: Set(trimmedPersistentIDs))
-    }
-    refreshVisibleItems()
-    if searchQuery.isEmpty {
-      emit(.select(unpinnedItems.first ?? pinnedItems.first))
-    }
-    emit(.resizePopup)
-  }
-
-  /// Drops `all` decorators whose backing item the ingest actor deleted this
-  /// ingest — the O(deleted) replacement for `syncAllToStore`'s full id-set
-  /// fetch + scan (D4 / `NEW-history-spine-2`). Same removal + corpus-drop +
-  /// cleanup as `syncAllToStore`, but matches a known set instead of re-fetching
-  /// the store, so per-copy cost is O(deleted) (usually 0–1) not O(rows).
-  private func removeDecorators(forPersistentIDs ids: Set<PersistentIdentifier>) {
-    let removed = listState.removeStoredIDs(ids)
-    for decorator in removed {
-      cleanup(decorator)
-    }
-    let removedSearchIDs = removed.map(\.id)
-    if !removedSearchIDs.isEmpty {
-      searchSession.removeCorpus(removedSearchIDs)
-    }
-  }
-
-  /// Rebuilds `all` from a fresh main-context fetch, reusing decorators whose
-  /// `persistentModelID` is still present (so decoded images survive) and
-  /// decorating only items that are new or changed.
-  private func reconcileWithStore() {
-    let visibleBeforeReconcile = items
-    let sorted: [HistoryItem]
-    do {
-      sorted = sorter.sort(try Storage.shared.context.fetch(FetchDescriptor<HistoryItem>()))
-    } catch {
-      recordPersistenceError("Failed to fetch history items for consume", error)
-      return
-    }
-
-    let existingByID = Dictionary(
-      all.map { ($0.item.persistentModelID, $0) },
-      uniquingKeysWith: { first, _ in first }
-    )
-    var rebuilt: [HistoryItemDecorator] = []
-    for item in sorted {
-      if let decorator = existingByID[item.persistentModelID] {
-        rebuilt.append(decorator)
-      } else {
-        rebuilt.append(HistoryItemDecorator(item))
-      }
-    }
-    // Invalidate decorators whose backing items were removed/merged away so
-    // their decoded images release.
-    let rebuiltIDs = Set(rebuilt.map { $0.item.persistentModelID })
-    for decorator in all where !rebuiltIDs.contains(decorator.item.persistentModelID) {
-      cleanup(decorator)
-    }
-    listState.replaceAll(rebuilt)
-    if !searchQuery.isEmpty {
-      let rebuiltDecoratorIDs = Set(rebuilt.map(\.id))
-      listState.publishVisible(
-        visibleBeforeReconcile.filter { rebuiltDecoratorIDs.contains($0.id) }
-      )
-    }
-    // Full reconcile rebuilt `all` from the store; rebuild the search-actor
-    // corpus to match.
-    searchSession.replaceCorpus(all)
-    refreshVisibleItems()
-    if searchQuery.isEmpty {
-      emit(.select(unpinnedItems.first ?? pinnedItems.first))
-    }
-    emit(.resizePopup)
+    storeProjector.consume(event, trimmedPersistentIDs: trimmedPersistentIDs)
   }
 
   /// Runs `block` under DEBUG-only before/after row-count logging. The count
@@ -611,7 +481,7 @@ class History: ItemsContainer {
   /// — instead of a full `load()`, so decoded/cached images survive the reload
   /// rather than being discarded and re-decoded (NEW-history-spine-1).
   private func loadAfterDefaultsChange() async {
-    reconcileWithStore()
+    storeProjector.reconcile()
   }
 
   /// Stores `error` on `lastPersistError` and logs it when enabled.
