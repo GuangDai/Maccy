@@ -1,4 +1,5 @@
 import AppKit.NSEvent
+import Defaults
 import Foundation
 
 /// Clipboard commands supplied by the composition owner to history mutations.
@@ -122,7 +123,37 @@ final class HistoryMutations {
     Task { uiEffectSink(.resizePopup) }
   }
 
-  func select(_ item: HistoryItemDecorator?) {}
+  func select(_ item: HistoryItemDecorator?) {
+    guard let item else { return }
+    searchSession.invalidate()
+
+    let flags = modifierFlags()
+    if flags.isEmpty {
+      uiEffectSink(.closePopup)
+      clipboard.copy(item.item, Defaults[.removeFormattingByDefault])
+      if Defaults[.pasteByDefault] {
+        clipboard.paste()
+      }
+    } else {
+      switch HistoryItemAction(flags) {
+      case .copy:
+        uiEffectSink(.closePopup)
+        clipboard.copy(item.item, false)
+      case .paste:
+        uiEffectSink(.closePopup)
+        clipboard.copy(item.item, false)
+        clipboard.paste()
+      case .pasteWithoutFormatting:
+        uiEffectSink(.closePopup)
+        clipboard.copy(item.item, true)
+        clipboard.paste()
+      case .unknown:
+        return
+      }
+    }
+
+    Task { searchSession.query = "" }
+  }
 
   func togglePin(_ item: HistoryItemDecorator?) {}
 

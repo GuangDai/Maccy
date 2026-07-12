@@ -314,51 +314,10 @@ class History: ItemsContainer {
     Task { await ingestor.synchronizeStoreEvents(events) }
   }
 
-  /// The current event's relevant modifier flags (device-independent, caps/num/fn stripped).
-  /// Relocated from the removed `History+PasteStack.swift` (its only live caller is `select`).
-  private func currentModifierFlags() -> NSEvent.ModifierFlags {
-    return NSApp.currentEvent?.modifierFlags
-      .intersection(.deviceIndependentFlagsMask)
-      .subtracting([.capsLock, .numericPad, .function]) ?? []
-  }
-
   /// Copies (and optionally pastes) the item, choosing the copy/paste variant
   /// from the held modifier flags, then clears the search query.
   func select(_ item: HistoryItemDecorator?) {
-    guard let item else {
-      return
-    }
-    searchSession.invalidate()
-
-    let modifierFlags = currentModifierFlags()
-
-    if modifierFlags.isEmpty {
-      emit(.closePopup)
-      Clipboard.shared.copy(item.item, removeFormatting: Defaults[.removeFormattingByDefault])
-      if Defaults[.pasteByDefault] {
-        Clipboard.shared.paste()
-      }
-    } else {
-      switch HistoryItemAction(modifierFlags) {
-      case .copy:
-        emit(.closePopup)
-        Clipboard.shared.copy(item.item)
-      case .paste:
-        emit(.closePopup)
-        Clipboard.shared.copy(item.item)
-        Clipboard.shared.paste()
-      case .pasteWithoutFormatting:
-        emit(.closePopup)
-        Clipboard.shared.copy(item.item, removeFormatting: true)
-        Clipboard.shared.paste()
-      case .unknown:
-        return
-      }
-    }
-
-    Task {
-      searchQuery = ""
-    }
+    mutations.select(item)
   }
 
   /// Toggles an item's pin, persists it, re-sorts `all`, and clears the query.
