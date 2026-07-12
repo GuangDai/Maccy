@@ -18,6 +18,7 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertTrue(harness.effects.isEmpty)
     XCTAssertEqual(harness.storeEvents, [])
     XCTAssertEqual(harness.errors.count, 1)
+    XCTAssertEqual(harness.errors.first?.0, "Failed to clear history")
   }
 
   func testClearKeepsPinsAndPublishesExactRemoval() async {
