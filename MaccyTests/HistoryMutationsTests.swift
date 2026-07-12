@@ -56,6 +56,42 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertEqual(effectNames(effects), ["closePopup", "resizePopup"])
   }
 
+  func testDeleteFailurePreservesProjectionAndEmitsNoEffects() async {
+    let target = decorator(item(title: "target"))
+    let harness = makeHarness([target])
+    harness.persistence.deleteError = MutationTestError.expected
+
+    harness.subject.delete(target)
+    try? await Task.sleep(for: .milliseconds(20))
+    let removedCorpusIDs = await harness.backend.removedIDs
+
+    XCTAssertEqual(harness.persistence.deletedItems, [target.item])
+    XCTAssertEqual(harness.listState.all, [target])
+    XCTAssertEqual(removedCorpusIDs, [])
+    XCTAssertEqual(harness.storeEvents, [])
+    XCTAssertTrue(harness.effects.isEmpty)
+    XCTAssertEqual(harness.errors.first?.0, "Failed to delete history item")
+  }
+
+  func testDeleteRemovesProjectionCorpusAndIndexAfterCommit() async {
+    let survivor = decorator(item(title: "survivor"))
+    let target = decorator(item(title: "target"))
+    let removedStoreID = storedItemID(for: target.item)
+    let harness = makeHarness([survivor, target])
+
+    harness.subject.delete(target)
+    let removedCorpusIDs = await waitForRemovedCorpus(in: harness.backend)
+    let effects = await waitForEffects(in: harness, count: 1)
+
+    XCTAssertEqual(harness.persistence.deletedItems, [target.item])
+    XCTAssertEqual(harness.listState.all, [survivor])
+    XCTAssertEqual(removedCorpusIDs, [target.id])
+    XCTAssertEqual(harness.storeEvents, [.removed(removedStoreID)])
+    XCTAssertEqual(harness.clipboard.clearCalls, 0)
+    XCTAssertEqual(effectNames(effects), ["resizePopup"])
+    XCTAssertTrue(harness.errors.isEmpty)
+  }
+
   private func makeHarness(_ decorators: [HistoryItemDecorator]) -> MutationHarness {
     MutationHarness(decorators: decorators)
   }
@@ -174,11 +210,16 @@ private final class MutationClipboardRecorder {
 
 @MainActor
 private final class MutationPersistence: HistoryPersistence {
+  var deleteError: Error?
   var deleteUnpinnedError: Error?
+  private(set) var deletedItems: [HistoryItem] = []
   private(set) var deleteUnpinnedCalls = 0
   private(set) var deleteAllCalls = 0
 
-  func delete(_ item: HistoryItem) throws {}
+  func delete(_ item: HistoryItem) throws {
+    deletedItems.append(item)
+    if let deleteError { throw deleteError }
+  }
   func delete(_ items: [HistoryItem]) throws {}
 
   func deleteUnpinned() throws {
