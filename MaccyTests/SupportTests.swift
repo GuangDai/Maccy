@@ -39,6 +39,7 @@ class SupportTests: XCTestCase {
   /// projection the live background ingestor emits.
   func testHistoryTestDriverSeedsThroughCommittedConsumePath() throws {
     History.shared.clearAll()
+    let countBefore = try Storage.shared.context.fetchCount(FetchDescriptor<HistoryItem>())
     let item = HistoryBuilder()
       .withContent(type: "public.utf8-plain-text", value: Data("seed".utf8))
       .build()
@@ -47,7 +48,10 @@ class SupportTests: XCTestCase {
 
     XCTAssertTrue(History.shared.all.contains { $0 === decorator })
     XCTAssertEqual(decorator.item.persistentModelID, item.persistentModelID)
-    XCTAssertEqual(try Storage.shared.context.fetchCount(FetchDescriptor<HistoryItem>()), 1)
+    XCTAssertEqual(
+      try Storage.shared.context.fetchCount(FetchDescriptor<HistoryItem>()),
+      countBefore + 1
+    )
   }
 
   /// `FakeClock.advance` moves the `nowProvider` forward by the given interval.
