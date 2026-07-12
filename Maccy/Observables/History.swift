@@ -1,5 +1,4 @@
 import AppKit
-import AsyncAlgorithms
 import Defaults
 import Foundation
 import Logging
@@ -32,13 +31,10 @@ class History: ItemsContainer {
   /// Unpinned decorators only.
   var unpinnedItems: [HistoryItemDecorator] { items.filter(\.isUnpinned) }
 
-  /// The current search text; each change yields into the debounced search
-  /// consumer (see ``startSearchConsumer``) rather than running
-  /// `performSearch` directly.
-  var searchQuery: String = "" {
-    didSet {
-      searchQueryContinuation.yield(searchQuery)
-    }
+  /// Stable facade for the extracted search session's observable query.
+  var searchQuery: String {
+    get { searchSession.query }
+    set { searchSession.query = newValue }
   }
 
   /// Re-runs the active search immediately after the configured search mode
@@ -48,13 +44,13 @@ class History: ItemsContainer {
   /// the debounced search consumer.
   func refreshForModeChange() {
     guard !searchQuery.isEmpty else { return }
-    performSearch()
+    searchSession.refresh(mode: Defaults[.searchMode])
   }
 
   /// Awaits the in-flight search task, if any, so a search-then-assert
   /// sequence is deterministic. No-op when no search is running.
   func waitForInFlightSearch() async {
-    await searchTask?.value
+    await searchSession.wait()
   }
 
   /// The decorator whose keyboard shortcut matches the current event, if any.
@@ -75,25 +71,9 @@ class History: ItemsContainer {
     return items.first { $0.shortcuts.contains(where: { $0.key == key }) }
   }
 
-  private let search = Search()
   private let sorter = Sorter()
-  /// Search-query change stream fed by `searchQuery.didSet`; the consumer in
-  /// ``startSearchConsumer`` debounces it via `swift-async-algorithms`.
-  @ObservationIgnored private let searchQueryStream: AsyncStream<String>
-  @ObservationIgnored private let searchQueryContinuation: AsyncStream<String>.Continuation
-  @ObservationIgnored private var searchConsumer: Task<Void, Never>?
-  /// The single staleness oracle for off-main search. Every synchronous
-  /// mutation of `items` (a newer keystroke's kickoff, an ingest re-filter,
-  /// clear/clearAll/delete, the empty short-circuit) bumps it, so a late
-  /// off-main apply whose captured generation no longer matches is discarded.
-  /// All access is `@MainActor` (`History` is `@MainActor`) — plain `Int`, no
-  /// lock, no `@unchecked`.
-  @ObservationIgnored private(set) var searchGeneration = 0
-  @ObservationIgnored private var searchTask: Task<Void, Never>?
-  /// Owns the four-mode match off-main. A `let` actor (Sendable); only its
-  /// `search(...)` method is awaited — the `@Model` never crosses to it, only
-  /// Sendable DTOs.
-  private let searchActor = SearchActor()
+  @ObservationIgnored private let searchSession: HistorySearchSession
+  var searchGeneration: Int { searchSession.generation }
   private var historySizeLimit: Int { max(1, Defaults[.size]) }
 
   /// All history decorators, including those hidden by the current search.
@@ -123,16 +103,18 @@ class History: ItemsContainer {
   ) {
     self.persistence = persistence
     self.listState = listState
+    self.searchSession = HistorySearchSession(listState: listState)
     self.logsPersistenceErrors = logsPersistenceErrors
 
-    var searchContinuation: AsyncStream<String>.Continuation!
-    let stream = AsyncStream<String> { searchContinuation = $0 }
-    self.searchQueryStream = stream
-    self.searchQueryContinuation = searchContinuation
-    listState.configureWillMutate { [weak self] in
-      self?.invalidateInFlightSearch()
+    listState.configureWillMutate { [weak searchSession = self.searchSession] in
+      searchSession?.invalidate()
     }
-    startSearchConsumer()
+    searchSession.configureUIEffectSink { [weak self] effect in
+      self?.emit(effect)
+    }
+    searchSession.configureDidPublishVisible { [weak self] in
+      self?.updateUnpinnedShortcuts()
+    }
 
     Task { @MainActor in
       for await _ in Defaults.updates(.pasteByDefault, initial: false) {
@@ -180,8 +162,7 @@ class History: ItemsContainer {
       for await _ in Defaults.updates(.searchBodyLimit, initial: false) {
         // The body-scan cap changed; existing corpus entries still hold bodies
         // capped to the old window, so rebuild and re-run the active search.
-        let entries = all.map { corpusEntry(for: $0) }
-        await searchActor.replaceCorpus(entries)
+        searchSession.replaceCorpus(all)
         refreshVisibleItems()
       }
     }
@@ -235,7 +216,7 @@ class History: ItemsContainer {
     updateShortcuts()
     // Seed the search actor's corpus once, after the size trim, so the first
     // keystroke searches a corpus that already matches `all`.
-    await searchActor.replaceCorpus(all.map { corpusEntry(for: $0) })
+    searchSession.replaceCorpus(all)
     // Ensure that panel size is proper *after* loading all items.
     Task {
       emit(.resizePopup)
@@ -324,19 +305,15 @@ class History: ItemsContainer {
       by: { sorter.areInIncreasingOrder($0.item, $1.item) }
     )
     listState.insert(decorator, at: position)
-    let entry = corpusEntry(for: decorator)
     let superseded = supersededSearchID
-    let actor = searchActor
+    let session = searchSession
     // Drop the superseded id (if any) then register the new entry at the same
-    // index its decorator occupies in `all`. Fire-and-forget: a search that
-    // races the update simply searches a corpus one item stale, and the apply
-    // side's `all`-membership filter keeps the result correct.
-    Task {
-      if let superseded {
-        await actor.remove([superseded])
-      }
-      await actor.insert(entry, at: position)
+    // index its decorator occupies in `all`. The session updates its lookup
+    // synchronously and serializes actor updates ahead of the next search.
+    if let superseded {
+      session.removeCorpus([superseded])
     }
+    session.insertCorpus(decorator, at: position)
     // D4: drop exactly the decorators the ingest actor deleted this ingest (the
     // duplicate plus size-trim evictions), in O(deleted). An empty set means the
     // actor deleted nothing this copy, so there is nothing to reconcile — a
@@ -368,8 +345,7 @@ class History: ItemsContainer {
     }
     let removedSearchIDs = removed.map(\.id)
     if !removedSearchIDs.isEmpty {
-      let actor = searchActor
-      Task { await actor.remove(removedSearchIDs) }
+      searchSession.removeCorpus(removedSearchIDs)
     }
   }
 
@@ -413,9 +389,7 @@ class History: ItemsContainer {
     }
     // Full reconcile rebuilt `all` from the store; rebuild the search-actor
     // corpus to match.
-    let actor = searchActor
-    let entries = all.map { corpusEntry(for: $0) }
-    Task { await actor.replaceCorpus(entries) }
+    searchSession.replaceCorpus(all)
     refreshVisibleItems()
     if searchQuery.isEmpty {
       emit(.select(unpinnedItems.first ?? pinnedItems.first))
@@ -467,8 +441,7 @@ class History: ItemsContainer {
       }
       listState.removeStoredIDs(removedPersistentIDs)
       listState.publishVisible(all)
-      let actor = searchActor
-      Task { await actor.remove(removedIDs) }
+      searchSession.removeCorpus(removedIDs)
       synchronizeIngestor(with: removedStoreIDs.map(StoreEvent.removed))
     } catch {
       recordPersistenceError("Failed to clear history", error)
@@ -496,8 +469,7 @@ class History: ItemsContainer {
         }
       }
       listState.replaceAll([])
-      let actor = searchActor
-      Task { await actor.clearCorpus() }
+      searchSession.clearCorpus()
       synchronizeIngestor(with: [.cleared])
     } catch {
       recordPersistenceError("Failed to clear all history", error)
@@ -529,8 +501,7 @@ class History: ItemsContainer {
     cleanup(item)
     let removedID = item.id
     listState.remove(item)
-    let actor = searchActor
-    Task { await actor.remove([removedID]) }
+    searchSession.removeCorpus([removedID])
     synchronizeIngestor(with: [.removed(removedStoreID)])
     updateUnpinnedShortcuts()
     Task {
@@ -565,7 +536,7 @@ class History: ItemsContainer {
     guard let item else {
       return
     }
-    invalidateInFlightSearch()
+    searchSession.invalidate()
 
     let modifierFlags = currentModifierFlags()
 
@@ -621,13 +592,10 @@ class History: ItemsContainer {
       listState.replaceAll(reordered)
       // The pin change moved the item in `all`; mirror the move in the
       // search-actor corpus so subsequent exact/regexp results keep its place.
-      let entry = corpusEntry(for: item)
       let movedID = item.id
-      let actor = searchActor
-      Task {
-        await actor.remove([movedID])
-        await actor.insert(entry, at: newIndex)
-      }
+      let session = searchSession
+      session.removeCorpus([movedID])
+      session.insertCorpus(item, at: newIndex)
     }
 
     searchQuery = ""
@@ -654,164 +622,16 @@ class History: ItemsContainer {
     }
   }
 
-  /// Rebuilds `items` from search results, applying highlights and refreshing shortcuts.
-  private func updateItems(_ newItems: [Search.SearchResult]) {
-    let visible = newItems.map { result in
-      let item = result.object
-      item.highlight(searchQuery, result.ranges)
-
-      return item
-    }
-    listState.publishVisible(visible)
-
-    updateUnpinnedShortcuts()
-  }
-
   /// Refreshes `items` after a mutation (add/pin/reconcile): `all` when the
-  /// query is empty, otherwise re-runs the search through ``performSearch`` so
-  /// the result reflects the actor's owned corpus — including full-text body
-  /// matches — rather than a synchronous title-only filter. The non-empty path
-  /// is async: `performSearch` spawns a generation-guarded task, so `items`
-  /// updates when the actor returns, not within this call.
+  /// query is empty, otherwise asks the extracted session to re-run its actor
+  /// search immediately against the owned corpus.
   private func refreshVisibleItems() {
     if searchQuery.isEmpty {
       listState.publishVisible(all)
       updateUnpinnedShortcuts()
     } else {
-      performSearch()
+      searchSession.refresh(mode: Defaults[.searchMode])
     }
-  }
-
-  // MARK: - Off-main search
-
-  /// Starts the long-lived consumer that drains `searchQueryStream` through
-  /// `removeDuplicates().debounce(for:)` and runs `performSearch` for each
-  /// quiescent value. Started once in `init`; not restarted on
-  /// `clear`/`clearAll`/`delete` — restarting would race two iterators on the
-  /// single-consumer stream, so those mutations instead rely on the
-  /// `searchGeneration` guard to discard a stale in-flight result, and any
-  /// pending debounced search re-filters the post-mutation `items` consistently
-  /// under the still-active query.
-  private func startSearchConsumer() {
-    searchConsumer = Task { @MainActor in
-      for await _ in searchQueryStream.removeDuplicates().debounce(for: .milliseconds(200)) {
-        performSearch()
-      }
-    }
-  }
-
-  /// Debounced-search entry point (invoked by the consumer above, or directly
-  /// by ``refreshForModeChange``). Two paths:
-  ///  - empty query: short-circuit SYNCHRONOUSLY on main (reuses the unchanged
-  ///    legacy `search.search("", within: all)` → all items, highlights cleared).
-  ///    No actor hop, so clearing the query never flickers.
-  ///  - non-empty: bump generation, cancel any in-flight task, snapshot the
-  ///    corpus as Sendable DTOs (id+title — never the @Model), and run the
-  ///    4-mode match off-main on `searchActor`. The Task inherits @MainActor
-  ///    from this method, so after the actor hop it resumes on main and applies
-  ///    generation-guarded.
-  private func performSearch() {
-    if searchQuery.isEmpty {
-      invalidateInFlightSearch()
-      // Byte-identical to the legacy didSet empty path: search.search("") returns
-      // all items with empty ranges; updateItems clears each highlight.
-      updateItems(search.search(string: "", within: all))
-      emit(.select(unpinnedItems.first))
-      emit(.resizePopup)
-      return
-    }
-
-    searchGeneration &+= 1
-    let myGeneration = searchGeneration
-    searchTask?.cancel()
-
-    let query = searchQuery
-    let mode = Defaults[.searchMode]
-    let actor = searchActor
-
-    searchTask = Task { [weak self] in
-      // No corpus is shipped per keystroke: the actor owns it (maintained on
-      // add/remove/clear), so only the query and mode cross here.
-      let matches = await actor.search(query: query, mode: mode)
-      // Task inherits @MainActor; after the actor hop we resume on main.
-      guard !Task.isCancelled, let self else { return }
-      self.applySearchResults(matches, for: query, generation: myGeneration)
-    }
-  }
-
-  /// Projects one decorator into the `Sendable` corpus entry the search actor
-  /// owns: the id, the title snapshot, and the body (the item's search text,
-  /// capped at the scan window). Read on the main actor; only the value type
-  /// crosses to the actor.
-  private func corpusEntry(for decorator: HistoryItemDecorator) -> SearchCorpusItem {
-    let cap = TextLimits.clampedSearchBody(Defaults[.searchBodyLimit])
-    let body = decorator.item.searchText.map { String($0.prefix(cap)) } ?? ""
-    return SearchCorpusItem(id: decorator.id, title: decorator.title, body: body)
-  }
-
-  /// Applies an off-main search result on main. Discarded if a newer keystroke,
-  /// an ingest, or a destructive op bumped `searchGeneration` past `generation`.
-  /// Resolves DTO ids back to decorators (skipping ids no longer in `all`, e.g.
-  /// deleted mid-search), highlights only where the title still equals the
-  /// snapshot (equality guard — else `Int` offsets could be out of bounds),
-  /// rebuilds `items`, and runs the same side effects as the legacy didSet.
-  private func applySearchResults(_ matches: [SearchMatchDTO], for query: String, generation: Int) {
-    guard searchGeneration == generation else { return }
-
-    var rebuilt: [HistoryItemDecorator] = []
-    for dto in matches {
-      guard let decorator = all.first(where: { $0.id == dto.id }) else { continue }
-      if dto.inBody {
-        // Body match: the offsets index into the body, not the title, so they
-        // must not be resolved against the title. Keep the item in the results
-        // (the match is real) but leave the title unhighlighted; the preview
-        // pane highlights the window-visible body ranges.
-        decorator.highlight("", [])
-        decorator.setPreviewHighlight(query, dto.ranges)
-      } else if decorator.title == dto.title {
-        let ranges = dto.ranges.map { indexRange($0, in: decorator.title) }
-        decorator.highlight(query, ranges)
-        decorator.setPreviewHighlight("", [])
-      } else {
-        // Title changed since the corpus snapshot — offsets may be stale, so
-        // skip highlighting (clear it) but still keep the match in `items`.
-        decorator.highlight("", [])
-        decorator.setPreviewHighlight("", [])
-      }
-      rebuilt.append(decorator)
-    }
-    listState.publishVisible(rebuilt)
-    updateUnpinnedShortcuts()
-
-    if query.isEmpty {
-      emit(.select(unpinnedItems.first))
-    } else {
-      emit(.highlightFirst)
-    }
-    emit(.resizePopup)
-  }
-
-  /// Converts a DTO range (Character/grapheme offsets, exclusive upper bound)
-  /// back to `Range<String.Index>` via `index(offsetBy:)` — grapheme-correct,
-  /// the exact inverse of how the actor produced the offsets. Only called under
-  /// the equality guard (title == dto.title), so offsets are in-bounds; the
-  /// clamp is defensive crash insurance only.
-  private func indexRange(_ dtoRange: Range<Int>, in title: String) -> Range<String.Index> {
-    let count = title.count
-    let lower = max(0, min(dtoRange.lowerBound, count))
-    let upper = max(lower, min(dtoRange.upperBound, count))
-    let start = title.startIndex
-    return title.index(start, offsetBy: lower)..<title.index(start, offsetBy: upper)
-  }
-
-  /// Bumps `searchGeneration` and cancels + nils the in-flight search Task.
-  /// Structural list changes reach this through `HistoryListState.willMutate`;
-  /// query-only changes call it directly. Either way, a stale off-main apply is
-  /// discarded by the generation guard in `applySearchResults`.
-  private func invalidateInFlightSearch() {
-    searchGeneration &+= 1
-    searchTask?.cancel()
-    searchTask = nil
   }
 
   /// Rebuilds pin shortcuts and then unpinned ones.

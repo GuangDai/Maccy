@@ -31,7 +31,7 @@ final class HistorySearchSessionTests: XCTestCase {
     let state = HistoryListState(decorators: [old, new])
     let backend = ControlledSearchBackend()
     let session = makeSession(state: state, backend: backend)
-    await session.replaceCorpus([old, new])
+    session.replaceCorpus([old, new])
 
     session.query = "old"
     session.refresh(mode: .exact)
@@ -59,7 +59,7 @@ final class HistorySearchSessionTests: XCTestCase {
       SearchMatchDTO(id: missingID, title: "missing", score: nil, ranges: [])
     ])
     let session = makeSession(state: state, backend: backend)
-    await session.replaceCorpus([known])
+    session.replaceCorpus([known])
 
     session.query = "known"
     session.refresh(mode: .exact)
@@ -74,11 +74,11 @@ final class HistorySearchSessionTests: XCTestCase {
     let third = decorator(title: "item-c", body: "c")
     let state = HistoryListState(decorators: [first, third])
     let session = makeSession(state: state, backend: SearchActor())
-    await session.replaceCorpus([first, third])
+    session.replaceCorpus([first, third])
     state.insert(second, at: 1)
-    await session.insertCorpus(second, at: 1)
+    session.insertCorpus(second, at: 1)
     state.remove(third)
-    await session.removeCorpus([third.id])
+    session.removeCorpus([third.id])
 
     session.query = "item"
     session.refresh(mode: .exact)
@@ -91,7 +91,7 @@ final class HistorySearchSessionTests: XCTestCase {
     let item = decorator(title: "display", body: "prefix needle suffix")
     let state = HistoryListState(decorators: [item])
     let session = makeSession(state: state, backend: SearchActor())
-    await session.replaceCorpus([item])
+    session.replaceCorpus([item])
 
     session.query = "needle"
     session.refresh(mode: .exact)
@@ -106,7 +106,7 @@ final class HistorySearchSessionTests: XCTestCase {
     let item = decorator(title: "abc", body: "abc")
     let state = HistoryListState(decorators: [item])
     let session = makeSession(state: state, backend: SearchActor())
-    await session.replaceCorpus([item])
+    session.replaceCorpus([item])
     session.query = "a.c"
 
     session.refresh(mode: .exact)
