@@ -16,7 +16,15 @@ class History: ItemsContainer {
   static let shared = History()
   let logger = Logger(label: "org.p0deje.Maccy")
 
-  var items: [HistoryItemDecorator] = []
+  @ObservationIgnored private let listState: HistoryListState
+  #if DEBUG
+  var items: [HistoryItemDecorator] {
+    get { listState.items }
+    set { listState.publishVisible(newValue) }
+  }
+  #else
+  var items: [HistoryItemDecorator] { listState.items }
+  #endif
   var lastPersistError: Error?
 
   /// Pinned decorators only.
@@ -90,8 +98,14 @@ class History: ItemsContainer {
 
   /// All history decorators, including those hidden by the current search.
   /// `items` holds only the visible (filtered) subset.
-  @ObservationIgnored
-  var all: [HistoryItemDecorator] = []
+  #if DEBUG
+  var all: [HistoryItemDecorator] {
+    get { listState.all }
+    set { listState.replaceAll(newValue) }
+  }
+  #else
+  var all: [HistoryItemDecorator] { listState.all }
+  #endif
 
   @ObservationIgnored
   private let persistence: HistoryPersistence
@@ -104,15 +118,20 @@ class History: ItemsContainer {
   /// and starts listeners that react to relevant Defaults changes.
   init(
     persistence: HistoryPersistence = SwiftDataHistoryPersistence(),
+    listState: HistoryListState = HistoryListState(),
     logsPersistenceErrors: Bool = true
   ) {
     self.persistence = persistence
+    self.listState = listState
     self.logsPersistenceErrors = logsPersistenceErrors
 
     var searchContinuation: AsyncStream<String>.Continuation!
     let stream = AsyncStream<String> { searchContinuation = $0 }
     self.searchQueryStream = stream
     self.searchQueryContinuation = searchContinuation
+    listState.configureWillMutate { [weak self] in
+      self?.invalidateInFlightSearch()
+    }
     startSearchConsumer()
 
     Task { @MainActor in
@@ -206,11 +225,10 @@ class History: ItemsContainer {
     #endif
     let descriptor = FetchDescriptor<HistoryItem>()
     let results = try Storage.shared.context.fetch(descriptor)
-    // Replacing `all` with fresh decorators invalidates any in-flight search's
-    // held ids; bump the generation so a stale apply can't render empty results.
-    invalidateInFlightSearch()
-    all = autoreleasepool { sorter.sort(results).map { HistoryItemDecorator($0) } }
-    items = all
+    let decorators = autoreleasepool {
+      sorter.sort(results).map { HistoryItemDecorator($0) }
+    }
+    listState.replaceAll(decorators)
 
     limitHistorySize(to: historySizeLimit)
 
@@ -286,9 +304,10 @@ class History: ItemsContainer {
     // same persistentID; capture its id so the search-actor corpus drops it.
     var supersededSearchID: UUID?
     if let existing = all.firstIndex(where: { $0.item.persistentModelID == persistentID }) {
-      supersededSearchID = all[existing].id
-      cleanup(all[existing])
-      all.remove(at: existing)
+      let existingDecorator = all[existing]
+      supersededSearchID = existingDecorator.id
+      cleanup(existingDecorator)
+      listState.remove(existingDecorator)
     }
     // `model(for:)` returns the faulted model for a committed id; the title check
     // guards against an un-faulted shell (it returns an unsaved shell for ids it
@@ -304,7 +323,7 @@ class History: ItemsContainer {
       in: all,
       by: { sorter.areInIncreasingOrder($0.item, $1.item) }
     )
-    all.insert(decorator, at: position)
+    listState.insert(decorator, at: position)
     let entry = corpusEntry(for: decorator)
     let superseded = supersededSearchID
     let actor = searchActor
@@ -343,17 +362,11 @@ class History: ItemsContainer {
   /// cleanup as `syncAllToStore`, but matches a known set instead of re-fetching
   /// the store, so per-copy cost is O(deleted) (usually 0–1) not O(rows).
   private func removeDecorators(forPersistentIDs ids: Set<PersistentIdentifier>) {
-    var removedSearchIDs: [UUID] = []
-    var index = all.startIndex
-    while index < all.count {
-      if ids.contains(all[index].item.persistentModelID) {
-        removedSearchIDs.append(all[index].id)
-        cleanup(all[index])
-        all.remove(at: index)
-      } else {
-        index += 1
-      }
+    let removed = listState.removeStoredIDs(ids)
+    for decorator in removed {
+      cleanup(decorator)
     }
+    let removedSearchIDs = removed.map(\.id)
     if !removedSearchIDs.isEmpty {
       let actor = searchActor
       Task { await actor.remove(removedSearchIDs) }
@@ -364,6 +377,7 @@ class History: ItemsContainer {
   /// `persistentModelID` is still present (so decoded images survive) and
   /// decorating only items that are new or changed.
   private func reconcileWithStore() {
+    let visibleBeforeReconcile = items
     let sorted: [HistoryItem]
     do {
       sorted = sorter.sort(try Storage.shared.context.fetch(FetchDescriptor<HistoryItem>()))
@@ -390,7 +404,13 @@ class History: ItemsContainer {
     for decorator in all where !rebuiltIDs.contains(decorator.item.persistentModelID) {
       cleanup(decorator)
     }
-    all = rebuilt
+    listState.replaceAll(rebuilt)
+    if !searchQuery.isEmpty {
+      let rebuiltDecoratorIDs = Set(rebuilt.map(\.id))
+      listState.publishVisible(
+        visibleBeforeReconcile.filter { rebuiltDecoratorIDs.contains($0.id) }
+      )
+    }
     // Full reconcile rebuilt `all` from the store; rebuild the search-actor
     // corpus to match.
     let actor = searchActor
@@ -431,21 +451,22 @@ class History: ItemsContainer {
   /// decorator's AppKit transients in an autorelease pool so a bulk clear
   /// doesn't pile them up.
   func clear() {
-    invalidateInFlightSearch()
-    let removedStoreIDs = all.filter(\.isUnpinned).map { storedItemID(for: $0.item) }
+    let removed = all.filter(\.isUnpinned)
+    let removedStoreIDs = removed.map { storedItemID(for: $0.item) }
+    let removedPersistentIDs = Set(removed.map { $0.item.persistentModelID })
 
     do {
       try withLogging("Clearing history") {
         try persistence.deleteUnpinned()
       }
-      let removedIDs = all.filter(\.isUnpinned).map(\.id)
-      for item in all where item.isUnpinned {
+      let removedIDs = removed.map(\.id)
+      for item in removed {
         autoreleasepool {
           cleanup(item)
         }
       }
-      all.removeAll(where: \.isUnpinned)
-      items = all
+      listState.removeStoredIDs(removedPersistentIDs)
+      listState.publishVisible(all)
       let actor = searchActor
       Task { await actor.remove(removedIDs) }
       synchronizeIngestor(with: removedStoreIDs.map(StoreEvent.removed))
@@ -463,19 +484,18 @@ class History: ItemsContainer {
 
   /// Deletes every item (pins included), draining each decorator's transients.
   func clearAll() {
-    invalidateInFlightSearch()
+    let removed = all
 
     do {
       try withLogging("Clearing all history") {
         try persistence.deleteAll()
       }
-      for item in all {
+      for item in removed {
         autoreleasepool {
           cleanup(item)
         }
       }
-      all.removeAll()
-      items = all
+      listState.replaceAll([])
       let actor = searchActor
       Task { await actor.clearCorpus() }
       synchronizeIngestor(with: [.cleared])
@@ -496,7 +516,6 @@ class History: ItemsContainer {
   func delete(_ item: HistoryItemDecorator?) {
     guard let item else { return }
 
-    invalidateInFlightSearch()
     let removedStoreID = storedItemID(for: item.item)
     do {
       try withLogging("Removing history item") {
@@ -509,8 +528,7 @@ class History: ItemsContainer {
 
     cleanup(item)
     let removedID = item.id
-    all.removeAll { $0 == item }
-    items.removeAll { $0 == item }
+    listState.remove(item)
     let actor = searchActor
     Task { await actor.remove([removedID]) }
     synchronizeIngestor(with: [.removed(removedStoreID)])
@@ -583,9 +601,6 @@ class History: ItemsContainer {
   /// Toggles an item's pin, persists it, re-sorts `all`, and clears the query.
   func togglePin(_ item: HistoryItemDecorator?) {
     guard let item else { return }
-    // Pin changes `all`'s order; cancel any in-flight search so a stale apply
-    // can't render results in the pre-pin order (DS-013).
-    invalidateInFlightSearch()
 
     let previousPin = item.item.pin
     item.togglePin()
@@ -598,10 +613,12 @@ class History: ItemsContainer {
     }
 
     let sortedItems = sorter.sort(all.map(\.item))
-    if let currentIndex = all.firstIndex(of: item),
+    var reordered = all
+    if let currentIndex = reordered.firstIndex(of: item),
        let newIndex = sortedItems.firstIndex(of: item.item) {
-      all.remove(at: currentIndex)
-      all.insert(item, at: newIndex)
+      reordered.remove(at: currentIndex)
+      reordered.insert(item, at: newIndex)
+      listState.replaceAll(reordered)
       // The pin change moved the item in `all`; mirror the move in the
       // search-actor corpus so subsequent exact/regexp results keep its place.
       let entry = corpusEntry(for: item)
@@ -612,8 +629,6 @@ class History: ItemsContainer {
         await actor.insert(entry, at: newIndex)
       }
     }
-
-    items = all
 
     searchQuery = ""
     updateUnpinnedShortcuts()
@@ -628,7 +643,6 @@ class History: ItemsContainer {
   /// — instead of a full `load()`, so decoded/cached images survive the reload
   /// rather than being discarded and re-decoded (NEW-history-spine-1).
   private func loadAfterDefaultsChange() async {
-    invalidateInFlightSearch()
     reconcileWithStore()
   }
 
@@ -642,12 +656,13 @@ class History: ItemsContainer {
 
   /// Rebuilds `items` from search results, applying highlights and refreshing shortcuts.
   private func updateItems(_ newItems: [Search.SearchResult]) {
-    items = newItems.map { result in
+    let visible = newItems.map { result in
       let item = result.object
       item.highlight(searchQuery, result.ranges)
 
       return item
     }
+    listState.publishVisible(visible)
 
     updateUnpinnedShortcuts()
   }
@@ -660,7 +675,7 @@ class History: ItemsContainer {
   /// updates when the actor returns, not within this call.
   private func refreshVisibleItems() {
     if searchQuery.isEmpty {
-      items = all
+      listState.publishVisible(all)
       updateUnpinnedShortcuts()
     } else {
       performSearch()
@@ -765,7 +780,7 @@ class History: ItemsContainer {
       }
       rebuilt.append(decorator)
     }
-    items = rebuilt
+    listState.publishVisible(rebuilt)
     updateUnpinnedShortcuts()
 
     if query.isEmpty {
@@ -790,8 +805,8 @@ class History: ItemsContainer {
   }
 
   /// Bumps `searchGeneration` and cancels + nils the in-flight search Task.
-  /// Called by every synchronous `items` mutation path (clear/clearAll/delete,
-  /// empty short-circuit, new-search kickoff) so a stale off-main apply is
+  /// Structural list changes reach this through `HistoryListState.willMutate`;
+  /// query-only changes call it directly. Either way, a stale off-main apply is
   /// discarded by the generation guard in `applySearchResults`.
   private func invalidateInFlightSearch() {
     searchGeneration &+= 1
