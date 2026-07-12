@@ -5,7 +5,6 @@ import Settings
 /// Storage settings: which content types to save, history size, max item size, and sort order.
 struct StorageSettingsPane: View {
   /// Syncs the save-files/images/text toggles with `enabledPasteboardTypes`.
-  @MainActor
   @Observable
   class ViewModel {
     private(set) var storageSize: String
@@ -53,6 +52,7 @@ struct StorageSettingsPane: View {
     private var observer: Defaults.Observation?
 
     /// Observes `enabledPasteboardTypes` and reflects the file/image/text subsets.
+    @MainActor
     init(readStorageSize: @escaping @MainActor () -> String) {
       self.readStorageSize = readStorageSize
       storageSize = readStorageSize()
@@ -64,6 +64,7 @@ struct StorageSettingsPane: View {
     }
 
     /// Refreshes the displayed on-disk size from the composition-owned reader.
+    @MainActor
     func refreshStorageSize() {
       storageSize = readStorageSize()
     }
