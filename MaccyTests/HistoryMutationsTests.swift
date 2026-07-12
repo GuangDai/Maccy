@@ -162,6 +162,44 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertEqual(harness.searchSession.query, "needle")
   }
 
+  func testTogglePinFailureRestoresOldPinWithoutProjectionEffects() async {
+    let target = decorator(item(title: "target", pin: "p"))
+    let harness = makeHarness([target])
+    harness.persistence.saveError = MutationTestError.expected
+    harness.searchSession.query = "needle"
+
+    harness.subject.togglePin(target)
+    try? await Task.sleep(for: .milliseconds(20))
+    let removedCorpusIDs = await harness.backend.removedIDs
+
+    XCTAssertEqual(harness.persistence.saveCalls, 1)
+    XCTAssertEqual(target.item.pin, "p")
+    XCTAssertEqual(harness.listState.all, [target])
+    XCTAssertEqual(removedCorpusIDs, [])
+    XCTAssertTrue(harness.effects.isEmpty)
+    XCTAssertEqual(harness.searchSession.query, "needle")
+    XCTAssertEqual(harness.errors.first?.0, "Failed to save pinned history item")
+  }
+
+  func testTogglePinSuccessMovesCorpusClearsQueryAndScrollsToUnpinnedItem() async {
+    let target = decorator(item(title: "target", pin: "p"))
+    let harness = makeHarness([target])
+    harness.searchSession.query = "needle"
+
+    harness.subject.togglePin(target)
+    let corpusMove = await waitForCorpusMove(in: harness.backend)
+
+    XCTAssertEqual(harness.persistence.saveCalls, 1)
+    XCTAssertNil(target.item.pin)
+    XCTAssertEqual(harness.listState.all, [target])
+    XCTAssertEqual(corpusMove.removed, [target.id])
+    XCTAssertEqual(corpusMove.inserted.map(\.id), [target.id])
+    XCTAssertEqual(corpusMove.inserted.map(\.position), [0])
+    XCTAssertEqual(harness.searchSession.query, "")
+    XCTAssertEqual(scrollTargets(harness.effects), [target.id])
+    XCTAssertTrue(harness.errors.isEmpty)
+  }
+
   private func makeHarness(
     _ decorators: [HistoryItemDecorator],
     modifierFlags: NSEvent.ModifierFlags = []
@@ -240,6 +278,27 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertTrue(harness.clipboard.copies.first?.0 === item, file: file, line: line)
     XCTAssertEqual(harness.clipboard.copies.first?.1, removeFormatting, file: file, line: line)
   }
+
+  private func waitForCorpusMove(
+    in backend: MutationSearchBackend
+  ) async -> (removed: [UUID], inserted: [MutationCorpusInsert]) {
+    for _ in 0..<100 {
+      let removed = await backend.removedIDs
+      let inserted = await backend.inserted
+      if !removed.isEmpty, !inserted.isEmpty { return (removed, inserted) }
+      try? await Task.sleep(for: .milliseconds(5))
+    }
+    let removed = await backend.removedIDs
+    let inserted = await backend.inserted
+    return (removed, inserted)
+  }
+
+  private func scrollTargets(_ effects: [HistoryUIEffect]) -> [UUID] {
+    effects.compactMap { effect in
+      guard case .scrollTo(let id) = effect else { return nil }
+      return id
+    }
+  }
 }
 
 private enum MutationTestError: Error {
@@ -315,9 +374,11 @@ private final class MutationClipboardRecorder {
 private final class MutationPersistence: HistoryPersistence {
   var deleteError: Error?
   var deleteUnpinnedError: Error?
+  var saveError: Error?
   private(set) var deletedItems: [HistoryItem] = []
   private(set) var deleteUnpinnedCalls = 0
   private(set) var deleteAllCalls = 0
+  private(set) var saveCalls = 0
 
   func delete(_ item: HistoryItem) throws {
     deletedItems.append(item)
@@ -334,20 +395,31 @@ private final class MutationPersistence: HistoryPersistence {
     deleteAllCalls += 1
   }
 
-  func save() throws {}
+  func save() throws {
+    saveCalls += 1
+    if let saveError { throw saveError }
+  }
   func fetchAll() throws -> [HistoryItem] { [] }
   func model(for id: PersistentIdentifier) -> HistoryItem? { nil }
   func countHistoryItems() throws -> Int { 0 }
   func countHistoryItemContents() throws -> Int { 0 }
 }
 
+private struct MutationCorpusInsert: Sendable {
+  let id: UUID
+  let position: Int
+}
+
 private actor MutationSearchBackend: HistorySearchBackend {
   private(set) var removedIDs: [UUID] = []
+  private(set) var inserted: [MutationCorpusInsert] = []
   private(set) var clearCorpusCalls = 0
 
   func search(query: String, mode: Search.Mode) async -> [SearchMatchDTO] { [] }
   func replaceCorpus(_ entries: [SearchCorpusItem]) async {}
-  func insert(_ entry: SearchCorpusItem, at position: Int) async {}
+  func insert(_ entry: SearchCorpusItem, at position: Int) async {
+    inserted.append(MutationCorpusInsert(id: entry.id, position: position))
+  }
   func remove(_ ids: [UUID]) async { removedIDs.append(contentsOf: ids) }
   func clearCorpus() async { clearCorpusCalls += 1 }
 }
