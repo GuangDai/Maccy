@@ -29,16 +29,17 @@ class HistoryTests: XCTestCase {
     XCTAssertEqual(history.items, [])
   }
 
-  func testAdding() {
-    let first = history.add(historyItem("foo"))
-    let second = history.add(historyItem("bar"))
+  func testAdding() throws {
+    let first = try HistoryTestDriver.seed(historyItem("foo"), in: history)
+    let second = try HistoryTestDriver.seed(historyItem("bar"), in: history)
     XCTAssertEqual(history.items, [second, first])
   }
 
-  func testAddingDuringSearchKeepsFilteredItems() {
-    let first = history.add(historyItem("foo"))
+  func testAddingDuringSearchKeepsFilteredItems() async throws {
+    let first = try HistoryTestDriver.seed(historyItem("foo"), in: history)
     history.searchQuery = "foo"
-    let second = history.add(historyItem("bar"))
+    let second = try HistoryTestDriver.seed(historyItem("bar"), in: history)
+    await history.waitForInFlightSearch()
     XCTAssertEqual(history.items, [first])
     XCTAssertFalse(history.items.contains(second))
   }
@@ -48,19 +49,19 @@ class HistoryTests: XCTestCase {
   /// corpus (including body matches) rather than a synchronous title-only filter.
   /// `performSearch` bumps `searchGeneration` synchronously, the oracle that this
   /// routing changed (a legacy-filter refresh leaves the generation untouched).
-  func testAddingDuringActiveSearchBumpsSearchGeneration() {
-    history.add(historyItem("foo"))
+  func testAddingDuringActiveSearchBumpsSearchGeneration() throws {
+    _ = try HistoryTestDriver.seed(historyItem("foo"), in: history)
     history.searchQuery = "foo"
     let generationBefore = history.searchGeneration
 
-    history.add(historyItem("bar"))
+    _ = try HistoryTestDriver.seed(historyItem("bar"), in: history)
 
     XCTAssertGreaterThan(history.searchGeneration, generationBefore)
   }
 
-  func testNavigatorHighlightFirstSkipsInvisibleItems() {
-    let first = history.add(historyItem("foo"))
-    let second = history.add(historyItem("bar"))
+  func testNavigatorHighlightFirstSkipsInvisibleItems() throws {
+    let first = try HistoryTestDriver.seed(historyItem("foo"), in: history)
+    let second = try HistoryTestDriver.seed(historyItem("bar"), in: history)
     second.isVisible = false
 
     AppState.shared.navigator.highlightFirst()
@@ -68,10 +69,10 @@ class HistoryTests: XCTestCase {
     XCTAssertEqual(AppState.shared.navigator.selection.first, first)
   }
 
-  func testNavigatorHighlightNextSkipsInvisibleItems() {
-    let first = history.add(historyItem("foo"))
-    let second = history.add(historyItem("bar"))
-    let third = history.add(historyItem("baz"))
+  func testNavigatorHighlightNextSkipsInvisibleItems() throws {
+    let first = try HistoryTestDriver.seed(historyItem("foo"), in: history)
+    let second = try HistoryTestDriver.seed(historyItem("bar"), in: history)
+    let third = try HistoryTestDriver.seed(historyItem("baz"), in: history)
     second.isVisible = false
     AppState.shared.navigator.select(item: third)
 
@@ -222,16 +223,16 @@ class HistoryTests: XCTestCase {
     XCTAssertEqual(history.items[0].text, "bar")
   }
 
-  func testClearingUnpinned() {
-    let pinned = history.add(historyItem("foo"))
+  func testClearingUnpinned() throws {
+    let pinned = try HistoryTestDriver.seed(historyItem("foo"), in: history)
     history.togglePin(pinned)
-    history.add(historyItem("bar"))
+    _ = try HistoryTestDriver.seed(historyItem("bar"), in: history)
     history.clear()
     XCTAssertEqual(history.items, [pinned])
   }
 
-  func testClearingAll() {
-    history.add(historyItem("foo"))
+  func testClearingAll() throws {
+    _ = try HistoryTestDriver.seed(historyItem("foo"), in: history)
     history.clear()
     XCTAssertEqual(history.items, [])
   }
@@ -287,15 +288,15 @@ class HistoryTests: XCTestCase {
     XCTAssertFalse(history.items.contains(first))
   }
 
-  func testRemoving() {
-    let foo = history.add(historyItem("foo"))
-    let bar = history.add(historyItem("bar"))
+  func testRemoving() throws {
+    let foo = try HistoryTestDriver.seed(historyItem("foo"), in: history)
+    let bar = try HistoryTestDriver.seed(historyItem("bar"), in: history)
     history.delete(foo)
     XCTAssertEqual(history.items, [bar])
   }
 
-  func testRemovingSynchronizesIngestorIndex() async {
-    let foo = history.add(historyItem("foo"))
+  func testRemovingSynchronizesIngestorIndex() async throws {
+    let foo = try HistoryTestDriver.seed(historyItem("foo"), in: history)
     let expectedID = snapshot(of: foo.item).id
     let spy = IngestorSpy()
     let savedIngestor = Clipboard.shared.ingestor
@@ -308,10 +309,10 @@ class HistoryTests: XCTestCase {
     XCTAssertEqual(events, [.removed(expectedID)])
   }
 
-  func testClearingUnpinnedSynchronizesOnlyRemovedItems() async {
-    let pinned = history.add(historyItem("pinned"))
+  func testClearingUnpinnedSynchronizesOnlyRemovedItems() async throws {
+    let pinned = try HistoryTestDriver.seed(historyItem("pinned"), in: history)
     history.togglePin(pinned)
-    let unpinned = history.add(historyItem("unpinned"))
+    let unpinned = try HistoryTestDriver.seed(historyItem("unpinned"), in: history)
     let expectedID = snapshot(of: unpinned.item).id
     let spy = IngestorSpy()
     let savedIngestor = Clipboard.shared.ingestor
@@ -324,8 +325,8 @@ class HistoryTests: XCTestCase {
     XCTAssertEqual(events, [.removed(expectedID)])
   }
 
-  func testClearingAllSynchronizesIngestorIndex() async {
-    history.add(historyItem("foo"))
+  func testClearingAllSynchronizesIngestorIndex() async throws {
+    _ = try HistoryTestDriver.seed(historyItem("foo"), in: history)
     let spy = IngestorSpy()
     let savedIngestor = Clipboard.shared.ingestor
     Clipboard.shared.ingestor = spy
@@ -338,8 +339,8 @@ class HistoryTests: XCTestCase {
   }
 
   func testHistoryCommandServiceUsesFullHistoryWhileItemsAreFiltered() throws {
-    let older = history.add(historyItem("older"))
-    let newer = history.add(historyItem("newer"))
+    let older = try HistoryTestDriver.seed(historyItem("older"), in: history)
+    let newer = try HistoryTestDriver.seed(historyItem("newer"), in: history)
     history.items = [older]
     let service = AppHistoryCommandService(
       history: history,
@@ -350,8 +351,8 @@ class HistoryTests: XCTestCase {
     XCTAssertTrue(try service.item(at: 2) === older.item)
   }
 
-  func testHistoryCommandServiceRejectsInvalidPositions() {
-    history.add(historyItem("only"))
+  func testHistoryCommandServiceRejectsInvalidPositions() throws {
+    _ = try HistoryTestDriver.seed(historyItem("only"), in: history)
     let service = AppHistoryCommandService(
       history: history,
       navigator: AppState.shared.navigator
@@ -363,7 +364,7 @@ class HistoryTests: XCTestCase {
   }
 
   func testHistoryCommandServiceResolvesNavigatorSelection() throws {
-    let item = history.add(historyItem("selected"))
+    let item = try HistoryTestDriver.seed(historyItem("selected"), in: history)
     AppState.shared.navigator.selectWithoutScrolling(item: item)
     let service = AppHistoryCommandService(
       history: history,
@@ -382,7 +383,6 @@ class HistoryTests: XCTestCase {
       )
     ]
     let item = HistoryItem()
-    Storage.shared.context.insert(item)
     item.contents = contents
     item.numberOfCopies = 1
     item.title = item.generateTitle()
