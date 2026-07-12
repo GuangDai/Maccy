@@ -1,3 +1,6 @@
+import AppKit.NSEvent
+import Defaults
+import SwiftData
 import XCTest
 @testable import Maccy
 
@@ -70,9 +73,93 @@ final class HistoryUIEffectTests: XCTestCase {
     })
   }
 
+  func testFacadeClearUsesInjectedClipboardAndStoreEventServices() async {
+    let item = textItem("clear-injected")
+    let decorator = HistoryItemDecorator(item)
+    let listState = HistoryListState(decorators: [decorator])
+    let persistence = RuntimeServicesPersistence()
+    var clearCalls = 0
+    var storeEvents: [StoreEvent] = []
+    let history = History(
+      persistence: persistence,
+      listState: listState,
+      runtimeServices: HistoryRuntimeServices(
+        clipboard: HistoryClipboardActions(
+          clear: { clearCalls += 1 },
+          copy: { _, _ in },
+          paste: {}
+        ),
+        modifierFlags: { [] },
+        publishStoreEvents: { storeEvents.append(contentsOf: $0) },
+        log: { _ in }
+      ),
+      logsPersistenceErrors: false
+    )
+
+    history.clear()
+    await Task.yield()
+
+    XCTAssertEqual(clearCalls, 1)
+    XCTAssertEqual(storeEvents, [.removed(storedItemID(for: item))])
+  }
+
+  func testFacadeSelectUsesInjectedClipboardAndModifierServices() {
+    let savedPasteByDefault = Defaults[.pasteByDefault]
+    let savedRemoveFormatting = Defaults[.removeFormattingByDefault]
+    defer {
+      Defaults[.pasteByDefault] = savedPasteByDefault
+      Defaults[.removeFormattingByDefault] = savedRemoveFormatting
+    }
+    Defaults[.pasteByDefault] = false
+    Defaults[.removeFormattingByDefault] = false
+    let item = textItem("select-injected")
+    let decorator = HistoryItemDecorator(item)
+    let listState = HistoryListState(decorators: [decorator])
+    var copiedItem: HistoryItem?
+    var copiedWithoutFormatting = true
+    var pasteCalls = 0
+    let history = History(
+      persistence: RuntimeServicesPersistence(),
+      listState: listState,
+      runtimeServices: HistoryRuntimeServices(
+        clipboard: HistoryClipboardActions(
+          clear: {},
+          copy: {
+            copiedItem = $0
+            copiedWithoutFormatting = $1
+          },
+          paste: { pasteCalls += 1 }
+        ),
+        modifierFlags: { .option },
+        publishStoreEvents: { _ in },
+        log: { _ in }
+      ),
+      logsPersistenceErrors: false
+    )
+
+    history.select(decorator)
+
+    XCTAssertTrue(copiedItem === item)
+    XCTAssertFalse(copiedWithoutFormatting)
+    XCTAssertEqual(pasteCalls, 1)
+  }
+
   private func textItem(_ text: String) -> HistoryItem {
     HistoryBuilder()
       .withContent(type: "public.utf8-plain-text", value: Data(text.utf8))
       .build()
   }
+}
+
+@MainActor
+private final class RuntimeServicesPersistence: HistoryPersistence {
+  func delete(_ item: HistoryItem) throws {}
+  func delete(_ items: [HistoryItem]) throws {}
+  func deleteUnpinned() throws {}
+  func deleteAll() throws {}
+  func save() throws {}
+  func fetchAll() throws -> [HistoryItem] { [] }
+  func model(for id: PersistentIdentifier) -> HistoryItem? { nil }
+  func countHistoryItems() throws -> Int { 0 }
+  func countHistoryItemContents() throws -> Int { 0 }
 }

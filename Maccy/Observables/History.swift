@@ -83,6 +83,7 @@ class History: ItemsContainer {
   init(
     persistence: HistoryPersistence = SwiftDataHistoryPersistence(),
     listState: HistoryListState = HistoryListState(),
+    runtimeServices: HistoryRuntimeServices = .inert,
     logsPersistenceErrors: Bool = true
   ) {
     self.listState = listState

@@ -10,6 +10,22 @@ struct HistoryClipboardActions {
   let paste: @MainActor () -> Void
 }
 
+/// Runtime services supplied when composing a History facade.
+@MainActor
+struct HistoryRuntimeServices {
+  let clipboard: HistoryClipboardActions
+  let modifierFlags: @MainActor () -> NSEvent.ModifierFlags
+  let publishStoreEvents: @MainActor ([StoreEvent]) -> Void
+  let log: @MainActor (String) -> Void
+
+  static let inert = HistoryRuntimeServices(
+    clipboard: HistoryClipboardActions(clear: {}, copy: { _, _ in }, paste: {}),
+    modifierFlags: { [] },
+    publishStoreEvents: { _ in },
+    log: { _ in }
+  )
+}
+
 /// Owns user-initiated history commands and their post-commit projections.
 @MainActor
 final class HistoryMutations {
