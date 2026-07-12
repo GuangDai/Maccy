@@ -13,7 +13,7 @@ import ImageIO
 /// Items are batch-inserted into the context + saved once, then a single
 /// `History.load()` materializes decorators (the popup-open path). This is NOT
 /// `History.add` per item — that legacy path is O(n²) on main (full sort +
-/// decorate + findSimilarItem + invalidation PER add) and froze the app ~115s
+/// decorate + legacy duplicate scan + invalidation per item) and froze the app ~115s
 /// for 30 mixed items. `#if DEBUG` + only wired under `MaccyPerfRecord`, so no
 /// ship impact. Image bytes are generated via CoreGraphics (no binaries
 /// committed, no images in logs — only `PERF|` text).

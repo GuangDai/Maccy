@@ -4,8 +4,6 @@ import SwiftData
 /// Persistence operations `History` relies on, isolated to `@MainActor`.
 protocol HistoryPersistence {
   @MainActor
-  func insert(_ item: HistoryItem) throws
-  @MainActor
   func delete(_ item: HistoryItem) throws
   @MainActor
   func deleteUnpinned() throws
@@ -24,13 +22,6 @@ protocol HistoryPersistence {
 /// `HistoryPersistence` backed by `Storage.shared.context` (the main SwiftData
 /// context). Each mutating method processes pending changes and saves.
 struct SwiftDataHistoryPersistence: HistoryPersistence {
-  @MainActor
-  func insert(_ item: HistoryItem) throws {
-    Storage.shared.context.insert(item)
-    Storage.shared.context.processPendingChanges()
-    try Storage.shared.context.save()
-  }
-
   @MainActor
   func delete(_ item: HistoryItem) throws {
     Storage.shared.context.delete(item)

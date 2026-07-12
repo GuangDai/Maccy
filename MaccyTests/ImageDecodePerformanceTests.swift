@@ -59,7 +59,7 @@ final class ImageDecodePerformanceTests: PerformanceTestCase {
 
   /// The live per-copy main-thread cost.
   ///
-  /// In production the off-main clipboard ingest actor commits each copy off the main thread, then emits an `.added(snapshot)` event that hops back to the main thread into `History.consume` → `reconcileWithStore`: a full `context.fetch` plus a two-pass `sorter.sort` over every item, on the main thread, for every copy. That per-copy work is the jank the user feels; this test measures it directly by driving `consume(.added(...))`, bypassing the pasteboard poll interval so the timing reflects the main-thread work rather than the sleep. The legacy `findSimilarItem` / `History.add` path is no longer used in production; this exercises the real path.
+  /// In production the off-main clipboard ingest actor commits each copy off the main thread, then emits an `.added(snapshot)` event that hops back to the main thread into `History.consume` → `reconcileWithStore`: a full `context.fetch` plus a two-pass `sorter.sort` over every item, on the main thread, for every copy. That per-copy work is the jank the user feels; this test measures it directly by driving `consume(.added(...))`, bypassing the pasteboard poll interval so the timing reflects the main-thread work rather than the sleep. This exercises the sole production projection path.
   ///
   /// Pre-populates 200 items, then simulates 20 copies — inserting one item into the main context and saving, then calling `consume(.added(snapshot))` — timing each consume and sampling main-thread occupancy across the burst.
   func testGCopyPerCopyConsume_N200() async throws {

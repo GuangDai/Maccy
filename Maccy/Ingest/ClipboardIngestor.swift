@@ -9,39 +9,7 @@ protocol ClipboardIngestor: Sendable {
   func synchronizeStoreEvents(_ events: [StoreEvent]) async
 }
 
-/// `ClipboardIngestor` adapter that performs the ingest on the main actor via the
-/// legacy `History.shared.add` path.
-final class MainActorIngestorAdapter: ClipboardIngestor {
-  func ingest(_ request: IngestRequest) async -> IngestResult {
-    await MainActor.run {
-      let item = Self.historyItem(from: request)
-      History.shared.add(item)
-      return IngestResult(event: nil, metrics: .zero)
-    }
-  }
-
-  /// The legacy adapter owns no dedup index, so committed store events require
-  /// no additional synchronization.
-  func synchronizeStoreEvents(_ events: [StoreEvent]) async {}
-
-  @MainActor
-  static func historyItem(from request: IngestRequest) -> HistoryItem {
-    let item = HistoryItem(
-      contents: request.contents.map {
-        HistoryItemContent(type: $0.type, value: $0.value)
-      }
-    )
-    item.application = request.application
-    item.firstCopiedAt = request.now
-    item.lastCopiedAt = request.now
-    item.title = item.generateTitle()
-    item.searchText = item.searchableBody()
-    return item
-  }
-}
-
-/// Off-main clipboard ingest actor: the production replacement for the main-thread
-/// `History.add` path.
+/// Off-main clipboard ingest actor: the sole production history-write path.
 ///
 /// The pipeline runs on the ingest actor: filter the request contents, dedup
 /// against existing items, write a single SwiftData transaction, then emit a
@@ -67,21 +35,11 @@ final class MainActorIngestorAdapter: ClipboardIngestor {
 ///   Image items get an empty title (the OCR feature was removed).
 ///
 /// ## Single-transaction invariant
-/// The whole point versus the legacy `History.add` flow (which issued
-/// `insertIntoStorage` → `mergeDuplicateIfNeeded` → `limitHistorySize` as
-/// separate saves) is one `modelContext.transaction { ... }` followed by one
+/// One `modelContext.transaction { ... }` followed by one
 /// `modelContext.save()` per ingest. The trim, the duplicate delete, and the
 /// new-item insert all land in the same transaction. Errors are logged via
 /// `logger.error` (never silently `try?`-swallowed) and surface as a no-event
 /// `IngestResult`.
-///
-/// ## Known parity gap versus `History.add`
-/// `History.findSimilarItem` additionally consults the main-thread `sessionLog`
-/// via `isModified(item)` to detect "this copy is a modification of a recent
-/// copy." The actor has no `sessionLog` (it is main-thread-only state), so the
-/// actor performs the `supersedes` dedup only. The rare modification-merge case
-/// is a deliberate limitation; it could be closed later by forwarding sessionLog
-/// info into the actor's request.
 @ModelActor
 actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// Title and full search body projected from one filtered content batch.
@@ -226,8 +184,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
 
   /// Ingests one clipboard copy off the main thread.
   ///
-  /// Steps (matching the legacy `History.add` flow, collapsed into a single
-  /// transaction):
+  /// Steps (one actor-owned transaction):
   /// 1. Consume the `IngestPolicy` value captured by `Clipboard` while it was
   ///    already on the main actor.
   /// 2. Filter the request contents on this actor. Only the whitespace-string
@@ -237,9 +194,9 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// 4. Build the new `HistoryItem` on the actor's isolated `modelContext`.
   /// 5. Dedup against existing items via the per-entry `SignatureIndex`
   ///    (O(hits) candidate lookup plus authoritative `supersedes` confirm),
-  ///    replacing the legacy full-table `findSimilarItem` scan.
+  ///    replacing the removed main-thread full-table duplicate scan.
   /// 6. Merge fields from the duplicate if found (mirroring
-  ///    `History.mergeDuplicateIfNeeded`).
+  ///    the old main-thread merge path).
   /// 7. Single-transaction commit: trim unpinned items beyond the request's
   ///    history-size snapshot (oldest first), delete the duplicate, insert
   ///    the new item, then one save.
@@ -343,8 +300,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
 
   // MARK: - Ingest steps
 
-  /// Builds the new `HistoryItem` from the filtered contents (mirroring
-  /// `MainActorIngestorAdapter.historyItem(from:)`).
+  /// Builds the new `HistoryItem` from the filtered contents.
   ///
   /// The title/search projection is computed before model construction. Plain,
   /// file, and image paths run on this actor; selected rich text is projected on
@@ -510,11 +466,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     registerInDedupIndex(item)
   }
 
-  /// Copies the duplicate's fields into the new item (mirroring
-  /// `History.mergeDuplicateIfNeeded`).
-  ///
-  /// Contents are replaced with the existing item's; the sessionLog-modification
-  /// guard is absent here (see the class doc).
+  /// Copies the duplicate's fields into the new item.
   private func mergeFields(from dup: HistoryItem, into item: HistoryItem, timestamp: Date) {
     item.contents = dup.contents.map { HistoryItemContent(type: $0.type, value: $0.value) }
     item.firstCopiedAt = dup.firstCopiedAt

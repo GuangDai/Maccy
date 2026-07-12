@@ -31,8 +31,6 @@ private enum TestPersistenceError: Error {
 private final class FailingHistoryPersistence: HistoryPersistence {
   var deleteUnpinnedError: Error?
 
-  func insert(_ item: HistoryItem) throws {}
-
   func delete(_ item: HistoryItem) throws {}
 
   func deleteUnpinned() throws {

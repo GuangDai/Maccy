@@ -1,11 +1,9 @@
-import AppKit.NSRunningApplication
 import AsyncAlgorithms
 import Defaults
 import Foundation
 import Logging
 import Observation
 import Sauce
-import Settings
 import SwiftData
 
 /// The main-actor clipboard history model: the in-memory `items`/`all` lists of
@@ -89,15 +87,6 @@ class History: ItemsContainer {
   private let searchActor = SearchActor()
   private var historySizeLimit: Int { max(1, Defaults[.size]) }
 
-  @ObservationIgnored
-  /// Copy-count → `PersistentIdentifier` log for the legacy `History.add`
-  /// modification-merge path. Keyed by `PersistentIdentifier` (not the
-  /// `@Model` ref) so it never retains a `HistoryItem` or its content blobs;
-  /// resolved back to the model via `all` in `isModified`. Dead-in-prod (live
-  /// ingest is the actor consume path, which bypasses `sessionLog`); retained
-  /// so the legacy `History.add` path keeps working if re-enabled.
-  private var sessionLog: [Int: PersistentIdentifier] = [:]
-
   /// All history decorators, including those hidden by the current search.
   /// `items` holds only the visible (filtered) subset.
   @ObservationIgnored
@@ -106,19 +95,15 @@ class History: ItemsContainer {
   @ObservationIgnored
   private let persistence: HistoryPersistence
   @ObservationIgnored
-  private let shouldInsertItemsInAdd: Bool
-  @ObservationIgnored
   private let logsPersistenceErrors: Bool
 
   /// Creates the history model with its persistence backend and config flags,
   /// and starts listeners that react to relevant Defaults changes.
   init(
     persistence: HistoryPersistence = SwiftDataHistoryPersistence(),
-    shouldInsertItemsInAdd: Bool = History.shouldInsertItemsInAddByDefault(),
     logsPersistenceErrors: Bool = true
   ) {
     self.persistence = persistence
-    self.shouldInsertItemsInAdd = shouldInsertItemsInAdd
     self.logsPersistenceErrors = logsPersistenceErrors
 
     var searchContinuation: AsyncStream<String>.Continuation!
@@ -245,49 +230,6 @@ class History: ItemsContainer {
     if unpinned.count > maxSize {
       unpinned[maxSize...].forEach(delete)
     }
-  }
-
-  /// Persists a new item via the persistence backend.
-  func insertIntoStorage(_ item: HistoryItem) throws {
-    logger.info("Inserting history item")
-    try persistence.insert(item)
-  }
-
-  /// Adds an item through the legacy main-thread path: optionally persists it,
-  /// merges any duplicate, enforces the size limit, records it in `sessionLog`,
-  /// inserts its decorator at the sorted position, and refreshes visible items.
-  /// The live ingest path is the off-main actor's `consume`; this is retained
-  /// for the unwired legacy code path.
-  @discardableResult
-  func add(_ item: HistoryItem) -> HistoryItemDecorator {
-    if shouldInsertItemsInAdd {
-      do {
-        try insertIntoStorage(item)
-      } catch {
-        recordPersistenceError("Failed to insert history item", error)
-        return HistoryItemDecorator(item)
-      }
-    }
-
-    let removedItemIndex = mergeDuplicateIfNeeded(for: item)
-    if removedItemIndex == nil {
-      Task {
-        Notifier.notify(body: item.title, sound: .write)
-      }
-    }
-
-    // Remove exceeding items. Do this after the item is added to avoid removing something
-    // if a duplicate was found as then the size already stayed the same.
-    limitHistorySize(to: historySizeLimit - 1)
-
-    sessionLog[Clipboard.shared.changeCount] = item.persistentModelID
-
-    let itemDecorator = insertDecorator(for: item, removedItemIndex: removedItemIndex)
-
-    refreshVisibleItems()
-    AppState.shared.popup.needsResize = true
-
-    return itemDecorator
   }
 
   /// Applies a `StoreEvent` emitted by the off-main ingest actor, updating the
@@ -428,8 +370,8 @@ class History: ItemsContainer {
         rebuilt.append(HistoryItemDecorator(item))
       }
     }
-    // Invalidate decorators whose backing items were removed/merged away (parity
-    // with `mergeDuplicateIfNeeded`'s `cleanup`) so their decoded images release.
+    // Invalidate decorators whose backing items were removed/merged away so
+    // their decoded images release.
     let rebuiltIDs = Set(rebuilt.map { $0.item.persistentModelID })
     for decorator in all where !rebuiltIDs.contains(decorator.item.persistentModelID) {
       cleanup(decorator)
@@ -445,58 +387,6 @@ class History: ItemsContainer {
       AppState.shared.navigator.select(item: unpinnedItems.first ?? pinnedItems.first)
     }
     AppState.shared.popup.needsResize = true
-  }
-
-  /// If `item` duplicates an existing one, merges metadata onto `item`, removes
-  /// the existing decorator, and returns the index it occupied (else `nil`).
-  private func mergeDuplicateIfNeeded(for item: HistoryItem) -> Int? {
-    guard let existingHistoryItem = findSimilarItem(item) else {
-      return nil
-    }
-
-    if isModified(item) == nil {
-      item.contents = existingHistoryItem.contents.map {
-        HistoryItemContent(type: $0.type, value: $0.value)
-      }
-    }
-    item.firstCopiedAt = existingHistoryItem.firstCopiedAt
-    item.numberOfCopies += existingHistoryItem.numberOfCopies
-    item.pin = existingHistoryItem.pin
-    item.title = existingHistoryItem.title
-    if !item.fromMaccy {
-      item.application = existingHistoryItem.application
-    }
-
-    logger.info("Removing duplicate history item")
-    let removedItemIndex = all.firstIndex(where: { $0.item == existingHistoryItem })
-    if let removedItemIndex {
-      cleanup(all[removedItemIndex])
-      all.remove(at: removedItemIndex)
-    }
-    Storage.shared.context.delete(existingHistoryItem)
-    return removedItemIndex
-  }
-
-  /// Builds the decorator for `item` and inserts it at the sorted position
-  /// (reusing `removedItemIndex` when merging a duplicate pin).
-  private func insertDecorator(
-    for item: HistoryItem,
-    removedItemIndex: Int?
-  ) -> HistoryItemDecorator {
-    if let pin = item.pin {
-      let itemDecorator = HistoryItemDecorator(item, shortcuts: KeyShortcut.create(character: pin))
-      if let removedItemIndex {
-        all.insert(itemDecorator, at: removedItemIndex)
-      }
-      return itemDecorator
-    }
-
-    let itemDecorator = HistoryItemDecorator(item)
-    let sortedItems = sorter.sort(all.map(\.item) + [item])
-    if let index = sortedItems.firstIndex(of: item) {
-      all.insert(itemDecorator, at: index)
-    }
-    return itemDecorator
   }
 
   /// Runs `block` under DEBUG-only before/after row-count logging. The count
@@ -541,11 +431,6 @@ class History: ItemsContainer {
         }
       }
       all.removeAll(where: \.isUnpinned)
-      // `all` now holds only pinned survivors (unpinned removed above); drop any
-      // sessionLog entry whose backing item is no longer present.
-      sessionLog.removeValues { pid in
-        !all.contains(where: { $0.item.persistentModelID == pid })
-      }
       items = all
       let actor = searchActor
       Task { await actor.remove(removedIDs) }
@@ -576,7 +461,6 @@ class History: ItemsContainer {
         }
       }
       all.removeAll()
-      sessionLog.removeAll()
       items = all
       let actor = searchActor
       Task { await actor.clearCorpus() }
@@ -594,7 +478,7 @@ class History: ItemsContainer {
   }
 
   /// Deletes a single decorator's backing item, removes it from `all`/`items`,
-  /// drops its `sessionLog` entry, and reassigns unpinned shortcuts.
+  /// and reassigns unpinned shortcuts.
   func delete(_ item: HistoryItemDecorator?) {
     guard let item else { return }
 
@@ -613,8 +497,6 @@ class History: ItemsContainer {
     let removedID = item.id
     all.removeAll { $0 == item }
     items.removeAll { $0 == item }
-    sessionLog.removeValues { $0 == item.item.persistentModelID }
-
     let actor = searchActor
     Task { await actor.remove([removedID]) }
     synchronizeIngestor(with: [.removed(removedStoreID)])
@@ -726,25 +608,6 @@ class History: ItemsContainer {
     }
   }
 
-  /// Returns an existing item that supersedes `item` (or a session-logged
-  /// modification of it), else `nil`. Used by the legacy `add` path.
-  private func findSimilarItem(_ item: HistoryItem) -> HistoryItem? {
-    do {
-      let all = try persistence.fetchAll()
-      let signature = item.duplicateSignature
-      for existingItem in all where existingItem != item {
-        if existingItem.supersedes(signature) {
-          return existingItem
-        }
-      }
-
-      return isModified(item)
-    } catch {
-      recordPersistenceError("Failed to fetch history items", error)
-      return nil
-    }
-  }
-
   /// Reloads the history after a Defaults change that affects ordering/display
   /// (`.sortBy` / `.pinTo`). Routes through `reconcileWithStore` — which re-sorts
   /// and re-seeds the search corpus while REUSING decorators by `persistentID`
@@ -761,25 +624,6 @@ class History: ItemsContainer {
     if logsPersistenceErrors {
       logger.error("\(message): \(String(describing: error))")
     }
-  }
-
-  /// Whether `add` should persist by default (true on macOS 15+, where SwiftData
-  /// main-context auto-save is reliable; false on older OSes).
-  nonisolated private static func shouldInsertItemsInAddByDefault() -> Bool {
-    if #available(macOS 15.0, *) {
-      return true
-    } else {
-      return false
-    }
-  }
-
-  /// Returns the logged duplicate of `item` if it was modified this session, else `nil`.
-  private func isModified(_ item: HistoryItem) -> HistoryItem? {
-    if let modified = item.modified, let pid = sessionLog[modified] {
-      return all.first { $0.item.persistentModelID == pid }?.item
-    }
-
-    return nil
   }
 
   /// Rebuilds `items` from search results, applying highlights and refreshing shortcuts.
