@@ -43,7 +43,7 @@ final class SearchTextMigrationTests: XCTestCase {
   /// length — so a match anywhere in a long clip stays searchable.
   func testPlainTextExtractsUntruncated() {
     let body = String(repeating: "a", count: 5_000)
-    let contents = [contentEntry(stringType, body)]
+    let contents = [content(type: stringType, value: Data(body.utf8))]
 
     let extracted = HistoryItemEngine.searchableBody(
       contents: contents,
@@ -61,7 +61,7 @@ final class SearchTextMigrationTests: XCTestCase {
       documentAttributes: [:]
     )
     let contents = [
-      HistoryItemContent(type: NSPasteboard.PasteboardType.rtf.rawValue, value: rtf)
+      content(type: NSPasteboard.PasteboardType.rtf.rawValue, value: rtf)
     ]
 
     let extracted = HistoryItemEngine.searchableBody(
@@ -76,7 +76,7 @@ final class SearchTextMigrationTests: XCTestCase {
   func testHTMLExtractsPlainText() {
     let html = "<a href='#'>foo</a>".data(using: .utf8)
     let contents = [
-      HistoryItemContent(type: NSPasteboard.PasteboardType.html.rawValue, value: html)
+      content(type: NSPasteboard.PasteboardType.html.rawValue, value: html)
     ]
 
     let extracted = HistoryItemEngine.searchableBody(
@@ -91,7 +91,7 @@ final class SearchTextMigrationTests: XCTestCase {
   func testFileURLExtractsURLString() {
     let url = URL(fileURLWithPath: "/tmp/report.pdf")
     let contents = [
-      HistoryItemContent(
+      content(
         type: NSPasteboard.PasteboardType.fileURL.rawValue,
         value: url.dataRepresentation
       )
@@ -108,7 +108,7 @@ final class SearchTextMigrationTests: XCTestCase {
   /// An image-only payload carries no searchable text.
   func testImageOnlyExtractsEmpty() {
     let contents = [
-      HistoryItemContent(
+      content(
         type: NSPasteboard.PasteboardType.tiff.rawValue,
         value: Data(repeating: 0x00, count: 16)
       )
@@ -127,7 +127,7 @@ final class SearchTextMigrationTests: XCTestCase {
   func testOversizedRichTextDegradesToEmpty() {
     let oversize = Data(repeating: 0x41, count: 512 * 1024 + 1)
     let contents = [
-      HistoryItemContent(type: NSPasteboard.PasteboardType.rtf.rawValue, value: oversize)
+      content(type: NSPasteboard.PasteboardType.rtf.rawValue, value: oversize)
     ]
 
     let extracted = HistoryItemEngine.searchableBody(
@@ -211,12 +211,12 @@ final class SearchTextMigrationTests: XCTestCase {
   }
 
   /// Builds a `ContentDTO` with its fingerprint and size derived from the value.
-  private func content(type: String, value: Data) -> ContentDTO {
+  private func content(type: String, value: Data?) -> ContentDTO {
     ContentDTO(
       type: type,
       value: value,
-      fingerprint: ClipboardDataProcessor.fingerprintIfLarge(value),
-      size: value.count
+      fingerprint: value.flatMap(ClipboardDataProcessor.fingerprintIfLarge),
+      size: value?.count ?? 0
     )
   }
 

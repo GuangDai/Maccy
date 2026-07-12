@@ -54,7 +54,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Stor
 
 | 文件 | 状态 |
 |---|---|
-| `Maccy/Ingest/Dtos.swift` + `IngestFilter.swift` | ✅ DTO 目录(`ContentDTO`/`ClipboardItemDTO`/`SignatureDTO`/`ItemSnapshotDTO`/`StoreEvent` 等)+ `IngestRequest` 携带的每请求 `IngestPolicy` + 投影函数 `snapshot(of:)` / `contentDTOs(of:)` |
+| `Maccy/Ingest/Dtos.swift` + `IngestFilter.swift` | ✅ DTO 目录(`ContentDTO`/`ClipboardItemDTO`/`SignatureDTO`/`ItemSnapshotDTO`/`StoreEvent` 等)+ `IngestRequest` 携带的每请求 `IngestPolicy` + 投影函数 `snapshot(of:)` / `contentDTOs(of:)`；`HistoryItemEngine` 只接受 DTO，不再依赖 `@Model`。 |
 | `Maccy/Ingest/SignatureIndex.swift` | ✅ 纯值去重索引 `[SignatureDTO: ItemID]`,接入 ingestor(BS-4.2) |
 | `Maccy/Ingest/ClipboardIngestor.swift` | ✅ 已接入 live copy 路径(BS-2) |
 | `Maccy/ImageProcessing/ImageProcessing.swift` + `ImageProcessor.swift` + `ImageDownsampler.swift` + `ThumbnailCache.swift` | ✅ ImageIO 降采样已接入(BS-3) |

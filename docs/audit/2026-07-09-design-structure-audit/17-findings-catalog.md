@@ -320,11 +320,16 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-030 — Engine still takes `[HistoryItemContent]` (@Model types)
 
+> **Resolved 2026-07-12:** every `HistoryItemEngine` entry point now consumes
+> `[ContentDTO]`. The ingest actor sends its existing request values directly;
+> `HistoryItem` projects persistence contents at its boundary. Title/search
+> projection no longer creates throwaway `@Model` objects.
+
 | | |
 |--|--|
 | **Evidence** | `HistoryItemEngine` APIs take `HistoryItemContent` arrays; ingest builds throwaway models for title |
 | **Impact** | Domain “pure” layer still coupled to persistence type |
-| **Recommendation** | Accept `ContentDTO` or protocol |
+| **Recommendation** | **Completed:** accept `ContentDTO`; persistence models stay outside the engine. |
 | **Confidence** | High |
 
 ---

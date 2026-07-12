@@ -1,8 +1,8 @@
 import AppKit
 
-/// Pure helpers that operate on a history item's content entries without
-/// touching SwiftData: building a dedup containment signature, testing
-/// containment, and deriving a preview title.
+/// Pure helpers that operate on Sendable content values without touching
+/// SwiftData: building a dedup containment signature, testing containment, and
+/// deriving preview/search text.
 enum HistoryItemEngine {
   /// A Sendable containment signature built from a set of content entries,
   /// used to test whether one item's contents are a subset of another's.
@@ -10,7 +10,7 @@ enum HistoryItemEngine {
     private let contents: [ContentSignature]
 
     init(
-      contents: [HistoryItemContent],
+      contents: [ContentDTO],
       ignoringTypes transientTypes: Set<String>
     ) {
       self.contents = contents.compactMap { content in
@@ -23,7 +23,7 @@ enum HistoryItemEngine {
     }
 
     /// Returns true if every entry in this signature is present in `contents`.
-    func isContained(in contents: [HistoryItemContent]) -> Bool {
+    func isContained(in contents: [ContentDTO]) -> Bool {
       let index = ContentIndex(contents)
       return self.contents.allSatisfy {
         index.contains(type: $0.type, value: $0.value, fingerprint: $0.fingerprint)
@@ -34,7 +34,7 @@ enum HistoryItemEngine {
   /// Builds a containment signature from `contents`, dropping any entry whose
   /// type is in `transientTypes`.
   static func signature(
-    contents: [HistoryItemContent],
+    contents: [ContentDTO],
     ignoringTypes transientTypes: Set<String>
   ) -> Signature {
     Signature(contents: contents, ignoringTypes: transientTypes)
@@ -42,7 +42,7 @@ enum HistoryItemEngine {
 
   /// Returns true if `contents` contains every entry described by `signature`.
   static func contains(
-    contents: [HistoryItemContent],
+    contents: [ContentDTO],
     signature: Signature
   ) -> Bool {
     signature.isContained(in: contents)
@@ -54,7 +54,7 @@ enum HistoryItemEngine {
   /// as `·` and embedded newlines/tabs as `⏎`/`⇥`; otherwise the result is
   /// trimmed. The text source is chosen by `previewableTextPrefix`.
   static func generateTitle(
-    contents: [HistoryItemContent],
+    contents: [ContentDTO],
     fallbackTitle: String,
     maxLength: Int,
     richTextParsingLimit: Int,
@@ -88,7 +88,7 @@ enum HistoryItemEngine {
   /// file URLs, plain string, small RTF, small HTML, then `fallbackTitle`.
   /// Each candidate is shortened to `maxLength`.
   static func previewableTextPrefix(
-    contents: [HistoryItemContent],
+    contents: [ContentDTO],
     fallbackTitle: String,
     maxLength: Int,
     richTextParsingLimit: Int
@@ -123,7 +123,7 @@ enum HistoryItemEngine {
   /// is costly and main-thread-affine), falling through to the next priority or
   /// `""`. Image-only items and items with no textual payload return `""`.
   static func searchableBody(
-    contents: [HistoryItemContent],
+    contents: [ContentDTO],
     richTextParsingLimit: Int
   ) -> String {
     let index = ContentIndex(contents)
@@ -153,7 +153,7 @@ private struct ContentSignature: Sendable {
   let value: Data?
   let fingerprint: UInt64?
 
-  init(_ content: HistoryItemContent) {
+  init(_ content: ContentDTO) {
     self.type = content.type
     self.value = content.value
     // Prefer the persisted fingerprint column; fall back to re-hashing when the
@@ -176,7 +176,7 @@ private struct ContentIndex: Sendable {
   private let contentsByType: [String: [(Data, UInt64?)]]
   private let nilValueTypes: Set<String>
 
-  init(_ contents: [HistoryItemContent]) {
+  init(_ contents: [ContentDTO]) {
     var contentsByType: [String: [(Data, UInt64?)]] = [:]
     var nilValueTypes: Set<String> = []
     contentsByType.reserveCapacity(contents.count)

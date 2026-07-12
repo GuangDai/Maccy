@@ -33,7 +33,7 @@
 | DS-027 | ✅ | Med→Med | High | README re-checks | All 4 HEAD re-checks accurate (fingerprint candidate-only; `dataFromFileIfAllowed` nil-on-fail; `DecodedImageCache` gone; `item(before:)` guarded). |
 | DS-028 | ✅ `▽under` `⟳` | Low/Med→**High (cleanup)** | High | deletion `9849d00` | **Resolved:** the ~250 LOC dead paste-stack/multi-select subtree and always-false gate were deleted. |
 | DS-029 | ✅ `△over` | Med→**Low** | High | fire-and-forget corpus `Task`s | One-item lag; documented; self-correcting. |
-| DS-030 | ✅ | Med→Med | High | `HistoryItemEngine` | Takes `[HistoryItemContent]` (@Model). |
+| DS-030 | ✅ | Med→Med | High | `HistoryItemEngine` | **Resolved:** all engine APIs consume `[ContentDTO]`; ingest projects title/search directly from request values and no longer builds throwaway SwiftData models. |
 | DS-031 | ◐ | Low→Low | High | deletion after D1 | **Resolved with DS-017:** the unused plan/reason DTOs were deleted rather than promoted into the live actor pipeline. |
 | DS-032 | ✅ | Low→Low | High | `Application/DebugHooks.swift`; `72fa8f2` | **Resolved:** whole-file DEBUG module owns the test/perf bridge; `AppDelegate` only forwards lifecycle calls under `#if DEBUG`. |
 | DS-033 | ◐ | Low→Low | High | `StorageSettingsPane.swift:70,121` only | Only **one** pane reads `Storage.shared` in prod (Pins pane hit is `#Preview`). |

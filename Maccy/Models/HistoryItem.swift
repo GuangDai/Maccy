@@ -75,14 +75,14 @@ class HistoryItem {
   /// A Sendable containment signature for this item, ignoring transient types.
   var duplicateSignature: HistoryItemEngine.Signature {
     HistoryItemEngine.signature(
-      contents: contents,
+      contents: contentDTOs(of: self),
       ignoringTypes: Self.transientTypes
     )
   }
 
   /// Returns true if this item's contents contain every entry in `signature`.
   func supersedes(_ signature: HistoryItemEngine.Signature) -> Bool {
-    HistoryItemEngine.contains(contents: contents, signature: signature)
+    HistoryItemEngine.contains(contents: contentDTOs(of: self), signature: signature)
   }
 
   // MARK: - Title & preview
@@ -97,7 +97,7 @@ class HistoryItem {
     }
 
     return HistoryItemEngine.generateTitle(
-      contents: contents,
+      contents: contentDTOs(of: self),
       fallbackTitle: title,
       maxLength: Self.titlePreviewLimit,
       richTextParsingLimit: Self.richTextParsingLimit,
@@ -108,7 +108,7 @@ class HistoryItem {
   /// Returns the previewable text prefix of this item, capped at `maxLength`.
   func previewableTextPrefix(maxLength: Int) -> String {
     HistoryItemEngine.previewableTextPrefix(
-      contents: contents,
+      contents: contentDTOs(of: self),
       fallbackTitle: title,
       maxLength: maxLength,
       richTextParsingLimit: Self.richTextParsingLimit
@@ -121,7 +121,7 @@ class HistoryItem {
   /// stores at ingest.
   func searchableBody() -> String {
     HistoryItemEngine.searchableBody(
-      contents: contents,
+      contents: contentDTOs(of: self),
       richTextParsingLimit: Self.richTextParsingLimit
     )
   }

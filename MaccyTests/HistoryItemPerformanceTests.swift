@@ -7,10 +7,13 @@ class HistoryItemPerformanceTests: XCTestCase {
   /// Benchmark for superset-containment checks over a single large text content.
   func testLargeTextSignatureSupersedesBenchmark() {
     let largeText = String(repeating: "abcdef\n", count: 20_000)
+    let value = Data(largeText.utf8)
     let contents = [
-      HistoryItemContent(
+      ContentDTO(
         type: NSPasteboard.PasteboardType.string.rawValue,
-        value: largeText.data(using: .utf8)
+        value: value,
+        fingerprint: ClipboardDataProcessor.fingerprintIfLarge(value),
+        size: value.count
       )
     ]
     let signature = HistoryItemEngine.signature(contents: contents, ignoringTypes: [])
@@ -30,7 +33,13 @@ class HistoryItemPerformanceTests: XCTestCase {
     let blobSize = 20_000   // ≥ 16 KiB threshold → fingerprinted
     let type = NSPasteboard.PasteboardType.string.rawValue
     let historyContents = (0..<itemCount).map { index in
-      HistoryItemContent(type: type, value: Self.distinctBlob(size: blobSize, marker: UInt8(index)))
+      let value = Self.distinctBlob(size: blobSize, marker: UInt8(index))
+      return ContentDTO(
+        type: type,
+        value: value,
+        fingerprint: ClipboardDataProcessor.fingerprintIfLarge(value),
+        size: value.count
+      )
     }
     let signature = HistoryItemEngine.signature(
       contents: [historyContents.last!],

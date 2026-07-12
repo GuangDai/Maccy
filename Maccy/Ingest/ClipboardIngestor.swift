@@ -374,17 +374,16 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     for contents: [ContentDTO],
     showSpecialSymbols: Bool
   ) -> TextProjection {
-    let transient = contents.map { HistoryItemContent(type: $0.type, value: $0.value) }
     return TextProjection(
       title: HistoryItemEngine.generateTitle(
-        contents: transient,
+        contents: contents,
         fallbackTitle: "",
         maxLength: HistoryItem.titlePreviewLimit,
         richTextParsingLimit: 512 * 1_024,
         showSpecialSymbols: showSpecialSymbols
       ),
       searchText: HistoryItemEngine.searchableBody(
-        contents: transient,
+        contents: contents,
         richTextParsingLimit: 512 * 1_024
       )
     )

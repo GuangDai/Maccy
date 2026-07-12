@@ -162,14 +162,15 @@ func signatureDTO(of item: HistoryItem) -> SignatureDTO {
   })
 }
 
-/// Projects a `@Model HistoryItem`'s contents into `Sendable` `ContentDTO` values.
+/// Projects a `@Model HistoryItem`'s contents and stored fingerprints into
+/// `Sendable` `ContentDTO` values at the persistence boundary.
 func contentDTOs(of item: HistoryItem) -> [ContentDTO] {
   item.contents.map { content in
     let value = content.value
     return ContentDTO(
       type: content.type,
       value: value,
-      fingerprint: value.flatMap(ClipboardDataProcessor.fingerprintIfLarge),
+      fingerprint: content.fingerprint,
       size: value?.count ?? 0
     )
   }
