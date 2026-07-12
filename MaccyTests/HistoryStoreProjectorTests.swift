@@ -100,14 +100,20 @@ final class HistoryStoreProjectorTests: XCTestCase {
     let pinned = item(title: "pinned", copiedAt: 1, pin: "p")
     let persistence = RecordingProjectorPersistence()
     persistence.fetchedItems = [secondOverflow, pinned, newest, firstOverflow]
-    let history = History(persistence: persistence, logsPersistenceErrors: false)
-    let ingestor = IngestorSpy()
-    let savedIngestor = Clipboard.shared.ingestor
-    Clipboard.shared.ingestor = ingestor
-    defer { Clipboard.shared.ingestor = savedIngestor }
+    var eventBatches: [[StoreEvent]] = []
+    let history = History(
+      persistence: persistence,
+      runtimeServices: HistoryRuntimeServices(
+        clipboard: HistoryClipboardActions(clear: {}, copy: { _, _ in }, paste: {}),
+        modifierFlags: { [] },
+        currentEvent: { nil },
+        publishStoreEvents: { eventBatches.append($0) },
+        log: { _ in }
+      ),
+      logsPersistenceErrors: false
+    )
 
     try await history.load()
-    let eventBatches = await waitForStoreEvents(in: ingestor, count: 2)
 
     XCTAssertEqual(Set(history.all.map(\.title)), ["newest", "pinned"])
     XCTAssertEqual(
@@ -137,18 +143,6 @@ final class HistoryStoreProjectorTests: XCTestCase {
     HistoryItemDecorator(item)
   }
 
-  private func waitForStoreEvents(
-    in ingestor: IngestorSpy,
-    count: Int
-  ) async -> [[StoreEvent]] {
-    for _ in 0..<100 {
-      if await ingestor.storeEvents.count >= count {
-        return await ingestor.storeEventBatches
-      }
-      try? await Task.sleep(for: .milliseconds(5))
-    }
-    return await ingestor.storeEventBatches
-  }
 }
 
 private enum ProjectorTestError: Error {
