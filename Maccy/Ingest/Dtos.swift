@@ -109,21 +109,6 @@ struct IngestRequest: Equatable, Sendable {
   let policy: IngestPolicy
 }
 
-/// The planned disposition of an ingest, decided before writing.
-enum IngestPlan: Equatable, Sendable {
-  case create([ContentDTO])
-  case merge(existingID: StoredItemID, contents: [ContentDTO])
-  case ignore(IngestIgnoreReason)
-}
-
-/// Why an ingest was ignored.
-enum IngestIgnoreReason: Equatable, Sendable {
-  case empty
-  case ignoredType
-  case ignoredApplication
-  case duplicateInFlight
-}
-
 /// The outcome of an ingest: the resulting `StoreEvent` (if any) plus instrumentation metrics.
 struct IngestResult: Equatable, Sendable {
   let event: StoreEvent?

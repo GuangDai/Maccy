@@ -20,7 +20,7 @@
 | DS-014 | ✅ | Med→Med | High | `limitHistorySize` 288-294 (delete@292) | Per-item `delete`+save; actor trims batch in one txn. |
 | DS-015 | ✅ | Med→Med | High | `PinService.swift`; deletion `76a2a53` | **Resolved:** context-injected `PinService` owns assigned/free pin queries; `HistoryItem` no longer reads `Storage.shared`. |
 | DS-016 | ◐ `△over` | Med→**Low** | High | `ClipboardIngestor.swift:14-37` | Not "residual" — **fully dead**: 0 instantiation sites; only static `historyItem(from:)` used in 1 test. |
-| DS-017 | ✅ `△over` | Med→**Low** | High | `Dtos.swift:110` + `DtoTests.swift:17` | Nominal; only `requireSendable` references it. |
+| DS-017 | ✅ `△over` | Med→**Low** | High | deletion after D1 | **Resolved:** unused `IngestPlan` / `IngestIgnoreReason` and their self-referential Sendable assertion were deleted; the frozen roadmap retains the abandoned design intent. |
 | DS-018 | ✅ | Med→Med | High | 8 sites: Get×3, Select×2, Delete×2, Clear×1 | Intents → `AppState.shared`. |
 | DS-019 | ✗ `△over` `⟳` | Med→**Low** | High | `StoredItemID`; `1393143` | **Resolved after refutation:** the latent string-format risk is gone; the index directly uses Apple's stable `PersistentIdentifier.ID`, with no schema column. |
 | DS-020 | ✅ `⟳` | Med→Med | High | `IngestMailbox`; `b754ac6`, `9fbb6e6` | **Resolved:** one FIFO drain Task serves a burst, with at most one outstanding `ingest`; every observed request is delivered exactly once in order. Latest-wins was rejected as silent clipboard-history data loss. |
@@ -34,7 +34,7 @@
 | DS-028 | ✅ `▽under` `⟳` | Low/Med→**High (cleanup)** | High | deletion `9849d00` | **Resolved:** the ~250 LOC dead paste-stack/multi-select subtree and always-false gate were deleted. |
 | DS-029 | ✅ `△over` | Med→**Low** | High | fire-and-forget corpus `Task`s | One-item lag; documented; self-correcting. |
 | DS-030 | ✅ | Med→Med | High | `HistoryItemEngine` | Takes `[HistoryItemContent]` (@Model). |
-| DS-031 | ◐ | Low→Low | High | `Dtos.swift` | `IngestPlan`/`IngestIgnoreReason` unused (overlaps DS-017). |
+| DS-031 | ◐ | Low→Low | High | deletion after D1 | **Resolved with DS-017:** the unused plan/reason DTOs were deleted rather than promoted into the live actor pipeline. |
 | DS-032 | ✅ | Low→Low | High | `Application/DebugHooks.swift`; `72fa8f2` | **Resolved:** whole-file DEBUG module owns the test/perf bridge; `AppDelegate` only forwards lifecycle calls under `#if DEBUG`. |
 | DS-033 | ◐ | Low→Low | High | `StorageSettingsPane.swift:70,121` only | Only **one** pane reads `Storage.shared` in prod (Pins pane hit is `#Preview`). |
 | DS-034 | ✅ | Low→Low | High | `Maccy/Search/`; `2a06a58` | **Resolved:** all four search sources are colocated with zero source changes. |

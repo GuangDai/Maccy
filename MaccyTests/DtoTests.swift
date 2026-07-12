@@ -17,7 +17,6 @@ class DtoTests: XCTestCase {
     requireSendable(IngestPolicy.self)
     requireSendable(IngestMainActorPlan.self)
     requireSendable(IngestRequest.self)
-    requireSendable(IngestPlan.self)
     requireSendable(IngestResult.self)
     requireSendable(IngestMetrics.self)
   }

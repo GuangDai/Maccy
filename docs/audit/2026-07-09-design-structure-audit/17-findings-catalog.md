@@ -186,11 +186,16 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-017 — `IngestPlan` unused for decisions
 
+> **Resolved 2026-07-12:** `IngestPlan` and `IngestIgnoreReason` had no live
+> producer or consumer; their only external reference asserted Sendable
+> conformance. The types and that assertion were deleted. The frozen roadmap
+> remains the record of the abandoned design intent.
+
 | | |
 |--|--|
 | **Evidence** | Defined `Dtos.swift` 110+; only `DtoTests.requireSendable(IngestPlan.self)` |
 | **Impact** | Fake pipeline abstraction |
-| **Recommendation** | Delete or actually drive ingest |
+| **Recommendation** | **Completed:** deleted; the existing direct actor pipeline remains the single implementation. |
 | **Confidence** | High |
 
 ### DS-018 — App Intents hit `AppState.shared`
@@ -328,7 +333,7 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 | ID | Summary | Confidence |
 |----|---------|------------|
-| DS-031 | `IngestPlan` / unused DTO surface (overlaps 017) | High |
+| DS-031 | **Resolved with DS-017:** unused plan/reason DTO surface deleted | High |
 | DS-032 | **Resolved (`72fa8f2`):** whole-file DEBUG `Application/DebugHooks.swift` | High |
 | DS-033 | Settings panes read Storage.shared directly | High |
 | DS-034 | **Resolved (`2a06a58`):** all four sources under `Maccy/Search/` | High |
@@ -341,9 +346,9 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 |--------|------|----------|-----------------|
 | `History.add` family | Prod-dead / test-live | AppDelegate unused; tests heavy | Breaks test suite |
 | `Clipboard.shouldIgnore(item)`, `isEmptyString`, `richText` | Dead | No call sites | Low |
-| `VisibleWindowLoader` | Half-wired | Tests only | Lose investment / confuse |
+| `VisibleWindowLoader` | **Deleted after D1 no-go** | Was tests only | — |
 | `MainActorIngestorAdapter` | Residual | Not set in AppDelegate | Low if tests updated |
-| `IngestPlan` | Nominal | Sendable test only | Low |
+| `IngestPlan` | **Deleted** | Was Sendable-test only | — |
 | `sessionLog` | Legacy-only | Used by add/isModified | Medium for legacy tests |
 
 ---
