@@ -40,18 +40,25 @@ struct SwiftDataHistoryPersistence: HistoryPersistence {
 
   @MainActor
   func deleteUnpinned() throws {
-    try Storage.shared.context.transaction {
-      try Storage.shared.context.delete(
+    let context = Storage.shared.context
+    // Predicate deletion evaluates persisted rows, not unsaved inserts. Commit
+    // any pending main-context edits first so the same operation can delete a
+    // newly inserted unpinned item while preserving pending pinned items.
+    if context.hasChanges {
+      try context.save()
+    }
+    try context.transaction {
+      try context.delete(
         model: HistoryItem.self,
         where: #Predicate { $0.pin == nil }
       )
-      try Storage.shared.context.delete(
+      try context.delete(
         model: HistoryItemContent.self,
         where: #Predicate { $0.item?.pin == nil }
       )
     }
-    Storage.shared.context.processPendingChanges()
-    try Storage.shared.context.save()
+    context.processPendingChanges()
+    try context.save()
   }
 
   @MainActor
