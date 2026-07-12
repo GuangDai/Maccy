@@ -7,7 +7,8 @@ struct StorageSettingsPane: View {
   /// Syncs the save-files/images/text toggles with `enabledPasteboardTypes`.
   @Observable
   class ViewModel {
-    private(set) var storageSize = ""
+    private(set) var storageSize: String
+    private let readStorageSize: @MainActor () -> String
 
     /// Adds or removes the file UTIs from `enabledPasteboardTypes` when toggled.
     var saveFiles = false {
@@ -51,7 +52,9 @@ struct StorageSettingsPane: View {
     private var observer: Defaults.Observation?
 
     /// Observes `enabledPasteboardTypes` and reflects the file/image/text subsets.
-    init() {
+    init(readStorageSize: @escaping @MainActor () -> String) {
+      self.readStorageSize = readStorageSize
+      storageSize = readStorageSize()
       observer = Defaults.observe(.enabledPasteboardTypes) { change in
         self.saveFiles = change.newValue.isSuperset(of: StorageType.files.types)
         self.saveImages = !change.newValue.isDisjoint(with: StorageType.images.types)
@@ -59,13 +62,10 @@ struct StorageSettingsPane: View {
       }
     }
 
-    /// Creates a storage-size-aware model. The reader is wired in the GREEN
-    /// step after the behavior contract is proven RED.
-    convenience init(readStorageSize: @escaping @MainActor () -> String) {
-      self.init()
+    /// Refreshes the displayed on-disk size from the composition-owned reader.
+    func refreshStorageSize() {
+      storageSize = readStorageSize()
     }
-
-    func refreshStorageSize() {}
 
     deinit {
       observer?.invalidate()
@@ -76,16 +76,13 @@ struct StorageSettingsPane: View {
   @Default(.maxClipboardContentSize) private var maxClipboardContentSize
   @Default(.sortBy) private var sortBy
 
-  @State private var viewModel = ViewModel()
-  @State private var storageSize: String
-  private let readStorageSize: @MainActor () -> String
+  @State private var viewModel: ViewModel
 
   /// Creates the pane with the composition-owned reader for the current
   /// on-disk storage size.
   @MainActor
   init(readStorageSize: @escaping @MainActor () -> String) {
-    self.readStorageSize = readStorageSize
-    _storageSize = State(initialValue: readStorageSize())
+    _viewModel = State(initialValue: ViewModel(readStorageSize: readStorageSize))
   }
 
   private let sizeFormatter: NumberFormatter = {
@@ -132,12 +129,12 @@ struct StorageSettingsPane: View {
             .help(Text("SizeTooltip", tableName: "StorageSettings"))
           Stepper("", value: $size, in: 1...999)
             .labelsHidden()
-          Text(storageSize)
+          Text(viewModel.storageSize)
             .controlSize(.small)
             .foregroundStyle(.gray)
             .help(Text("CurrentSizeTooltip", tableName: "StorageSettings"))
             .onAppear {
-              storageSize = readStorageSize()
+              viewModel.refreshStorageSize()
             }
         }
       }

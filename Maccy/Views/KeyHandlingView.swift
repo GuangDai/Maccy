@@ -24,31 +24,9 @@ struct KeyHandlingView<Content: View>: View {
 
         switch KeyChord(NSApp.currentEvent) {
         case .clearHistory:
-          if let item = appState.footer.items.first(where: { $0.title == "clear" }),
-             item.confirmation != nil,
-             let suppressConfirmation = item.suppressConfirmation {
-            if suppressConfirmation.wrappedValue {
-              appState.performFooterAction(item.action)
-            } else {
-              item.showConfirmation = true
-            }
-            return .handled
-          } else {
-            return .ignored
-          }
+          return handleFooterAction(.clearHistory) ? .handled : .ignored
         case .clearHistoryAll:
-          if let item = appState.footer.items.first(where: { $0.title == "clear_all" }),
-             item.confirmation != nil,
-             let suppressConfirmation = item.suppressConfirmation {
-            if suppressConfirmation.wrappedValue {
-              appState.performFooterAction(item.action)
-            } else {
-              item.showConfirmation = true
-            }
-            return .handled
-          } else {
-            return .ignored
-          }
+          return handleFooterAction(.clearAllHistory) ? .handled : .ignored
         case .clearSearch:
           searchQuery = ""
           return .handled
@@ -127,5 +105,20 @@ struct KeyHandlingView<Content: View>: View {
 
         return .ignored
       }
+  }
+
+  private func handleFooterAction(_ action: FooterAction) -> Bool {
+    guard let item = appState.footer.items.first(where: { $0.action == action }),
+          item.confirmation != nil,
+          let suppressConfirmation = item.suppressConfirmation else {
+      return false
+    }
+
+    if suppressConfirmation.wrappedValue {
+      appState.performFooterAction(item.action)
+    } else {
+      item.showConfirmation = true
+    }
+    return true
   }
 }

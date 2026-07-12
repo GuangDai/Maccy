@@ -251,7 +251,7 @@ final class FooterActionTests: XCTestCase {
     )
   }
 
-  func testClearActionMutatesTheComposedHistory() async {
+  func testClearAndClearAllActionsMutateTheComposedHistory() async {
     let savedSuppressClearAlert = Defaults[.suppressClearAlert]
     let savedClearSystemClipboard = Defaults[.clearSystemClipboard]
     let savedIngestor = Clipboard.shared.ingestor
@@ -264,14 +264,20 @@ final class FooterActionTests: XCTestCase {
     Defaults[.clearSystemClipboard] = false
     Clipboard.shared.ingestor = nil
 
-    let item = HistoryItemDecorator(
+    let unpinned = HistoryItemDecorator(
       HistoryBuilder()
         .withContent(type: "public.utf8-plain-text", value: Data("local".utf8))
         .build()
     )
+    let pinned = HistoryItemDecorator(
+      HistoryBuilder()
+        .withContent(type: "public.utf8-plain-text", value: Data("pinned".utf8))
+        .withPin("p")
+        .build()
+    )
     let history = History(
       persistence: RuntimeServicesPersistence(),
-      listState: HistoryListState(decorators: [item]),
+      listState: HistoryListState(decorators: [unpinned, pinned]),
       logsPersistenceErrors: false
     )
     let footer = Footer()
@@ -281,7 +287,49 @@ final class FooterActionTests: XCTestCase {
     appState.select()
     await Task.yield()
 
+    XCTAssertEqual(history.all, [pinned])
+
+    appState.performFooterAction(.clearAllHistory)
+    await Task.yield()
+
     XCTAssertTrue(history.all.isEmpty)
+  }
+
+  func testApplicationActionsRouteThroughTheOwningAppState() async {
+    let appState = RecordingFooterAppState(
+      history: History(
+        persistence: RuntimeServicesPersistence(),
+        logsPersistenceErrors: false
+      ),
+      footer: Footer()
+    )
+
+    appState.performFooterAction(.openPreferences)
+    await Task.yield()
+    appState.performFooterAction(.openAbout)
+    appState.performFooterAction(.quit)
+
+    XCTAssertEqual(
+      appState.performedActions,
+      [.openPreferences, .openAbout, .quit]
+    )
+  }
+}
+
+@MainActor
+private final class RecordingFooterAppState: AppState {
+  private(set) var performedActions: [FooterAction] = []
+
+  override func openPreferences() {
+    performedActions.append(.openPreferences)
+  }
+
+  override func openAbout() {
+    performedActions.append(.openAbout)
+  }
+
+  override func quit() {
+    performedActions.append(.quit)
   }
 }
 
