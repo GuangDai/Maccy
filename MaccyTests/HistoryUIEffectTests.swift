@@ -74,6 +74,15 @@ final class HistoryUIEffectTests: XCTestCase {
   }
 
   func testFacadeClearUsesInjectedClipboardAndStoreEventServices() async {
+    let savedClearSystemClipboard = Defaults[.clearSystemClipboard]
+    let savedIngestor = Clipboard.shared.ingestor
+    defer {
+      Defaults[.clearSystemClipboard] = savedClearSystemClipboard
+      Clipboard.shared.ingestor = savedIngestor
+    }
+    Defaults[.clearSystemClipboard] = false
+    Clipboard.shared.ingestor = nil
+
     let item = textItem("clear-injected")
     let decorator = HistoryItemDecorator(item)
     let listState = HistoryListState(decorators: [decorator])
@@ -103,15 +112,24 @@ final class HistoryUIEffectTests: XCTestCase {
     XCTAssertEqual(storeEvents, [.removed(storedItemID(for: item))])
   }
 
-  func testFacadeSelectUsesInjectedClipboardAndModifierServices() {
+  func testFacadeSelectUsesInjectedClipboardAndModifierServices() async {
     let savedPasteByDefault = Defaults[.pasteByDefault]
     let savedRemoveFormatting = Defaults[.removeFormattingByDefault]
+    let savedIgnoreEvents = Defaults[.ignoreEvents]
+    let savedIgnoreOnlyNextEvent = Defaults[.ignoreOnlyNextEvent]
+    let savedIngestor = Clipboard.shared.ingestor
     defer {
       Defaults[.pasteByDefault] = savedPasteByDefault
       Defaults[.removeFormattingByDefault] = savedRemoveFormatting
+      Defaults[.ignoreEvents] = savedIgnoreEvents
+      Defaults[.ignoreOnlyNextEvent] = savedIgnoreOnlyNextEvent
+      Clipboard.shared.ingestor = savedIngestor
     }
     Defaults[.pasteByDefault] = false
     Defaults[.removeFormattingByDefault] = false
+    Defaults[.ignoreEvents] = true
+    Defaults[.ignoreOnlyNextEvent] = false
+    Clipboard.shared.ingestor = nil
     let item = textItem("select-injected")
     let decorator = HistoryItemDecorator(item)
     let listState = HistoryListState(decorators: [decorator])
@@ -138,6 +156,7 @@ final class HistoryUIEffectTests: XCTestCase {
     )
 
     history.select(decorator)
+    await Task.yield()
 
     XCTAssertTrue(copiedItem === item)
     XCTAssertFalse(copiedWithoutFormatting)
