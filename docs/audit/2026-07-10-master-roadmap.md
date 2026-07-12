@@ -5,7 +5,7 @@
 | **Role** | The single forward-looking roadmap: what to do after Wave A, in order, with dependencies and decision forks. Supersedes the design-audit playbook (`2026-07-09-design-structure-audit/19-master-playbook.md`) priority order using the verification's recalibration + Wave A completion. |
 | **Baseline** | post-Wave-A master (HEAD after `7fb08bd` / docs through `bfcf671`). |
 | **Inputs** | [`2026-07-09-design-audit-verification/`](2026-07-09-design-audit-verification/) (verified findings + 19 new issues), [`2026-07-09-design-structure-audit/19-master-playbook.md`](2026-07-09-design-structure-audit/19-master-playbook.md) (waves), [`../2026-06-27-memory-floor-and-retention/`](2026-06-27-memory-floor-and-retention/) (memory track). |
-| **History-split detail** | B0 frozen in [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/): **defer split**; D4 measure-first; DS-022-standalone hollow; SwiftLint policy audit. Prefer that suite over Wave B table rows when they conflict on sequencing. |
+| **History-split detail** | B0's original defer decision remains the historical baseline in [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/). The gate later fired through B3/B4 deletion, B5's mutation chokepoint, and C3's independently testable search boundary; B2–B5 are complete on `b2-b5-history`. |
 | **Constraint** | No local toolchain; one small step + TDD + CI per change; structure ≠ behavior in the same PR; don't change user-visible behavior unless required. |
 
 ---
@@ -25,9 +25,9 @@
 
 **What this closed:** the entire **silent-failure cluster** (4 distinct swallow sites — now all surface to `lastPersistError`) and the **search-generation bug class** (3 sites now bump generation like their siblings). The most dangerous correctness defects in the verification are gone.
 
-**Post-roadmap progress (through 2026-07-12):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), D1 (measured no-go + confirmed deletion; run `29176185359`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), C5 (`76a2a53` + generated project `b49b462`), C6 (`1393143`), E1 (`cd368ea`), E2 (`2a06a58`, `72fa8f2`, `9e54d77` + generated project `19b7431`), E3 (`32320cf`), timestamp hygiene (`91d76b8`), dead ingest-plan DTO cleanup (DS-017/DS-031), the `HistoryItemEngine` DTO boundary (DS-030), and pending-insert-safe clear-unpinned semantics (DS-025) are complete. XcodeGen M0–M3 is complete through `94ca913`: production project output is generated, and normal CI/release enforce repeatability + zero drift.
+**Post-roadmap progress (through 2026-07-13):** D4 (`9c8728c`), D6 (`947f88b`), D5 (`592bae6` + `01493f9`), D0 (`7852ea8`), D1 (measured no-go + confirmed deletion; run `29176185359`), E4 (`9849d00`), C1 (`7da8ac6` + `2ac325f`), all of C2 (`c6afcbe`, `10f8d90`, `f9f0e85`), C5 (`76a2a53` + generated project `b49b462`), C6 (`1393143`), E1 (`cd368ea`), E2 (`2a06a58`, `72fa8f2`, `9e54d77` + generated project `19b7431`), E3 (`32320cf`), timestamp hygiene (`91d76b8`), dead ingest-plan DTO cleanup (DS-017/DS-031), the `HistoryItemEngine` DTO boundary (DS-030), and pending-insert-safe clear-unpinned semantics (DS-025) are complete. B2–B5 also landed as small commits: committed-store test seeding, legacy writer deletion, value UI effects, `HistoryListState`, `HistorySearchSession`, `HistoryStoreProjector`, and `HistoryMutations`. C3 removed the legacy 217-line search engine (`5fd7bf4`; full green `29205361439`); C4 batches load-limit deletes (`04ab27c`; full green `29206774668`). XcodeGen M0–M3 is complete through `94ca913`: production project output is generated, and normal CI/release enforce repeatability + zero drift.
 
-**What remains:** structure debt (the deferred god-object split), load/memory work beyond the completed D0/D4–D6 steps, single search-engine/domain cleanup, package organization, and progressive dependency injection.
+**What remains:** load/memory work beyond the completed D0/D4–D6 steps, framework-floor-aware retention work, and progressive dependency injection outside the now-split History spine.
 
 ---
 
@@ -35,7 +35,7 @@
 
 The verification showed the audit's *mechanisms* were right but its *severity* was inflated. The remaining work is therefore **not** a fire drill — it's debt paydown ordered by leverage:
 
-1. **Structure spine (Wave B)** — `History` (989 LOC god object) + the `History→AppState` ×23 coupling + the dual write path. This is the single largest blocker to *safe* change; almost every other item touches `History`. **Highest leverage.**
+1. **Structure spine (Wave B, completed)** — the former 989-LOC `History` god object, ×23 `AppState` coupling, dual writer, and dual persistence channel were decomposed/deleted behind fake-backed seams. Preserve those boundaries rather than rebuilding the monolith.
 2. **Hot-path performance (Wave D)** — two O(n)-on-every-copy walls (`syncAllToStore`, `commit`'s unpinned fetch) + the unbounded cold `load` + the MainActor hop. This is the real story behind the "incremental per-copy" label and ties directly to the BS-4/6 memory track.
 3. **Domain consistency (Wave C)** — dual filter rules, dual search engines, the `SignatureIndex` delete-sync gap, three-identifier confusion. Mostly Medium/Low after recalibration; batchable.
 4. **Cleanup & boundaries (Wave E–F)** — ~250 LOC dead paste-stack subtree, dead Clipboard helpers, Intent port, doc rot, progressive DI.
@@ -52,12 +52,12 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 
 | # | Step | Closes | Effort | Risk | Notes |
 |---|------|--------|--------|------|-------|
-| B0 | **History split design** (doc-only) | DS-001 | S | — | **DONE** → [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/): **defer** file/type split; D4-first (measure); DS-022 not standalone; forcing-gate in plan `07`. |
-| B1 | **UIEffectPort (DEFERRED — tried & reverted 2026-07-10)** | DS-007 | — | — | A protocol+adapter that wraps `AppState.shared` only *relocates* the coupling — the adapter still calls `AppState.shared` in every method, so runtime is unchanged and testability isn't unblocked ("脱裤子放屁"). The real fix is **inversion** (History publishes effect intents; UI subscribes), which belongs with the projection split (B2), not a standalone port. Defer. |
-| B2 | **History file split** (no behavior) | DS-001, DS-022 | M–L | M | One file per commit (`refactor(history): split … no behavior change`). Also routes all store IO through one port (closes the dual persistence channel). Order: Legacy → Search → Reconcile → Mutations. |
-| B3 | **Migrate tests off `add`** | DS-003 | M–L | M | `seedViaConsume` helper; quarantine sessionLog-only tests. 45 `history.add` call sites across 5 test files. |
-| B4 | **Remove/isolate legacy `add`** | DS-003, DS-016 | M | M | After B3. Delete `MainActorIngestorAdapter.ingest` (fully dead). |
-| B5 | **Centralize generation chokepoint** | (Wave A TODO) | S | L | Fold the `invalidateInFlightSearch()` calls (now in 6 sites) into one "any list mutation cancels in-flight search" entry point. Structural fix for the bug class Wave A patched per-site. |
+| B0 | **History split design** (doc-only) | DS-001 | S | — | **DONE/EXECUTED** → the plan first deferred hollow file surgery, then its real gate fired through B3/B4+B5/C3; completion overlay is in [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/). |
+| B1 | **Value UI-effect inversion — done** (`acd04dc`) | DS-007 | M | L | The rejected singleton-wrapping adapter stayed deleted. `HistoryUIEffect` values now leave History modules through a composition-owned sink; `AppState` interprets them without any `History → AppState.shared` edge. |
+| B2 | **Deep History decomposition — done** (`27562cc`, `b8da02f`, `35365fa`) | DS-001, DS-022 | M–L | M | Real modules own list state, search session, store projection, and mutations. `History.swift` is 341 LOC after final seam cleanup; direct context IO exists only in `SwiftDataHistoryPersistence`. |
+| B3 | **Migrate tests off `add` — done** (`887b2c8`…`3f27156`) | DS-003 | M–L | M | `HistoryTestDriver` seeds committed models through live `StoreEvent` projection; performance fixture population is isolated from projection (`f50cfc5`). |
+| B4 | **Delete legacy writer — done** (`c53a183`, `e601eb8`) | DS-003, DS-016 | M | M | Legacy `History.add`/sessionLog writer and `MainActorIngestorAdapter` were deleted; the AppKit dependency retained only where live event handling needs it. |
+| B5 | **Centralize generation chokepoint — done** (`c7f50be`) | (Wave A TODO) | S | L | `HistoryListState` owns structural mutation and invokes one search-invalidation hook; completed-search publication intentionally bypasses that hook. |
 
 ### Wave C — Domain consistency (after B2 for History-touching items)
 
@@ -65,8 +65,8 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 |---|------|--------|--------|------|
 | C1 | **Single filter source — done** (`2ac325f`) | DS-008, `NEW-clipboard-filter-1/2/3` | M | M | Shared `IngestFilter` rules now own the UTI policy; dead Clipboard helpers/cascades and doc rot were removed. |
 | C2 | `SignatureIndex` consistency | DS-009 | M | M | **DONE.** C2.1 (`c6afcbe`): UI delete/clear batches actor removal/reset. C2.2 (`10f8d90`): one DTO signature projection. C2.3 (`f9f0e85`): search is read-only; backfill occurs inside the ingest transaction. Original cross-ingest timing claim refuted by `ModelContext.transaction` semantics. |
-| C3 | Single `MatchEngine` + empty short-circuit | DS-010, DS-012, DS-029 | M | M | Merge legacy `Search` (217 LOC) into `SearchActor`; O(1) decorator-id resolve (`[UUID: HistoryItemDecorator]`); pin the one-item corpus-lag. |
-| C4 | Batch limit deletes | DS-014 | S | M | One transaction for `limitHistorySize` trim (matches the actor's batched trim). |
+| C3 | **Single `MatchEngine` + O(1) resolution — done** (`27562cc`, `5fd7bf4`) | DS-010, DS-012, DS-029 | M | M | `HistorySearchSession` owns the actor corpus and `[UUID: decorator]` lookup; empty query publishes directly; legacy `Search.swift` and its 304-line test suite are deleted. Full matrix `29205361439`. |
+| C4 | **Batch limit deletes — done** (`04ab27c`) | DS-014 | S | M | `HistoryStoreProjector.load` identifies exact unpinned overflow once, deletes it in one transaction/save, then sends one batched index-sync event. Full matrix `29206774668`. |
 | C5 | **Pin query off the entity — done** (`76a2a53`, `b49b462`) | DS-015 | S | L | Context-injected `PinService` owns supported/assigned/free-key policy; `HistoryItem` has no persistence query or `Storage.shared` access. |
 | C6 | **Stored identity — done** (`1393143`) | DS-019; sharpens DS-005 | M | L | Uses Apple's stable, `Hashable`/`Sendable` `PersistentIdentifier.ID` directly; deletes string/FNV projection and avoids a redundant schema column. |
 
@@ -95,9 +95,9 @@ The verification showed the audit's *mechanisms* were right but its *severity* w
 ### 3.5 Hard dependencies
 
 ```text
-B0 → B1 → B2 → (B3 → B4)              # structure spine; B5 after B2
+B3 → B4 → B5 → B1/B2 → C3 → C4        # completed safe execution order
 D0 → D1                                # load ADR gates the load rewrite
-B2 before C3/C4 (they edit the split History); C2 completed safely before the deferred split
+B2 before C3/C4; all three are now complete
 C6 complete (`1393143`); D4/D5 pair with BS-4/6 memory work
 ```
 
@@ -114,7 +114,7 @@ C6 complete (`1393143`); D4/D5 pair with BS-4/6 memory work
 | `NEW-history-spine-4` select no invalidate | Low | **A** | ✅ done |
 | `NEW-ingest-dualpath-1` commit O(n)/copy | Med | D5 | ✅ done (`592bae6`, `01493f9`) |
 | `NEW-ingest-dualpath-2` read mutates candidates | Low | C2.3 | ✅ done (`f9f0e85`) |
-| `NEW-ingest-dualpath-3` adapter fully dead | Low | B4 | open (B4 removes it) |
+| `NEW-ingest-dualpath-3` adapter fully dead | Low | B4 | ✅ done (`c53a183`) |
 | `NEW-ingest-dualpath-4` result discarded | Low | **A** | ✅ done |
 | `NEW-dedup-ids-2` findDuplicate re-derives signature | Low | C2.2 | ✅ done (`10f8d90`) |
 | `NEW-dedup-ids-3` backfill cross-ingest commit | Low | C2.3 | ✅ refuted timing; coupling removed (`f9f0e85`) |
@@ -130,7 +130,7 @@ C6 complete (`1393143`); D4/D5 pair with BS-4/6 memory work
 
 1. **D0/D1 — Load: CLOSED** — D0 corrected the false production claims; D1 then measured a behavior-equivalent alternative at only ~1% faster and rejected it. Windowing is not a sound memory lever and would degrade full-history UX, so the dead loader/context test scaffolding was deleted.
 2. **E4 — Dead paste-stack / multi-select subtree: CLOSED** — delete it (`9849d00`).
-3. **B0 — History split granularity:** ~~the full 5–7 types, or a smaller first cut?~~ **CLOSED** — defer split entirely until forcing-gate; see [`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/).
+3. **B0 — History split granularity: CLOSED/EXECUTED** — the original decision correctly deferred a hollow extension split. B3/B4 deletion plus B5/C3 testability later fired the real-type gate; four cohesive modules landed incrementally, not as a big-bang package tree.
 4. **C6 — Stored identity: CLOSED** — use `PersistentIdentifier.ID` directly (`1393143`). It supplies the stable, store-scoped, `Hashable`/`Sendable` identity the index needs; neither the undocumented string fold nor a redundant UUID column remains.
 5. **C2.1 — SignatureIndex delete-sync:** ~~`noteRemoved`, dirty-rebuild, or unified events?~~ **CLOSED** — successful UI mutations send batched `.removed`/`.cleared` events to the actor; full clear forces a safe next-ingest rebuild (`c6afcbe`).
 6. **D3 — Ingest coalesce: CLOSED** — use a lossless FIFO mailbox (`b754ac6`): coalesce Task creation, not clipboard data. Latest-wins was rejected because it silently drops already-observed copies.
@@ -155,6 +155,7 @@ C6 complete (`1393143`); D4/D5 pair with BS-4/6 memory work
 14. ~~D2 — shrink the ingest MainActor hop~~ — **done** (`a487276`, `70e1d23`; request policy snapshot + pure routing plan; heavy plain-text fixture requires no main work, RTF stays safely main-affine; full generated matrix green in `29168784563`). Next: D3.
 15. ~~D3 — replace one-Task-per-change with a lossless FIFO mailbox~~ — **done** (`b754ac6`, `9fbb6e6`; one drain Task per burst, no concurrent/reentrant ingest calls, no dropped requests; full generated matrix green in `29175614620`).
 16. ~~D1 — measure complete-history startup alternatives~~ — **done/no-go** (run `29176185359`: 34.202 vs 34.551 ms, ~1% inside noise; no partial-history tradeoff; dead window loader/context scaffolding deleted). Next: remaining non-B2-gated work.
+17. ~~B2–B5 + C3/C4 — decompose History after the real gate~~ — **done** (`c53a183`, `c7f50be`, `acd04dc`, `27562cc`, `b8da02f`, `35365fa`, `5fd7bf4`, `04ab27c`; B2d full matrix `29209334126`; final seam cleanup full matrix `29209585359`).
 
 XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
@@ -166,7 +167,7 @@ XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 - **Don't** move directories + change dedup + change load in one PR (un-bisectable).
 - **Don't** build a generic `EventBus`, a search index without measured need, a repository pyramid for one SQLite aggregate, or a full DDD package tree in one migration.
 - **Don't** reword log/error messages to dodge the CI self-scan — allowlist expected fault-injection logs instead (locked principle, 2026-07-09).
-- **Don't** add to `History.swift` without checking `file_length` headroom (it's at ~978 after extraction; the split (B2) is the real cure).
+- **Don't** move cohesive behavior back into `History.swift`; it is now a ~341-line composition/observable facade over list, search, projection, and mutation modules.
 
 ---
 
@@ -177,4 +178,4 @@ XcodeGen M4 is now an ongoing invariant rather than a separate migration track.
 
 ---
 
-**One-line summary:** Wave A plus D0–D6, C1/C2/C5/C6, E1–E4, and XcodeGen M0–M3 are complete. D1 closed as a measured no-go without sacrificing complete-history UX. Next is remaining non-B2-gated work; C3/C4 remain behind their documented B2 dependency, while History↔AppState structural decoupling waits for a real projection forcing gate—not a singleton-wrapping port.
+**One-line summary:** Wave A, B2–B5, C1–C6, D0–D6, E1–E4, and XcodeGen M0–M3 are complete. D1 stayed a measured no-go without sacrificing complete-history UX; the later real History gate produced cohesive list/search/projector/mutation modules, value UI effects, one persistence channel, one search engine, and batched load-limit deletion.

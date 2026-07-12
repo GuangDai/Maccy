@@ -10,6 +10,34 @@
 
 ---
 
+## 2026-07-13 completion update
+
+The original defer decision below was correct for the 2026-07-10 baseline: a
+lint-only extension split or standalone persistence wrapper would have been
+hollow. The situation later changed through measured, independently useful
+work: D4 stabilized incremental projection, B3/B4 removed the legacy writer,
+B5 created one list-mutation chokepoint, and C3 required an independently tested
+search-session boundary. Those were the forcing gates—not aesthetics.
+
+The resulting decomposition is complete on `b2-b5-history`:
+
+- `HistoryListState` owns `all`/`items` and structural invalidation;
+- `HistorySearchSession` owns query/generation/corpus/O(1) result resolution;
+- `HistoryStoreProjector` owns load/consume/reconcile/limit projection through
+  `HistoryPersistence`;
+- `HistoryMutations` owns clear/delete/select/pin, shortcut refresh, clipboard
+  ports, store-index events, and value UI effects;
+- `History` is a 341-line observable composition facade, down from 978 lines;
+- `History → AppState.shared`, the legacy writer, dual search engine, and direct
+  store IO in the facade/projector are gone.
+
+This was delivered as small RED/GREEN commits, not the big-bang 5–7 type
+migration prohibited by the original plan. B2d's completed implementation was
+full-matrix green in run `29209334126`; the final compatibility-seam cleanup is
+full-matrix green in `29209585359`.
+
+---
+
 ## Headline (one paragraph)
 
 Wave A closed the silent-failure and search-generation defects. **Do not split `History.swift` now.** The next concrete History-touching work is **D4** (`syncAllToStore` O(rows)→O(deleted) per copy), **gated by a measure-first perf baseline** at n=1000. Standalone “close DS-022” (route five `Storage.shared.context` sites through `HistoryPersistence`) is **hollow-as-B1** under verification: no correctness fix, no runtime change, and the failure paths are already tested via DEBUG force-failure seams. Pure extension splits for `file_length` headroom are also hollow under the project’s custom SwiftLint thresholds. Real type extraction is dominated until **D1** (windowed load) or a hard forcing-gate. The custom lint raise of 2026-06-24 (`a8365fa`: length rules → 1000/1000) is **process debt**: it removed soft bands and effectively neutered `type_body_length` / `function_body_length`, rewarding cliff-driven file surgery (e.g. paste-stack extract at 1060 LOC) rather than dependency changes.
@@ -51,12 +79,16 @@ Wave A closed the silent-failure and search-generation defects. **Do not split `
 |------|--------|
 | Wave A correctness | ✅ done (through `7fb08bd`) |
 | B1 UIEffectPort | ❌ tried & reverted; deferred forever as singleton-wrapping port |
-| B0 split design | ✅ decided in this suite: **defer split** |
-| D4 measure-first baseline | ⬜ open (next) |
-| D4 implementation | ⬜ open (after measurement) |
-| History file / type split | ⬜ deferred (forcing-gate in `07`) |
+| B0 split design | ✅ original defer decision was correct at baseline |
+| D4 measure-first baseline | ✅ done |
+| D4 implementation | ✅ done (`9c8728c`) |
+| B3/B4 legacy deletion | ✅ done (`887b2c8`…`c53a183`) |
+| B5 mutation chokepoint | ✅ done (`c7f50be`) |
+| History real-type split | ✅ done after the gate (`27562cc`, `b8da02f`, `35365fa`) |
+| UI effect inversion | ✅ done (`acd04dc`); no singleton-wrapping adapter |
+| C3/C4 dependent cleanup | ✅ done (`5fd7bf4`, `04ab27c`) |
 | Lint policy restore | ⬜ open optional process track (not History architecture) |
 
 ---
 
-**One-line summary:** Defer History split; measure then do D4 via `onEvent` widening; treat standalone DS-022 and lint-only extension splits as hollow; fix lint *policy* separately if desired; real extraction waits for D1 or a hard gate.
+**One-line summary:** The original defer avoided hollow work; D4 + B3/B4 + B5/C3 later fired a real gate, and the incremental list/search/projector/mutations decomposition is now complete without changing complete-history UX.

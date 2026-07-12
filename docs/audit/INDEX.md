@@ -2,7 +2,7 @@
 
 > **本文件是审计文档仓库的单一权威导航中心,自包含。** 阅读任何审计文档前先读此页,以避免把"冻结的设计意图"或"历史快照"误读为"当前状态"。
 >
-> 最近更新:**2026-07-12**(D1 run `29176185359`:完整历史 store-sorted 候选 34.202ms，对照 34.551ms，仅约 1% 噪声差；窗口化已证实约 0 内存价值且破坏完整搜索，故不落地并删除 test-only loader/context 脚手架。D3 `b754ac6`:lossless FIFO ingest mailbox；D2 `a487276`/`70e1d23`:仅 AppKit RTF/HTML 解析留在 main。计划/证据见 `2026-07-12-d1-startup-ab-plan.md`、`2026-07-12-d3-ingest-mailbox-plan.md`、`2026-07-12-d2-mainactor-hop-plan.md`。C6/E2/C5 与 XcodeGen M0–M3 也已完成；`project.yml` 是真相源。) Earlier **2026-07-10**:`2026-07-10-history-split-plan/` — expanded B0 authority: **defer History split**; D4 measure-first; DS-022-standalone hollow-as-B1; forcing-gate + S0–S7 board. + `2026-07-10-master-roadmap.md` global post-Wave-A order. Earlier 2026-07-09:`2026-07-09-design-audit-verification/` — **27/34 findings confirmed; 6 severity-overstated; DS-019 refuted; 19 new issues**. Earlier 2026-07-05:`2026-07-05-applicationimage-mainactor-crash/`. Phase-1 整理(2026-06-29)仍适用。
+> 最近更新:**2026-07-13**(B2–B5/C3/C4 完成:`History.swift` 978→341 LOC；`HistoryListState`/`HistorySearchSession`/`HistoryStoreProjector`/`HistoryMutations` 分担列表、搜索、投影、命令；legacy writer/adapter 与 legacy Search 删除；value UI effects 消除 `History → AppState.shared`；direct context IO 收敛到 SwiftData persistence adapter；load-limit 一次 transaction/save。C3 full matrix `29205361439`,C4 `29206774668`,B2d `29209334126`,最终 seam cleanup `29209585359`。D1 仍保持 measured no-go:不以完整搜索/启动速率换内存。) Earlier **2026-07-12**:D1/D2/D3/C5/C6/E2/XcodeGen M0–M3 完成。Earlier **2026-07-10**:`2026-07-10-history-split-plan/` 的 defer 决策避免了 hollow split；其 forcing gate 后来由 B3/B4+B5/C3 实际触发。Earlier 2026-07-09:`2026-07-09-design-audit-verification/` — **27/34 findings confirmed; 6 severity-overstated; DS-019 refuted; 19 new issues**。
 
 ## 0. 三大权威源 + spec-of-record(reading order)
 
@@ -142,7 +142,7 @@
 | 路径 | role | 摘要 |
 |------|------|------|
 | [`2026-07-10-master-roadmap.md`](2026-07-10-master-roadmap.md) | A | **The single forward-looking roadmap** after Wave A: Waves B/C/D/E-F ordered by leverage, deps, decision forks, red lines. Supersedes the playbook's priority order using the verification's recalibration. |
-| **[`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/)** | **A** | **History-structure specialization:** B0 freeze (defer split), hollow-work test, **SwiftLint policy audit** (`a8365fa` 1000/1000), anatomy, DS-022 hollow finding, D4 design (`onEvent` widen), forcing-gate, execution board. **Start here for “what to do about History.swift”.** |
+| **[`2026-07-10-history-split-plan/`](2026-07-10-history-split-plan/)** | **A** | **History-structure specialization + completion overlay:** records why the 07-10 hollow split was deferred and why B3/B4+B5/C3 later fired a real gate; current four-module decomposition and evidence are summarized at the top. |
 | [`2026-07-10-history-split-plan/00-executive-summary.md`](2026-07-10-history-split-plan/00-executive-summary.md) | A | Locked B0 decisions + anti-patterns + success criteria. |
 | [`2026-07-10-history-split-plan/02-swiftlint-policy-audit.md`](2026-07-10-history-split-plan/02-swiftlint-policy-audit.md) | A | Stock vs project length rules; process debt; why lint-only splits are hollow. |
 | [`2026-07-10-history-split-plan/06-d4-design.md`](2026-07-10-history-split-plan/06-d4-design.md) | A | D4 measure-first + `onEvent` transport + correctness traps. |

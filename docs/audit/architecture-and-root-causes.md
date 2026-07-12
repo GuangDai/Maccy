@@ -1,8 +1,8 @@
 # 架构与根因总览(单一权威参考)
 
-本文档是 Maccy 当前架构、瓶颈、数据安全、内存、路线图完成度的**单一权威参考**,由 ~30 份历史审计文档(2026-06-14 深度审查 / 2026-06-25 模块分析 / 2026-06-27 内存实测 / 2026-06-28 路线图缺口审计)蒸馏而成,反映 **2026-06-29 真相**。完成度细节见 `docs/audit/2026-06-28-roadmap-bs5-bs8-gap-audit/`,内存实测见 `docs/audit/2026-06-27-memory-floor-and-retention/`。`finding-id` 词汇表见本文末尾。
+本文档是 Maccy 当前架构、瓶颈、数据安全、内存、路线图完成度的**单一权威参考**,由 ~30 份历史审计文档(2026-06-14 深度审查 / 2026-06-25 模块分析 / 2026-06-27 内存实测 / 2026-06-28 路线图缺口审计)蒸馏而成,并更新到 **2026-07-13 History B2–B5 / C3 / C4 完成态**。完成度细节见 `docs/audit/2026-06-28-roadmap-bs5-bs8-gap-audit/`,内存实测见 `docs/audit/2026-06-27-memory-floor-and-retention/`。`finding-id` 词汇表见本文末尾。
 
-> 代码标识符保留英文;行号以 HEAD `b6653fc` 为准。
+> 代码标识符保留英文;历史行号仅用于定位旧证据,当前结构以类型名和 2026-07-13 branch HEAD 为准。
 
 ---
 
@@ -20,7 +20,7 @@
 }
 ```
 
-BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Storage` 的 `mainContext` 仍是 `History.load()` / `reconcile` / `delete` / `pin` 的唯一上下文**,内存态与读取侧的根因未消除(见 §2、§4)。
+BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读写仍落在 `mainContext`,但 `History`/projector/mutations 不再直接访问它：所有 IO 经过注入的 `HistoryPersistence`,具体 `ModelContext` 只封装在 `SwiftDataHistoryPersistence`。这解决了 DS-022 测试/耦合问题,**不等于**消除了 mainContext 的 framework retention floor(见 §2、§4)。
 
 ### 1.2 两域隔离模型(目标态,部分已落地)
 
@@ -29,10 +29,12 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Stor
 │ SwiftUI Views (HistoryListView/ListItemView/      │   │ actor ClipboardIngestor 【BS-2 已接入 live】       │
 │  PreviewItemView)——仅绑定 @Observable 状态        │   │  ├─ 读 NSPasteboard(后台)                         │
 │                                                    │   │  ├─ 过滤(filterContents)+ 标题(title(for:),       │
-│ @Observable History(瘦视图模型,持有 items/all)     │   │  │   仍回主线程:Defaults + NSAttributedString)     │
-│  ├─ consume(StoreEvent) 增量更新(二分插入)        │◄──┤  ├─ 去重(SignatureIndex 内存索引,O(h))            │
-│  ├─ reconcileWithStore / insertIncrementally 【4.4a】│ DTO│  ├─ 单事务写(background context)                  │
-│  └─ mainContext 读:可见窗口 + delete/pin(仍主线程) │   │  └─ 发出 StoreEvent.added/merged/removed/ignored   │
+│ @Observable History(341 LOC composition facade)    │   │  │   仅必要 AppKit RTF/HTML 解析回 main)             │
+│  ├─ HistoryListState(all/items + mutation hook)    │◄──┤  ├─ 去重(SignatureIndex 内存索引,O(h))            │
+│  ├─ HistorySearchSession(query/actor/corpus)       │ DTO│  ├─ 单事务写(background context)                  │
+│  ├─ HistoryStoreProjector(load/consume/reconcile)  │   │  └─ 发出 StoreEvent + trimmed persistent IDs       │
+│  └─ HistoryMutations(clear/delete/select/pin)      │   │                                                    │
+│       └─ HistoryPersistence → SwiftData adapter    │   │                                                    │
 │                                                    │   │ actor ImageProcessor 【BS-3 已接入】               │
 │ @Observable HistoryItemDecorator(UI 状态)          │   │  ├─ ImageIO 降采样(CGImageSourceCreateThumbnail)   │
 │  ├─ thumbnailImage/previewImage(就绪位图)          │   │  └─ 后台解码 + 缩略图/预览(预览封顶 800px)         │
@@ -58,6 +60,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Stor
 | `Maccy/Ingest/SignatureIndex.swift` | ✅ 纯值去重索引 `[SignatureDTO: ItemID]`,接入 ingestor(BS-4.2) |
 | `Maccy/Ingest/ClipboardIngestor.swift` | ✅ 已接入 live copy 路径(BS-2) |
 | `Maccy/ImageProcessing/ImageProcessing.swift` + `ImageProcessor.swift` + `ImageDownsampler.swift` + `ThumbnailCache.swift` | ✅ ImageIO 降采样已接入(BS-3) |
+| `HistoryListState` / `HistorySearchSession` / `HistoryStoreProjector` / `HistoryMutations` | ✅ B2–B5 完成:列表变更单 chokepoint、actor 搜索语料/O(1) lookup、单 persistence 投影、fake-backed mutations + value UI effects。`History.swift` 978→341 LOC。 |
 | D1 load 原型 | ✅ run `29176185359` 证明完整历史的 store-sorted 候选仅快约 1%，不具落地价值；窗口化又无内存收益且破坏完整搜索，因此 test-only loader/context 脚手架已删除。 |
 
 ---
@@ -72,13 +75,13 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Stor
 |---|---|---|
 | pasteboard poll Timer 同步跑整条管线 | [已修] | `pasteboard-polling-callback-heavy`:Timer 现仅触发 `Task { await ingestor.ingest() }`,重活在 actor(`ClipboardIngestor.swift`) |
 | 富文本/标题解析回主线程 | [已修/安全例外] | D2(`a487276`):`Clipboard` 随请求捕获 live policy；纯过滤与 file/plain/image 标题/正文投影都在 ingest actor。仅 `IngestMainActorPlan` 选中的小型 RTF/HTML 因 AppKit 亲和回 main；heavy-text/RTF fixture 与 no-trap 集成测试锁定边界。 |
-| 去重全表 fetch | [已修] | `findsimilar-full-refetch`:live 路径改走 `SignatureIndex`(`O(h)` 命中候选数,非 `O(n)`)。legacy `History.findSimilarItem` / `History.add` **已不在生产路径**(死代码,见 §2.2) |
+| 去重全表 fetch | [已修] | `findsimilar-full-refetch`:live 路径改走 `SignatureIndex`(`O(h)` 命中候选数,非 `O(n)`)。legacy `History.findSimilarItem` / `History.add` 已于 B4 删除。 |
 | 单复制多次 save | [已修] | `add-does-3-pending-changes-saves`:ingestor 单事务写后台 context |
 | copy 风暴无背压 | [已修] | D3(`b754ac6`):`IngestMailbox` 用一个 FIFO drain Task 服务 burst，同一时刻最多一个 ingest；已观察请求全部按序保留，不采用会丢历史的 latest-wins。 |
 | `shouldIgnore` 正则全在主线程 | [已修] | D2 后正则规则在 ingest actor 的纯 `filterContents(...richTextPresent:)` 路径执行；只有必要的 AppKit 富文本 presence 解析回 main。 |
 | Timer 无 tolerance / 非 common mode | [已修] | E3(`32320cf`):有效 interval 10% tolerance + `.common` run-loop mode。 |
 
-**live 摄取路径**(`ClipboardIngestor` → `History.consume` → `reconcileWithStore`):BS-4.4a 已增量(`model(for:)` + 二分插入),G-copy 实测 9.34→0.99ms。
+**live 摄取路径**(`ClipboardIngestor` → `History.consume` → `HistoryStoreProjector`):BS-4.4a 已增量(`model(for:)` + 二分插入),G-copy 实测 9.34→0.99ms；trimmed IDs 直接 O(deleted) 清 decorator/search corpus。
 
 ### 2.2 History / Storage(加载与状态)
 
@@ -86,13 +89,16 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程),**但 `Stor
 |---|---|---|
 | `load()` 完整 fetch+排序+装饰 | [已决策保留] | D1 用同一批 200 条完整历史 A/B：当前 34.551ms，store-sorted 候选 34.202ms（run `29176185359`），约 1% 属噪声。窗口化 `all` 无内存价值且令搜索漏项，因此不以 UX 换内存/启动指标。 |
 | 插入时整表重排 | [已修] | `insert-resorts-whole-array`:增量 consume 用二分插入(`Sorter.BinaryInsertion.index`,`O(log n)`) |
-| 容量裁剪多 save 风暴 | [部分] | `limit-multi-save-storm`:`limitHistorySize` 仍逐条 `delete()`(主上下文) |
-| `withLogging` 每次 clear/delete 双 fetchCount | [未修] | `fetchcount-withLogging-on-every-mutation`:release 也跑 4 次 DB round-trip 纯诊断 |
+| 容量裁剪多 save 风暴 | [已修] | C4(`04ab27c`):projector 从同一排序结果计算精确未固定 overflow,一次 transaction/save 删除,一次同步 actor index；full matrix `29206774668`。 |
+| `withLogging` clear/delete 双 fetchCount | [部分/仅 DEBUG] | 诊断计数仍存在于 `HistoryMutations`,但 `#if DEBUG` 外 release 只执行真实 operation；不再是 release round-trip。 |
 | 模型索引缺失 | [未修] | `no-indexes-on-predicate-columns`:`pin`/`lastCopiedAt` 等高频列无索引 |
-| legacy `findSimilarItem` / `History.add` | [死代码] | 已被 ingestor + `reconcileWithStore` 取代,但仍在源码中(应删/标 deprecated) |
+| legacy `findSimilarItem` / `History.add` | [已删除] | B3 迁移测试后,B4 `c53a183` 删除 writer/sessionLog/adapter；生产与测试都使用 committed store + `StoreEvent` 投影。 |
+| History god object / UI 双向耦合 / dual IO | [已修] | B2–B5:四个 cohesive modules + `HistoryUIEffect` value sink；facade 无 `AppState.shared`/direct context,projector/mutations 可用 fake persistence 独立测试。 |
 | `Storage.mainContext` 从不 reset/refresh | [未修] | **内存滞留的结构性根因**(见 §4.2);不能直接 `reset()`(见 §4.3 陷阱) |
 
 ### 2.3 Search(文本搜索)
+
+> **2026-07-13 结构收敛:** `HistorySearchSession` 现在拥有 query、debounce、generation、in-flight task、actor corpus 与 `[UUID: decorator]` lookup。空 query 直接发布完整列表；非空 query 只用 `SearchActor`。legacy `Search.swift`(217 LOC)及重复测试已删除(`5fd7bf4`,full matrix `29205361439`),DS-010/012/029 关闭。下面 06-28 表格仍是 BS-5 redesign 的历史缺口快照,不应再用其中的 legacy-engine 描述判断当前结构。
 
 > 🔔 **2026-07-06 更新:BS-5 已超本表重设计(全量落地,CI 全绿)** — 见 `docs/audit/2026-07-04-bs5-search-redesign/`(README §九 进度日志 + `decisions.md` ADR-1..10 + glossary)。Track 2 全文搜索(`searchText` 列 + actor 持语料 + 正文扫描 + fuzzy body + mixed 全文 + body 封顶 Defaults + 测量)+ Track 3 预览高亮(SwiftUI AttributedString + `NSTextView` representable)完成。本节下表为 **06-28 缺口审计的历史快照**;其中 **07-F-010 经 T1.1 经验证推翻(Fuse 返 grapheme offset,代码本就正确,`4fa4946` "bug-2 fix" 空夸大)、07-F-013 经 T1.2 `TextLimits` 单源 + clamp-and-log 修复**;`G-search` 闸门经 T2.7 改测 actor 路径(主线程 <16ms ✓,决策 no-index)。下表的 [未修]/[部分] 状态已由重设计纠正。
 

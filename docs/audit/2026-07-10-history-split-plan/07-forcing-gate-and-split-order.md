@@ -1,6 +1,15 @@
 # 07 — Split Forcing-Gate & Order (when deferred work fires)
 
-**Status:** Split **deferred** until a gate in §1 fires · **Baseline:** HEAD 978 LOC
+**Status:** Gate **fired and split completed 2026-07-13** · **Historical baseline:** HEAD 978 LOC · **Current facade:** 341 LOC
+
+> Completion note: G-B5 fired after B3/B4 deleted the legacy writer and
+> `HistoryListState` established the structural mutation chokepoint. C3 then
+> supplied the independently tested search-session forcing case; D4 had already
+> stabilized incremental projection. The implementation used real cohesive
+> types (`HistoryListState`, `HistorySearchSession`, `HistoryStoreProjector`,
+> `HistoryMutations`) and value UI-effect inversion. The historical decision
+> tree below remains useful as the explanation for why the earlier hollow split
+> was deferred.
 
 ---
 
@@ -12,7 +21,7 @@ The History **file/type split** is allowed to start only when **at least one** o
 |------|---------|----------------|
 | **G-lint** | A **necessary** change cannot land without exceeding `file_length` 1000 **after** trying delete/shrink first | Hard CI; not optional aesthetics |
 | **G-D1** | Load ADR chooses windowed load and implementation starts | `StoreProjector` needs a real second job (window + `all` + IO) |
-| **G-B5** | Generation chokepoint work restructures search/mutation entrypoints enough that locality demands a file | Rare; B5 can usually stay in-file |
+| **G-B5** | Generation chokepoint work restructures search/mutation entrypoints enough that locality demands a file | **Fired:** list-state ownership plus C3's fake-backed search boundary justified real modules |
 
 **Non-gates (do not split just because):**
 
@@ -50,7 +59,7 @@ B4  remove production add path + MainActorIngestorAdapter.ingest (verify 0 live 
 
 If G-lint was the only trigger and Phase 0 frees ≫22 lines → **stop; no split.**
 
-### Phase 1 — Extension split (no new types)
+### Phase 1 — Extension split (no new types; skipped at execution)
 
 **Only if still over wall or G-D1 prep needs locality.**
 
@@ -69,13 +78,13 @@ Rules:
 - No AppState inversion in the same PR.  
 - No DS-022 expansion required unless G-D1 in the same milestone (then port completion may ride with projector work — still prefer separate commits).
 
-### Phase 2 — Real type extraction (sparse)
+### Phase 2 — Real type extraction (completed incrementally)
 
 | Type | When | Notes |
 |------|------|-------|
-| **StoreProjector** | G-D1 | Owns `all` (`@ObservationIgnored`), IO, window; first justified real type |
-| SearchSession type | C3 needs isolated tests | Don’t extract for aesthetics |
-| Mutations / CommandService | Intent port (E1) wants narrow API | |
+| **StoreProjector** | DS-022 + stable post-D4 projection | ✅ `HistoryStoreProjector`; owns injected load/consume/reconcile/limit IO, while `HistoryListState` owns lists |
+| SearchSession type | C3 needs isolated tests | ✅ `HistorySearchSession`; actor corpus + generation + O(1) lookup |
+| Mutations / CommandService | Intent port (E1) wants narrow API | ✅ `HistoryMutations`; fake-backed commands and value effects |
 | LegacyWriter | Only if Phase 0 not done and tests still need it | |
 | UI effect inversion | With multi-projection events | **Never** B1 port |
 
@@ -88,8 +97,8 @@ Rules:
 | Approach | Status |
 |----------|--------|
 | Protocol + AppState adapter | **Forbidden** (B1) |
-| History publishes `HistoryUIEffect` values; AppState/Popup subscribes | **Allowed** later with projector/event model |
-| Leave ×23 calls until then | **Accepted** interim cost |
+| History publishes `HistoryUIEffect` values; AppState/Popup subscribes | **Completed** (`acd04dc`) |
+| Leave ×23 calls until then | Historical interim only; direct edge is gone |
 
 ---
 
@@ -126,4 +135,4 @@ Need to change History?
 
 ## 7. One-line gate summary
 
-**Don’t split until lint/D1/B5 forces it; when forced, delete dead `add` first, then Reconcile extension post-D4, then real StoreProjector only with D1 — never Search-first, never B1 ports.**
+**The gate fired through B3/B4 deletion + B5/C3 testability after D4; the completed real-type split preserved the anti-hollow rules: no lint-only extensions, no B1 singleton adapter, and no big-bang migration.**

@@ -27,6 +27,11 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-001 — `History` god object (~989 LOC)
 
+> **Resolved 2026-07-13:** `History.swift` is now a 341-line observable
+> composition facade. `HistoryListState`, `HistorySearchSession`,
+> `HistoryStoreProjector`, and `HistoryMutations` own the four high-change
+> clusters; the legacy writer was deleted instead of extracted.
+
 | | |
 |--|--|
 | **Location** | `Maccy/Observables/History.swift` |
@@ -37,6 +42,10 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 | **Confidence** | High |
 
 ### DS-003 — Dual write paths (live actor vs legacy `add`)
+
+> **Resolved (`887b2c8`…`c53a183`):** tests seed committed models through
+> `HistoryTestDriver` and consume `StoreEvent`s; the legacy add/sessionLog writer
+> and `MainActorIngestorAdapter` were deleted.
 
 | | |
 |--|--|
@@ -81,6 +90,10 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-007 — `History` → `AppState.shared` bidirectional control coupling
 
+> **Resolved (`acd04dc`):** History modules emit `HistoryUIEffect` values through
+> a composition-owned sink. `AppState` interprets the values; no History module
+> imports or reaches through `AppState.shared`.
+
 | | |
 |--|--|
 | **Evidence** | **23** lines in `History.swift` alone: popup.needsResize/close, navigator.select/highlight/scrollTarget (rg `AppState.shared` on file) |
@@ -115,6 +128,10 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-010 — Dual search engines
 
+> **Resolved (`27562cc`, `5fd7bf4`; full matrix `29205361439`):**
+> `HistorySearchSession` owns the actor path and empty-query publication; the
+> legacy engine and its duplicate test oracle are deleted.
+
 | | |
 |--|--|
 | **Evidence** | Empty query: `search.search("", within: all)` (`History.performSearch` ~851–855). Non-empty: `searchActor.search`. `Search` class still full 4-mode engine (~217 LOC) |
@@ -139,6 +156,9 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-012 — O(n) decorator resolve in `applySearchResults`
 
+> **Resolved (`27562cc`):** the session maintains an O(1)
+> `[UUID: HistoryItemDecorator]` lookup synchronized with its corpus.
+
 | | |
 |--|--|
 | **Evidence** | `all.first(where: { $0.id == dto.id })` in apply loop (`History.swift` ~900) |
@@ -148,6 +168,9 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-013 — `togglePin` does not invalidate in-flight search
 
+> **Resolved structurally (`c7f50be`):** all structural list mutations pass
+> through `HistoryListState`'s single invalidation hook.
+
 | | |
 |--|--|
 | **Evidence** | `togglePin` updates corpus position but no `invalidateInFlightSearch` / `performSearch` |
@@ -156,6 +179,9 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 | **Confidence** | Medium |
 
 ### DS-014 — `limitHistorySize` deletes one-by-one
+
+> **Resolved (`04ab27c`; full matrix `29206774668`):** the projector sends the
+> exact overflow to one persistence transaction/save and one index-sync batch.
 
 | | |
 |--|--|
@@ -176,6 +202,9 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 | **Confidence** | High |
 
 ### DS-016 — `MainActorIngestorAdapter` residual
+
+> **Resolved (`c53a183`):** the adapter and legacy writer were deleted after
+> test migration proved replacement coverage.
 
 | | |
 |--|--|
@@ -243,6 +272,10 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-022 — Persistence dual channel on History
 
+> **Resolved (`b8da02f`):** `HistoryStoreProjector` and `HistoryMutations` use
+> injected `HistoryPersistence`; only `SwiftDataHistoryPersistence` touches the
+> main `ModelContext`. Fake-backed load/model-miss/reconcile tests lock the seam.
+
 | | |
 |--|--|
 | **Evidence** | `persistence` for delete/insert; **also** direct `Storage.shared.context` in load/reconcile/syncAll/mergeDuplicate |
@@ -251,6 +284,10 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 | **Confidence** | High |
 
 ### DS-023 — Load / prewarm swallow errors
+
+> **Resolved:** callers route through `loadAndRecordError`; fake persistence
+> proves fetch failure preserves the old projection and records the error. The
+> obsolete DEBUG force-failure flag was removed in the final facade cleanup.
 
 | | |
 |--|--|
