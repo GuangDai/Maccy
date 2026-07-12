@@ -81,6 +81,13 @@ Every finding: **severity · location · evidence · mechanism · impact · reco
 
 ### DS-006 — Global singleton bus
 
+> **Progress 2026-07-13 (`c8c8fbf`–`02711cb`):** `History` now receives
+> clipboard commands, current-event/modifier reads, store-event publication,
+> and mutation logging as runtime services. Ordinary constructed histories are
+> inert; live `Clipboard.shared`/`NSApp` access is confined to the
+> `History.shared` composition factory. Full matrix `29210900842` is green.
+> E5 remains progressive because other modules still contain shared access.
+
 | | |
 |--|--|
 | **Evidence** | 171 matches of main `*.shared` patterns across 26 production files |
