@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 @testable import Maccy
 
@@ -32,6 +33,21 @@ class SupportTests: XCTestCase {
     XCTAssertEqual(item.numberOfCopies, 3)
     XCTAssertEqual(item.pin, "a")
     XCTAssertEqual(item.title, "hello")
+  }
+
+  /// `HistoryTestDriver` commits rows before applying the same `StoreEvent`
+  /// projection the live background ingestor emits.
+  func testHistoryTestDriverSeedsThroughCommittedConsumePath() throws {
+    History.shared.clearAll()
+    let item = HistoryBuilder()
+      .withContent(type: "public.utf8-plain-text", value: Data("seed".utf8))
+      .build()
+
+    let decorator = try HistoryTestDriver.seed(item)
+
+    XCTAssertTrue(History.shared.all.contains { $0 === decorator })
+    XCTAssertEqual(decorator.item.persistentModelID, item.persistentModelID)
+    XCTAssertEqual(try Storage.shared.context.fetchCount(FetchDescriptor<HistoryItem>()), 1)
   }
 
   /// `FakeClock.advance` moves the `nowProvider` forward by the given interval.
