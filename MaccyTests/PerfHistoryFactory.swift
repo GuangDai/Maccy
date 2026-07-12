@@ -1,9 +1,9 @@
 import Foundation
 @testable import Maccy
 
-/// Composes the six benchmark scenario histories into the shared in-memory
-/// `History` (enable-testing forces an in-memory SwiftData store). Each method
-/// clears the store first, populates it, and returns the populated `History`.
+/// Composes the six benchmark scenarios in the shared in-memory SwiftData
+/// store. Each method clears the store, inserts one batch, and returns the
+/// history whose benchmark will perform the production projection it measures.
 ///
 /// `HistoryBuilder`, `FixtureLoader`, and `ImageFixtureGenerator` are all in the
 /// MaccyTests target; only `History` requires `@testable import Maccy`.
@@ -33,7 +33,7 @@ enum PerfHistoryFactory {
           .build()
       )
     }
-    _ = try HistoryTestDriver.seed(items, in: history)
+    try seedStore(items)
     return history
   }
 
@@ -59,7 +59,7 @@ enum PerfHistoryFactory {
           .build()
       )
     }
-    _ = try HistoryTestDriver.seed(items, in: history)
+    try seedStore(items)
     return history
   }
 
@@ -116,7 +116,16 @@ enum PerfHistoryFactory {
       )
       timestamp += 1
     }
-    _ = try HistoryTestDriver.seed(items, in: history)
+    try seedStore(items)
     return history
+  }
+
+  /// Commits a benchmark fixture without enqueueing hundreds of asynchronous
+  /// per-item search-corpus updates before an unrelated performance probe.
+  private static func seedStore(_ items: [HistoryItem]) throws {
+    let context = Storage.shared.context
+    items.forEach(context.insert)
+    context.processPendingChanges()
+    try context.save()
   }
 }
