@@ -89,14 +89,23 @@ final class HistoryStoreProjectorTests: XCTestCase {
     let persistence = RecordingProjectorPersistence()
     persistence.fetchedItems = [secondOverflow, pinned, newest, firstOverflow]
     let history = History(persistence: persistence, logsPersistenceErrors: false)
+    let ingestor = IngestorSpy()
+    let savedIngestor = Clipboard.shared.ingestor
+    Clipboard.shared.ingestor = ingestor
+    defer { Clipboard.shared.ingestor = savedIngestor }
 
     try await history.load()
+    let eventBatches = await waitForStoreEvents(in: ingestor, count: 2)
 
     XCTAssertEqual(Set(history.all.map(\.title)), ["newest", "pinned"])
     XCTAssertEqual(
       persistence.deletedBatches.map { $0.map(\.title) },
       [["first-overflow", "second-overflow"]]
     )
+    XCTAssertEqual(eventBatches, [[
+      .removed(storedItemID(for: firstOverflow)),
+      .removed(storedItemID(for: secondOverflow))
+    ]])
   }
 
   private func item(
@@ -114,6 +123,19 @@ final class HistoryStoreProjectorTests: XCTestCase {
 
   private func decorator(_ item: HistoryItem) -> HistoryItemDecorator {
     HistoryItemDecorator(item)
+  }
+
+  private func waitForStoreEvents(
+    in ingestor: IngestorSpy,
+    count: Int
+  ) async -> [[StoreEvent]] {
+    for _ in 0..<100 {
+      if await ingestor.storeEvents.count >= count {
+        return await ingestor.storeEventBatches
+      }
+      try? await Task.sleep(for: .milliseconds(5))
+    }
+    return await ingestor.storeEventBatches
   }
 }
 
