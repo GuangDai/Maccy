@@ -317,6 +317,41 @@ final class FooterActionTests: XCTestCase {
 }
 
 @MainActor
+final class NavigationLeadChangeTests: XCTestCase {
+  func testSelectionPublishesCurrentLead() {
+    AppState.shared.preview.disableAutoOpen()
+    defer { AppState.shared.preview.enableAutoOpen() }
+
+    let first = HistoryItemDecorator(
+      HistoryBuilder()
+        .withContent(type: "public.utf8-plain-text", value: Data("first".utf8))
+        .build()
+    )
+    let second = HistoryItemDecorator(
+      HistoryBuilder()
+        .withContent(type: "public.utf8-plain-text", value: Data("second".utf8))
+        .build()
+    )
+    let history = History(
+      persistence: RuntimeServicesPersistence(),
+      listState: HistoryListState(decorators: [first, second]),
+      logsPersistenceErrors: false
+    )
+    let navigator = NavigationManager(history: history, footer: Footer())
+    var changes: [HistoryItemDecorator?] = []
+    navigator.configureLeadChangeSink { changes.append($0) }
+
+    navigator.select(item: first)
+    navigator.select(item: second)
+
+    XCTAssertEqual(changes.count, 2)
+    guard changes.count == 2 else { return }
+    XCTAssertTrue(changes[0] === first)
+    XCTAssertTrue(changes[1] === second)
+  }
+}
+
+@MainActor
 private final class RecordingFooterAppState: AppState {
   private(set) var performedActions: [FooterAction] = []
 
