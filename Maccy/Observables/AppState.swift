@@ -18,7 +18,17 @@ struct AppStateRuntimeServices {
 @MainActor
 @Observable
 class AppState {
-  static let shared = AppState(history: History.shared, footer: Footer())
+  static let shared = makeShared()
+
+  private static func makeShared() -> AppState {
+    AppState(
+      history: History.shared,
+      footer: Footer(),
+      runtimeServices: AppStateRuntimeServices(
+        copyText: { Clipboard.shared.copy($0) }
+      )
+    )
+  }
 
   var appDelegate: AppDelegate?
   var popup: Popup
@@ -51,6 +61,7 @@ class AppState {
   /// UI doesn't stay resident for the process lifetime. Stored so the observer
   /// removes itself (no accumulation across reopens).
   private var settingsWindowCloseObserver: NSObjectProtocol?
+  @ObservationIgnored private let runtimeServices: AppStateRuntimeServices
 
   init(
     history: History,
@@ -59,6 +70,7 @@ class AppState {
   ) {
     self.history = history
     self.footer = footer
+    self.runtimeServices = runtimeServices
     popup = Popup()
     navigator = NavigationManager(history: history, footer: footer)
     preview = SlideoutController(
@@ -106,20 +118,19 @@ class AppState {
         item.action()
       }
     } else {
-      Clipboard.shared.copy(history.searchQuery)
+      runtimeServices.copyText(history.searchQuery)
       history.searchQuery = ""
     }
   }
 
   /// Pre-warm the history on hotkey-down so the data is ready (or loading) by
   /// the time the popup opens. No-op when items are already loaded; otherwise
-  /// kicks `History.load()` on a main-actor task. Nonisolated so it's callable
-  /// from the `KeyboardShortcuts` hotkey callback (a nonisolated context); the
-  /// work hops to main. Safe to call repeatedly — `load()` is idempotent and
-  /// `ContentView.task` only loads when items are still empty.
+  /// kicks `History.load()` on a main-actor task. Safe to call repeatedly —
+  /// `load()` is idempotent and `ContentView.task` only loads when items are
+  /// still empty.
   func prewarmVisibleWindow() {
+    let history = history
     Task { @MainActor in
-      let history = AppState.shared.history
       guard history.items.isEmpty else { return }
       await history.loadAndRecordError("History prewarm load failed")
     }
@@ -221,16 +232,16 @@ class AppState {
         forName: NSWindow.willCloseNotification,
         object: window,
         queue: .main
-      ) { _ in
+      ) { [weak self] _ in
         // queue: .main + the observer fires on the main run loop, so
         // MainActor.assumeIsolated is a runtime no-op assertion (never traps).
         // Avoids @unchecked / nonisolated(unsafe): the @Sendable closure hops
-        // back into the @MainActor domain to mutate AppState.shared.
+        // back into the @MainActor domain to mutate this composed AppState.
         MainActor.assumeIsolated {
-          AppState.shared.settingsWindowController = nil
-          if let observer = AppState.shared.settingsWindowCloseObserver {
+          self?.settingsWindowController = nil
+          if let observer = self?.settingsWindowCloseObserver {
             NotificationCenter.default.removeObserver(observer)
-            AppState.shared.settingsWindowCloseObserver = nil
+            self?.settingsWindowCloseObserver = nil
           }
         }
       }
