@@ -12,10 +12,33 @@ import SwiftData
 @MainActor
 @Observable
 class History: ItemsContainer {
-  static let shared = History()
+  static let shared: History = {
+    let mutationLogger = Logger(label: "org.p0deje.Maccy")
+    return History(runtimeServices: HistoryRuntimeServices(
+      clipboard: HistoryClipboardActions(
+        clear: { Clipboard.shared.clear() },
+        copy: { item, removeFormatting in
+          Clipboard.shared.copy(item, removeFormatting: removeFormatting)
+        },
+        paste: { Clipboard.shared.paste() }
+      ),
+      modifierFlags: {
+        NSApp.currentEvent?.modifierFlags
+          .intersection(.deviceIndependentFlagsMask)
+          .subtracting([.capsLock, .numericPad, .function]) ?? []
+      },
+      currentEvent: { NSApp.currentEvent },
+      publishStoreEvents: { events in
+        guard !events.isEmpty, let ingestor = Clipboard.shared.ingestor else { return }
+        Task { await ingestor.synchronizeStoreEvents(events) }
+      },
+      log: { mutationLogger.info("\($0)") }
+    ))
+  }()
   let logger = Logger(label: "org.p0deje.Maccy")
 
   @ObservationIgnored private let listState: HistoryListState
+  @ObservationIgnored private let runtimeServices: HistoryRuntimeServices
   var items: [HistoryItemDecorator] { listState.items }
   var lastPersistError: Error?
 
@@ -48,7 +71,7 @@ class History: ItemsContainer {
 
   /// The decorator whose keyboard shortcut matches the current event, if any.
   var pressedShortcutItem: HistoryItemDecorator? {
-    guard let event = NSApp.currentEvent else {
+    guard let event = runtimeServices.currentEvent() else {
       return nil
     }
 
@@ -87,6 +110,7 @@ class History: ItemsContainer {
     logsPersistenceErrors: Bool = true
   ) {
     self.listState = listState
+    self.runtimeServices = runtimeServices
     let searchSession = HistorySearchSession(listState: listState)
     self.searchSession = searchSession
     self.storeProjector = HistoryStoreProjector(
@@ -94,25 +118,14 @@ class History: ItemsContainer {
       listState: listState,
       searchSession: searchSession
     )
-    let mutationLogger = Logger(label: "org.p0deje.Maccy")
     let mutations = HistoryMutations(
       persistence: persistence,
       listState: listState,
       searchSession: searchSession,
       sorter: Sorter(),
-      clipboard: HistoryClipboardActions(
-        clear: { Clipboard.shared.clear() },
-        copy: { item, removeFormatting in
-          Clipboard.shared.copy(item, removeFormatting: removeFormatting)
-        },
-        paste: { Clipboard.shared.paste() }
-      ),
-      modifierFlags: {
-        NSApp.currentEvent?.modifierFlags
-          .intersection(.deviceIndependentFlagsMask)
-          .subtracting([.capsLock, .numericPad, .function]) ?? []
-      },
-      log: { mutationLogger.info("\($0)") }
+      clipboard: runtimeServices.clipboard,
+      modifierFlags: runtimeServices.modifierFlags,
+      log: runtimeServices.log
     )
     self.mutations = mutations
     self.logsPersistenceErrors = logsPersistenceErrors
@@ -135,15 +148,11 @@ class History: ItemsContainer {
     storeProjector.configureDidPublishVisible { [weak mutations] in
       mutations?.updateUnpinnedShortcuts()
     }
-    storeProjector.configureStoreEventSink { [weak self] events in
-      self?.synchronizeIngestor(with: events)
-    }
+    storeProjector.configureStoreEventSink(runtimeServices.publishStoreEvents)
     mutations.configureUIEffectSink { [weak self] effect in
       self?.emit(effect)
     }
-    mutations.configureStoreEventSink { [weak self] events in
-      self?.synchronizeIngestor(with: events)
-    }
+    mutations.configureStoreEventSink(runtimeServices.publishStoreEvents)
     mutations.configureErrorSink { [weak self] message, error in
       self?.recordPersistenceError(message, error)
     }
@@ -267,14 +276,6 @@ class History: ItemsContainer {
   /// and reassigns unpinned shortcuts.
   func delete(_ item: HistoryItemDecorator?) {
     mutations.delete(item)
-  }
-
-  /// Forwards committed main-context deletions to the actor-owned dedup index
-  /// in one asynchronous batch. Capturing the current ingestor before creating
-  /// the task keeps test/runtime replacement deterministic.
-  private func synchronizeIngestor(with events: [StoreEvent]) {
-    guard !events.isEmpty, let ingestor = Clipboard.shared.ingestor else { return }
-    Task { await ingestor.synchronizeStoreEvents(events) }
   }
 
   /// Copies (and optionally pastes) the item, choosing the copy/paste variant

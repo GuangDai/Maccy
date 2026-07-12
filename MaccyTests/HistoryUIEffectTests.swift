@@ -99,6 +99,7 @@ final class HistoryUIEffectTests: XCTestCase {
           paste: {}
         ),
         modifierFlags: { [] },
+        currentEvent: { nil },
         publishStoreEvents: { storeEvents.append(contentsOf: $0) },
         log: { _ in }
       ),
@@ -149,6 +150,7 @@ final class HistoryUIEffectTests: XCTestCase {
           paste: { pasteCalls += 1 }
         ),
         modifierFlags: { .option },
+        currentEvent: { nil },
         publishStoreEvents: { _ in },
         log: { _ in }
       ),

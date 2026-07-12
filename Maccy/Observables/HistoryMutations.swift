@@ -15,12 +15,14 @@ struct HistoryClipboardActions {
 struct HistoryRuntimeServices {
   let clipboard: HistoryClipboardActions
   let modifierFlags: @MainActor () -> NSEvent.ModifierFlags
+  let currentEvent: @MainActor () -> NSEvent?
   let publishStoreEvents: @MainActor ([StoreEvent]) -> Void
   let log: @MainActor (String) -> Void
 
   static let inert = HistoryRuntimeServices(
     clipboard: HistoryClipboardActions(clear: {}, copy: { _, _ in }, paste: {}),
     modifierFlags: { [] },
+    currentEvent: { nil },
     publishStoreEvents: { _ in },
     log: { _ in }
   )
