@@ -6,7 +6,10 @@ struct FooterItemView: View {
   @Environment(AppState.self) private var appState
 
   var body: some View {
-    ConfirmationView(item: item) {
+    ConfirmationView(
+      item: item,
+      action: { appState.performFooterAction(item.action) }
+    ) {
       ListItemView(id: item.id, selectionId: item.id, shortcuts: item.shortcuts, isSelected: item.isSelected) {
         Text(LocalizedStringKey(item.title))
       }

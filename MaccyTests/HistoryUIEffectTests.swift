@@ -230,7 +230,7 @@ final class AppStateRuntimeServicesTests: XCTestCase {
 final class FooterActionTests: XCTestCase {
   func testFixedItemsExposeClosedActions() {
     XCTAssertEqual(
-      Footer().items.compactMap(\.intent),
+      Footer().items.map(\.action),
       [.clearHistory, .clearAllHistory, .openPreferences, .openAbout, .quit]
     )
   }

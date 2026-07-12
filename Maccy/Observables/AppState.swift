@@ -120,11 +120,31 @@ class AppState {
       if item.confirmation != nil, Defaults[.suppressClearAlert] == false {
         item.showConfirmation = true
       } else {
-        item.action()
+        performFooterAction(item.action)
       }
     } else {
       runtimeServices.copyText(history.searchQuery)
       history.searchQuery = ""
+    }
+  }
+
+  /// Interprets a footer value at the application composition seam while
+  /// preserving the original deferred timing of main-actor window/history
+  /// commands.
+  func performFooterAction(_ action: FooterAction) {
+    switch action {
+    case .clearHistory:
+      let history = history
+      Task { @MainActor in history.clear() }
+    case .clearAllHistory:
+      let history = history
+      Task { @MainActor in history.clearAll() }
+    case .openPreferences:
+      Task { @MainActor [weak self] in self?.openPreferences() }
+    case .openAbout:
+      openAbout()
+    case .quit:
+      quit()
     }
   }
 

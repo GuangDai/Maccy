@@ -3,6 +3,7 @@ import SwiftUI
 /// Wraps a footer item's content, presenting a confirmation dialog before destructive actions when configured.
 struct ConfirmationView<Content: View>: View {
   @Bindable var item: FooterItem
+  let action: () -> Void
   @ViewBuilder let content: () -> Content
 
   var body: some View {
@@ -10,7 +11,7 @@ struct ConfirmationView<Content: View>: View {
       content()
         .onTapGesture {
           if suppressConfirmation.wrappedValue {
-            item.action()
+            action()
           } else {
             item.showConfirmation = true
           }
@@ -18,7 +19,7 @@ struct ConfirmationView<Content: View>: View {
         .confirmationDialog(confirmation.message, isPresented: $item.showConfirmation) {
           Text(confirmation.comment)
           Button(confirmation.confirm, role: .destructive) {
-            item.action()
+            action()
           }
           Button(confirmation.cancel, role: .cancel) {}
         }
@@ -26,7 +27,7 @@ struct ConfirmationView<Content: View>: View {
     } else {
       content()
         .onTapGesture {
-          item.action()
+          action()
         }
     }
   }

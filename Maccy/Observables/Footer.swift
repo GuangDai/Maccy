@@ -44,12 +44,9 @@ class Footer: ItemsContainer {
           confirm: "clear_alert_confirm",
           cancel: "clear_alert_cancel"
         ),
-        suppressConfirmation: suppressClearAlert
-      ) {
-        Task { @MainActor in
-          AppState.shared.history.clear()
-        }
-      },
+        suppressConfirmation: suppressClearAlert,
+        action: .clearHistory
+      ),
       FooterItem(
         title: "clear_all",
         shortcuts: [KeyShortcut(key: .delete, modifierFlags: [.command, .option, .shift])],
@@ -60,33 +57,25 @@ class Footer: ItemsContainer {
           confirm: "clear_alert_confirm",
           cancel: "clear_alert_cancel"
         ),
-        suppressConfirmation: suppressClearAlert
-      ) {
-        Task { @MainActor in
-          AppState.shared.history.clearAll()
-        }
-      },
+        suppressConfirmation: suppressClearAlert,
+        action: .clearAllHistory
+      ),
       FooterItem(
         title: "preferences",
-        shortcuts: [KeyShortcut(key: .comma)]
-      ) {
-        Task { @MainActor in
-          AppState.shared.openPreferences()
-        }
-      },
+        shortcuts: [KeyShortcut(key: .comma)],
+        action: .openPreferences
+      ),
       FooterItem(
         title: "about",
-        help: "about_tooltip"
-      ) {
-        AppState.shared.openAbout()
-      },
+        help: "about_tooltip",
+        action: .openAbout
+      ),
       FooterItem(
         title: "quit",
         shortcuts: [KeyShortcut(key: .q)],
-        help: "quit_tooltip"
-      ) {
-        AppState.shared.quit()
-      }
+        help: "quit_tooltip",
+        action: .quit
+      )
     ]
   }
 }

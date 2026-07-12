@@ -28,7 +28,7 @@ struct KeyHandlingView<Content: View>: View {
              item.confirmation != nil,
              let suppressConfirmation = item.suppressConfirmation {
             if suppressConfirmation.wrappedValue {
-              item.action()
+              appState.performFooterAction(item.action)
             } else {
               item.showConfirmation = true
             }
@@ -41,7 +41,7 @@ struct KeyHandlingView<Content: View>: View {
              item.confirmation != nil,
              let suppressConfirmation = item.suppressConfirmation {
             if suppressConfirmation.wrappedValue {
-              item.action()
+              appState.performFooterAction(item.action)
             } else {
               item.showConfirmation = true
             }
