@@ -46,8 +46,10 @@ final class HistoryPinPersistenceTests: XCTestCase {
   /// Predicate deletion must include inserts that are pending on the main
   /// context: remove the unpinned row while preserving the pending pinned row.
   func testDeleteUnpinnedHandlesPendingInserts() throws {
-    _ = historyItem("pending-unpinned")
+    let unpinned = historyItem("pending-unpinned")
     let pinned = historyItem("pending-pinned")
+    Storage.shared.context.insert(unpinned)
+    Storage.shared.context.insert(pinned)
     pinned.pin = "a"
     XCTAssertTrue(Storage.shared.context.hasChanges)
 
