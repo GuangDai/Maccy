@@ -42,16 +42,31 @@ final class MemoryGovernanceTests: XCTestCase {
     XCTAssertFalse(second.visibilityTracker.isVisible(observer.id))
   }
 
+  func testAppStatesCreateFreshVisibilityTrackersByDefault() {
+    let observer = decorator("observer")
+    let first = appState()
+    let second = appState()
+
+    first.visibilityTracker.register(observer)
+
+    XCTAssertFalse(first.visibilityTracker === second.visibilityTracker)
+    XCTAssertTrue(first.visibilityTracker.isVisible(observer.id))
+    XCTAssertFalse(second.visibilityTracker.isVisible(observer.id))
+  }
+
   private func decorator(_ title: String) -> HistoryItemDecorator {
     HistoryItemDecorator(HistoryBuilder().withTitle(title).build())
   }
 
-  private func appState(visibilityTracker: VisibilityTracker) -> AppState {
+  private func appState(visibilityTracker: VisibilityTracker? = nil) -> AppState {
     let storage = Storage(storedInMemoryForTesting: true)
     let history = History(
       persistence: SwiftDataHistoryPersistence(context: storage.context),
       logsPersistenceErrors: false
     )
+    guard let visibilityTracker else {
+      return AppState(history: history, footer: Footer())
+    }
     return AppState(
       history: history,
       footer: Footer(),
