@@ -64,7 +64,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 | `Maccy/ImageProcessing/ImageProcessing.swift` + `ImageProcessor.swift` + `ImageDownsampler.swift` + `ThumbnailCache.swift` | ✅ ImageIO 降采样已接入(BS-3) |
 | `HistoryListState` / `HistorySearchSession` / `HistoryStoreProjector` / `HistoryMutations` | ✅ B2–B5 完成:列表变更单 chokepoint、actor 搜索语料/O(1) lookup、单 persistence 投影、fake-backed mutations + value UI effects。E5 首个 DI slice 又将 clipboard/event/current-event/log 服务构造注入；普通 `History` 实例 inert，live globals 仅在 `History.shared` composition factory。`History.swift` 978→346 LOC；full matrix `29210900842`。 |
 | `HistoryItemDecoratorFactory` / image composition | ✅ E5 decorator slice:projector 的 load/reconcile/incremental insert 只经 factory 构造；factory 显式拥有 `ImageProcessor` 与 `ApplicationImageCache`。`History.shared` 建一套 live 资源，普通 `History` 使用隔离资源；`CompositionRoot` 将同一 processor 交给 ingest，memory warning 经 attached History 清理同一 icon cache。decorator/cache 不再读取隐藏 `.shared`。 |
-| `RowHighlighter` / decorator text projection | ⏳ E5 cohesion slice:`RowHighlighter` 内聚标题与正文预览的 memo key、`AttributedString` 构建、截断/clamp、index 转换与单一高亮样式分支；`HistoryItemDecorator` 仅保留 Observable 赋值适配与图片生命周期所有权。新模块不依赖 `HistoryItem`/SwiftData/图片/`AppState`/进程级 shared；full matrix 待验证。 |
+| `RowHighlighter` / decorator text projection | ✅ E5 cohesion slice:`RowHighlighter` 内聚标题与正文预览的 memo key、`AttributedString` 构建、截断/clamp、index 转换与单一高亮样式分支；`HistoryItemDecorator` 仅保留 Observable 赋值适配与图片生命周期所有权。新模块不依赖 `HistoryItem`/SwiftData/图片/`AppState`/进程级 shared；full matrix `29257167506`。 |
 | `AppState` runtime boundary | ✅ E5 第二 slice (`ed664b2`):空选择 query copy 构造注入；prewarm 使用当前组合的 History；Settings close observer 弱捕获 owning AppState，不再回写 `AppState.shared`。文件内 shared 使用 8→3，剩余仅 composition/Settings 构建区；full matrix `29211587341`。后续 UI-ownership slice 保留 `ContentView` 为 popup 状态 composition root，`HeaderView`/`ToolbarView` 由 SwiftUI environment 接收同一实例；`GeneralSettingsPane` 只接收 popup-shortcut 窄回调。三者均不再各自抓取 global；full matrix `29253455968`（`ui-1` 首次 runner setup 遇 GitHub Service Unavailable，failed-job retry 后通过）。 |
 | Footer action flow | ✅ `7d1d3e2`:FooterItem 携带 closed `FooterAction` value；click/confirmation/keyboard 统一交给 owning AppState 解释，Footer 内 5 个 `AppState.shared` 闭包删除。`f84ffa1` 又覆盖全部 interpreter cases，并把键盘 clear 路由从 title string 收敛为 typed lookup；full matrix `29213836925`。 |
 | Navigation → Preview lead flow | ✅ `38ef0c9`:Navigation 在构造时接收单一 current-lead 输出，旧 lead 解码取消仍内聚于 Navigation；AppState 组合该输出到 Preview 的 auto-open/retarget 输入。`NavigationManager` 不再读取 `AppState.shared`，测试也不再借用 global Preview；full matrix `29214579841`。 |
@@ -129,11 +129,11 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 | 解码/缩略图/预览在主线程 | [已修] | `IMG-001/002/003/004`:BS-3 已用 `ImageProcessor` actor + `CGImageSourceCreateThumbnailAtIndex` 降采样,off-main |
 | 预览封顶 800px | [已修] | BS-4.10(原 `visibleFrame` ~50MiB/张) |
 | `imageData` 全表 fault | [部分] | `img-fullres-dup-storage`:BS-6 已 lazy(`HistoryItemDecorator.imageDataCache`),但**冷开仍会因 `load()` 全表 fault 而触发**;双份(blob+位图)问题在 `imageDataCache` 仍存 |
-| `DecodedImageCache` | [死代码] | `MemoryGovernance.swift:61`:`setImage/image(for:)` **零调用方**,只有 `evict`/`purgeAll` 被调。"解码位图按可视区限界"核心目标**从未实现**,preview 位图仍 per-decorator 持有 |
-| `releaseTransientImages(.previewHidden)` | [死代码] | 枚举 case 零调用方;`FloatingPanel.close()` 从不调 |
+| `DecodedImageCache` | [已修] | 无调用的 shared decoded cache 已于 `0bde9276` 删除；preview 位图改由 per-decorator 仅持有当前 transient 结果，scroll-out/memory warning/invalidate 可回收，不再额外保留一份进程级解码缓存。 |
+| `releaseTransientImages(.previewHidden)` | [已修] | 零调用的 `.previewHidden` case 已与 `DecodedImageCache` 一同删除；当前仅保留 `scrollOut`/setting-memory-invalidate 等实际生命周期路径。 |
 | `ApplicationImageCache` 无界字典 + fd DispatchSource | [已修] | `IMG-010/011`:NSCache 限界 128 + fd guard(M4)；E5 后由 History decorator factory 显式拥有并经 memory-governance capability 清理，无进程级 `.shared`。 |
 | `ColorImage` 主线程合成 | [已修] | `IMG-019`:NSCache 限界(M9) |
-| 缩略图缓存键 FNV-1a | [部分] | `IMG-caching-key`:`ImageProcessor.thumbnail` 用 FNV;待统一 xxh3_64(已接入去重热路径,缓存键未切) |
+| 缩略图缓存键 FNV-1a | [已修] | `ImageProcessor.thumbnail` 现用 `MaccyTextProcessor.fingerprint(for:)` 生成 xxh3 `MaccyFingerprint(size, hash)`，并与 `maxPixelSize` 组合成缓存键。 |
 
 > 已删除项:Vision OCR(图片项用空标题 `""`,2026-06-14)——`IMG-005/014/015/036` 与 `07-F-008` 全部 WONTFIX。
 
@@ -145,7 +145,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 | 混合列表 layout 反馈风暴 | [已修] | `LazyVStack` layout-feedback(perf-mixed 394s hang)已修:固定行几何 + hover-no-scroll + preview cancel |
 | `@unchecked Sendable` on HistoryItemDecorator/AppDelegate | [已修] | `IMG-035`/`historyitem-unchecked-sendable`:BS-7 实际归零(grep 0 标注),complete 模式 CI 绿 |
 | `WrappingTextView` 双次 sizeThatFits | [未修] | `LT-RENDER-02` |
-| `.drawingGroup()` 每行每重绘栅格化 | [部分] | `LT-RENDER-03`:依赖 `attributedTitle` 仅在 ranges 变时改(高亮 memoize 未做) |
+| `.drawingGroup()` 每行每重绘栅格化 | [部分] | `LT-RENDER-03`:标题/预览高亮 memoize 已做，并由 `RowHighlighter` 直接测试锁定重复输入不重新赋值；`.drawingGroup()` 本身仍保留，所以状态仍为部分。 |
 | `updateUnpinnedShortcuts` 双遍赋值 | [未修] | `updateunpinned-double-pass` |
 
 ---
