@@ -1,3 +1,4 @@
+import AppKit
 import Defaults
 import Foundation
 import SwiftData
@@ -66,6 +67,38 @@ final class HistoryStoreProjectorTests: XCTestCase {
     history.consume(.cleared)
 
     XCTAssertEqual(decoratedTitles, ["load", "incremental", "reconcile"])
+  }
+
+  func testCompositionReusesFactoryProcessorForDecoratorsAndIngest() async {
+    let processor = RecordingCompositionImageProcessor()
+    let factory = HistoryItemDecoratorFactory(
+      imageProcessor: processor,
+      applicationImage: { _ in ApplicationImage(bundleIdentifier: nil) },
+      purgeApplicationImages: {}
+    )
+    let history = History(
+      persistence: RecordingProjectorPersistence(),
+      decoratorFactory: factory,
+      logsPersistenceErrors: false
+    )
+    let storage = Storage(storedInMemoryForTesting: true)
+    let appState = AppState(history: history, footer: Footer())
+    let compositionRoot = CompositionRoot(
+      appState: appState,
+      clipboard: Clipboard(),
+      storage: storage
+    )
+    let imageItem = HistoryBuilder()
+      .withContent(type: NSPasteboard.PasteboardType.png.rawValue, value: Data([0]))
+      .build()
+
+    let decorated = factory.make(imageItem)
+    decorated.ensureThumbnailImage()
+    _ = await decorated.thumbnailImageGenerationTask?.result
+    let thumbnailCalls = await processor.thumbnailCallCount
+
+    XCTAssertTrue((compositionRoot.imageProcessor as AnyObject) === processor)
+    XCTAssertEqual(thumbnailCalls, 1)
   }
 
   func testLoadFailurePreservesOldListAndRecordsError() async {
@@ -218,6 +251,19 @@ final class HistoryStoreProjectorTests: XCTestCase {
     HistoryItemDecorator(item)
   }
 
+}
+
+private actor RecordingCompositionImageProcessor: ImageProcessing {
+  private(set) var thumbnailCallCount = 0
+
+  func thumbnail(for data: Data, max: CGSize) async -> NSImage? {
+    thumbnailCallCount += 1
+    return nil
+  }
+
+  func preview(for data: Data, max: CGSize) async -> NSImage? {
+    nil
+  }
 }
 
 private enum ProjectorTestError: Error {

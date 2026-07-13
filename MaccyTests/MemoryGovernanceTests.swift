@@ -6,23 +6,23 @@ import XCTest
 @MainActor
 final class MemoryGovernanceTests: XCTestCase {
   func testMemoryWarningPurgesImagesOwnedByAttachedHistory() {
-    let history = RecordingHistoryRef()
+    var applicationImagePurgeCount = 0
+    let factory = HistoryItemDecoratorFactory(
+      imageProcessor: PassthroughImageProcessor(),
+      applicationImage: { _ in ApplicationImage(bundleIdentifier: nil) },
+      purgeApplicationImages: { applicationImagePurgeCount += 1 }
+    )
+    let storage = Storage(storedInMemoryForTesting: true)
+    let history = History(
+      persistence: SwiftDataHistoryPersistence(context: storage.context),
+      decoratorFactory: factory,
+      logsPersistenceErrors: false
+    )
     let governor = MemoryGovernor()
     governor.attach(history: history)
 
     governor.handleMemoryWarning()
 
-    XCTAssertEqual(history.applicationImagePurgeCount, 1)
-  }
-}
-
-@MainActor
-private final class RecordingHistoryRef: HistoryRef {
-  private(set) var applicationImagePurgeCount = 0
-
-  func decorators() -> [HistoryItemDecorator] { [] }
-
-  func purgeApplicationImages() {
-    applicationImagePurgeCount += 1
+    XCTAssertEqual(applicationImagePurgeCount, 1)
   }
 }
