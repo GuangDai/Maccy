@@ -89,6 +89,35 @@ final class HistoryStoreProjectorTests: XCTestCase {
     XCTAssertTrue(history.all.first === existing)
   }
 
+  func testSortDefaultChangeResortsExistingProjectionWithoutFetchingStore() async throws {
+    let savedSortBy = Defaults[.sortBy]
+    defer { Defaults[.sortBy] = savedSortBy }
+    Defaults[.sortBy] = .lastCopiedAt
+
+    let firstCopiedNewest = item(title: "first-newest")
+    firstCopiedNewest.firstCopiedAt = Date(timeIntervalSince1970: 300)
+    firstCopiedNewest.lastCopiedAt = Date(timeIntervalSince1970: 100)
+    let lastCopiedNewest = item(title: "last-newest")
+    lastCopiedNewest.firstCopiedAt = Date(timeIntervalSince1970: 100)
+    lastCopiedNewest.lastCopiedAt = Date(timeIntervalSince1970: 300)
+    let firstDecorator = decorator(firstCopiedNewest)
+    let lastDecorator = decorator(lastCopiedNewest)
+    let persistence = RecordingProjectorPersistence()
+    let listState = HistoryListState(decorators: [lastDecorator, firstDecorator])
+    let history = History(
+      persistence: persistence,
+      listState: listState,
+      logsPersistenceErrors: false
+    )
+    await Task.yield()
+
+    Defaults[.sortBy] = .firstCopiedAt
+    try await Task.sleep(for: .milliseconds(100))
+
+    XCTAssertEqual(history.all, [firstDecorator, lastDecorator])
+    XCTAssertEqual(persistence.fetchAllCalls, 0)
+  }
+
   func testLoadDeletesExactUnpinnedOverflowInOneBatch() async throws {
     let savedSize = Defaults[.size]
     defer { Defaults[.size] = savedSize }
