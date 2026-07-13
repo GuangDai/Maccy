@@ -21,6 +21,10 @@ final class HistoryRowLayoutTests: XCTestCase {
       HistoryRowLayout.imageHeight(maxImageHeight: -1),
       HistoryRowLayout.baseHeight
     )
+    XCTAssertEqual(
+      HistoryRowLayout.imageHeight(maxImageHeight: 999),
+      max(HistoryRowLayout.baseHeight, 210)
+    )
     XCTAssertNotEqual(
       HistoryRowLayout.rowHeight(isImage: true, maxImageHeight: 40, textLines: 1),
       HistoryRowLayout.rowHeight(isImage: false, maxImageHeight: 40, textLines: 1)

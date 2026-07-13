@@ -216,6 +216,14 @@ class HistoryItemDecoratorTests: XCTestCase {
     XCTAssertNil(itemDecorator.thumbnailImage)
   }
 
+  func testImageRowKindSurvivesTransientInvalidation() {
+    let itemDecorator = historyItemDecorator(largeImageData(), .png)
+
+    XCTAssertTrue(itemDecorator.hasImage)
+    itemDecorator.invalidate()
+    XCTAssertTrue(itemDecorator.hasImage)
+  }
+
   /// Benchmark for the synchronous image sizing/dispatch path, amplified to overcome timer jitter.
   func testLargeImageSizingBenchmark() {
     // InstantImageProcessor returns nil with no decode, so this measures only
