@@ -64,6 +64,8 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 | `AppState` runtime boundary | ✅ E5 第二 slice (`ed664b2`):空选择 query copy 构造注入；prewarm 使用当前组合的 History；Settings close observer 弱捕获 owning AppState，不再回写 `AppState.shared`。文件内 shared 使用 8→3，剩余仅 composition/Settings 构建区；full matrix `29211587341`。 |
 | Footer action flow | ✅ `7d1d3e2`:FooterItem 携带 closed `FooterAction` value；click/confirmation/keyboard 统一交给 owning AppState 解释，Footer 内 5 个 `AppState.shared` 闭包删除。`f84ffa1` 又覆盖全部 interpreter cases，并把键盘 clear 路由从 title string 收敛为 typed lookup；full matrix `29213836925`。 |
 | Navigation → Preview lead flow | ✅ `38ef0c9`:Navigation 在构造时接收单一 current-lead 输出，旧 lead 解码取消仍内聚于 Navigation；AppState 组合该输出到 Preview 的 auto-open/retarget 输入。`NavigationManager` 不再读取 `AppState.shared`，测试也不再借用 global Preview；full matrix `29214579841`。 |
+| Slideout runtime boundary | ✅ `c9f2273`:Preview 自持 current lead、弱绑定 panel window，并由 AppState 注入 Popup 高度策略；`SlideoutController` 的 4 个实例级 `AppState.shared` 读取归零，窗口绑定留在 CompositionRoot。 |
+| SwiftData history persistence | ✅ `4bcfc47`:adapter 构造注入 caller-owned `ModelContext` 且整体 `@MainActor`；15 个方法内 `Storage.shared` 读取归零。`History` 不再提供隐式 live persistence default，只有 `History.shared` composition factory 选择 `Storage.shared.context`。与 Slideout 联合 full matrix `29215547393`（338 unit，0 failures）。 |
 | D1 load 原型 | ✅ run `29176185359` 证明完整历史的 store-sorted 候选仅快约 1%，不具落地价值；窗口化又无内存收益且破坏完整搜索，因此 test-only loader/context 脚手架已删除。 |
 
 ---
