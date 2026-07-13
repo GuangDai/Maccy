@@ -13,6 +13,8 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
   var statusBarButton: NSStatusBarButton?
   /// Invoked after the panel closes.
   let onClose: () -> Void
+  private let preview: SlideoutController
+  private let navigator: NavigationManager
 
   /// Whether the user can drag the panel. Disabled when anchored to the status item.
   override var isMovable: Bool {
@@ -25,9 +27,13 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     contentRect: NSRect,
     identifier: String = "",
     statusBarButton: NSStatusBarButton? = nil,
+    preview: SlideoutController,
+    navigator: NavigationManager,
     onClose: @escaping () -> Void,
     view: () -> Content
   ) {
+    self.preview = preview
+    self.navigator = navigator
     self.onClose = onClose
 
     super.init(

@@ -2,6 +2,7 @@ import AppKit.NSEvent
 import AppKit.NSWindow
 import Defaults
 import SwiftData
+import SwiftUI
 import XCTest
 @testable import Maccy
 
@@ -401,6 +402,44 @@ final class SlideoutRuntimeTests: XCTestCase {
       onSlideoutResize: { _ in },
       preferredHeight: preferredHeight
     )
+  }
+}
+
+@MainActor
+final class FloatingPanelDependencyTests: XCTestCase {
+  func testCloseResetsInjectedPreview() {
+    let history = History(
+      persistence: RuntimeServicesPersistence(),
+      logsPersistenceErrors: false
+    )
+    let preview = SlideoutController(
+      onContentResize: { _ in },
+      onSlideoutResize: { _ in },
+      preferredHeight: { 300 }
+    )
+    let navigator = NavigationManager(
+      history: history,
+      footer: Footer()
+    )
+    let panel = FloatingPanel(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+      preview: preview,
+      navigator: navigator,
+      onClose: {},
+      view: { EmptyView() }
+    )
+    preview.state = .open
+    preview.previewedItem = HistoryItemDecorator(
+      HistoryBuilder()
+        .withContent(type: "public.utf8-plain-text", value: Data("preview".utf8))
+        .build()
+    )
+
+    panel.close()
+
+    XCTAssertFalse(preview.state.isOpen)
+    guard !preview.state.isOpen else { return }
+    XCTAssertNil(preview.previewedItem)
   }
 }
 
