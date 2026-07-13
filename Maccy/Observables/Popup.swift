@@ -51,10 +51,10 @@ class Popup {
   static let horizontalSeparatorPadding = 6.0
   static let verticalPadding: CGFloat = 5
   static let horizontalPadding: CGFloat = 5
-  static let minimumPreviewHeight: CGFloat = 150
 
   static func previewMinimumHeight(maximumHeight: CGFloat, percent: Int) -> CGFloat {
-    minimumPreviewHeight
+    let clampedPercent = min(max(percent, 25), 100)
+    return maximumHeight * CGFloat(clampedPercent) / 100
   }
 
   /// Radius for items inset by the padding, so they visually share the menu's curvature.
@@ -129,7 +129,7 @@ class Popup {
     guard eventsMonitor == nil else { return }
     eventsMonitor = NSEvent.addLocalMonitorForEvents(
       matching: [.flagsChanged, .keyDown]
-    ) { event in
+    ) { [weak self] event in
       // Local NSEvent monitors fire on the main run loop, so this nonisolated
       // closure runs on main and MainActor.assumeIsolated is a runtime no-op
       // assertion. NSEvent is NOT Sendable, so it must not cross the isolation
@@ -141,7 +141,7 @@ class Popup {
       case .flagsChanged:
         let allReleased = event.modifierFlags.isDisjoint(with: .deviceIndependentFlagsMask)
         let consume = MainActor.assumeIsolated {
-          AppState.shared.popup.shouldConsumeFlagsChanged(allReleased: allReleased)
+          self?.shouldConsumeFlagsChanged(allReleased: allReleased) ?? false
         }
         return consume ? nil : event
       case .keyDown:
@@ -160,10 +160,8 @@ class Popup {
     // `removeMonitor` is thread-safe (AppKit docs). The token is main-isolated;
     // reach it from this nonisolated deinit via `MainActor.assumeIsolated` — a
     // synchronous runtime assertion, NOT an async hop, so the macOS-14 "deinit
-    // cannot actor-hop" restriction does not apply. `Popup` is a
-    // process-lifetime singleton (`AppState.shared.popup`), so deinit
-    // effectively never fires in prod — but the no-unsafe isolation must be
-    // correct regardless.
+    // cannot actor-hop" restriction does not apply. The no-unsafe isolation
+    // must be correct regardless of the instance's lifetime.
     MainActor.assumeIsolated {
       if let monitor = eventsMonitor {
         eventsMonitor = nil
@@ -174,10 +172,8 @@ class Popup {
 
   /// Selects the first item and opens the panel at `popupPosition`.
   func open(height: CGFloat, at popupPosition: PopupPosition = Defaults[.popupPosition]) {
-    AppState.shared.navigator.select(
-      item: AppState.shared.history.unpinnedItems.first ?? AppState.shared.history.pinnedItems.first
-    )
-    AppState.shared.appDelegate?.panel.open(height: height, at: popupPosition)
+    runtimeServices.selectInitialItem()
+    runtimeServices.openPanel(height, popupPosition)
   }
 
   /// Returns the popup to its default toggle state on close.
@@ -196,29 +192,29 @@ class Popup {
 
   /// Closes the panel (which calls `reset`).
   func close() {
-    AppState.shared.appDelegate?.panel.close()  // close() calls reset
+    runtimeServices.closePanel()  // close() calls reset
   }
 
   /// Whether the panel is currently closed.
   func isClosed() -> Bool {
-    AppState.shared.appDelegate?.panel.isPresented != true
+    !runtimeServices.isPanelPresented()
   }
 
   /// Floor-clamps to the preview/header minimum and ceiling-clamps to the saved
   /// window height.
   func preferredHeight(for newHeight: CGFloat) -> CGFloat {
-    var height = newHeight
-
-    var minimumHeight = 0.0
-    // If the preview is open, ensure the window accommodates its minimum height.
-    if AppState.shared.preview.state.isOpen && AppState.shared.navigator.leadSelection != nil {
-      minimumHeight += Self.minimumPreviewHeight
+    let maximumHeight = Defaults[.windowSize].height
+    var minimumHeight = headerHeight + Self.verticalPadding
+    if runtimeServices.requiresPreviewMinimumHeight() {
+      minimumHeight = max(
+        minimumHeight,
+        Self.previewMinimumHeight(
+          maximumHeight: maximumHeight,
+          percent: Defaults[.previewMinimumHeightPercent]
+        )
+      )
     }
-    minimumHeight = max(headerHeight + Self.verticalPadding, minimumHeight)
-
-    height = max(height, minimumHeight)
-    height = min(height, Defaults[.windowSize].height)
-    return height
+    return min(max(newHeight, minimumHeight), maximumHeight)
   }
 
   /// Resizes the panel to fit `height`, capped to `maxVisibleItems` rows.
@@ -234,7 +230,7 @@ class Popup {
       itemHeight: Self.itemHeight
     )
     self.height = listHeight + headerHeight + extraTopHeight + extraBottomHeight + footerHeight
-    AppState.shared.appDelegate?.panel.verticallyResize(to: preferredHeight(for: self.height))
+    runtimeServices.resizePanel(preferredHeight(for: self.height))
     needsResize = false
   }
 
@@ -245,7 +241,7 @@ class Popup {
     if isClosed() {
       // Warm the history before opening so the data is ready (or loading) when
       // the popup appears. No-op if already loaded.
-      AppState.shared.prewarmVisibleWindow()
+      runtimeServices.prewarmVisibleWindow()
       open(height: height)
       state = .opening
       // The global hotkey stays registered (see `reset`): the Carbon handler
@@ -303,24 +299,15 @@ class Popup {
   /// Handles a repeated hotkey press while open: select a pressed-shortcut
   /// item, cycle to the next item, or toggle-close.
   private func handleRepeatedHotKeyDown(_ event: NSEvent? = nil) -> NSEvent? {
-    if let item = History.shared.pressedShortcutItem {
-      AppState.shared.navigator.select(item: item)
-      Task { @MainActor in
-        AppState.shared.history.select(item)
-      }
-      return nil
-    }
+    if runtimeServices.selectPressedShortcut() { return nil }
 
     if state == .opening {
       state = .cycle
-      // Next 'if' will highlight next item and then return nil.
     }
-
     if state == .cycle {
-      AppState.shared.navigator.highlightNext(allowCycle: true)
+      runtimeServices.highlightNext()
       return nil
     }
-
     if state == .toggle {
       close()
       return nil
@@ -333,8 +320,8 @@ class Popup {
   /// opening state back to toggle.
   private func handleAllModifiersReleased(_ event: NSEvent? = nil) -> NSEvent? {
     if state == .cycle {
-      Task { @MainActor in
-        AppState.shared.select()
+      Task { @MainActor [runtimeServices] in
+        runtimeServices.commitSelection()
       }
       return nil
     }

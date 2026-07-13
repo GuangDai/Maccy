@@ -100,6 +100,35 @@ class AppState {
     history.configureUIEffectSink { [weak self] effect in
       self?.applyHistoryUIEffect(effect)
     }
+    popup.configureRuntimeServices(PopupRuntimeServices(
+      selectInitialItem: { [weak self] in
+        guard let self else { return }
+        self.navigator.select(
+          item: self.history.unpinnedItems.first ?? self.history.pinnedItems.first
+        )
+      },
+      openPanel: { [weak self] height, position in
+        self?.appDelegate?.panel.open(height: height, at: position)
+      },
+      closePanel: { [weak self] in self?.appDelegate?.panel.close() },
+      isPanelPresented: { [weak self] in self?.appDelegate?.panel.isPresented == true },
+      requiresPreviewMinimumHeight: { [weak self] in
+        guard let self else { return false }
+        return self.preview.state.isOpen && self.navigator.leadSelection != nil
+      },
+      resizePanel: { [weak self] height in
+        self?.appDelegate?.panel.verticallyResize(to: height)
+      },
+      prewarmVisibleWindow: { [weak self] in self?.prewarmVisibleWindow() },
+      selectPressedShortcut: { [weak self] in
+        guard let self, let item = self.history.pressedShortcutItem else { return false }
+        self.navigator.select(item: item)
+        Task { @MainActor [weak self] in self?.history.select(item) }
+        return true
+      },
+      highlightNext: { [weak self] in self?.navigator.highlightNext(allowCycle: true) },
+      commitSelection: { [weak self] in self?.select() }
+    ))
   }
 
   /// Interprets outward history requests at the composition boundary.
