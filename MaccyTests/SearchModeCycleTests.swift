@@ -43,4 +43,9 @@ final class SearchModeCycleTests: XCTestCase {
     XCTAssertTrue(Search.isLikelyUnsafeRegularExpression("(a?)+$"))
     XCTAssertTrue(Search.isLikelyUnsafeRegularExpression("(a|aa)*$"))
   }
+
+  func test_unsafeRegexpAllowsSingleOptionalGroup() {
+    XCTAssertFalse(Search.isLikelyUnsafeRegularExpression("(a|b)?"))
+    XCTAssertFalse(Search.isLikelyUnsafeRegularExpression("(ab)?"))
+  }
 }
