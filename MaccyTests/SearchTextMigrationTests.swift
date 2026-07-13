@@ -220,7 +220,7 @@ final class SearchTextMigrationTests: XCTestCase {
   /// Dedup uses containment, so an existing row can be a strict content
   /// superset of the new pasteboard payload. A projection derived from the
   /// subset must not be stored beside the retained superset contents.
-  func testRecopySubsetDoesNotStoreMismatchedSearchText() async {
+  func testRecopySubsetProjectsRetainedSearchText() async {
     let body = "shared plain text"
     let fileURL = URL(fileURLWithPath: "/tmp/legacy.txt")
     let legacy = HistoryItem(contents: [
@@ -243,7 +243,7 @@ final class SearchTextMigrationTests: XCTestCase {
     }
     let stored = try? Storage.shared.context.fetch(FetchDescriptor<HistoryItem>())
     XCTAssertEqual(stored?.first?.contents.count, 2)
-    XCTAssertNil(stored?.first?.searchText)
+    XCTAssertEqual(stored?.first?.searchText, fileURL.absoluteString)
   }
 
   // MARK: - Helpers
