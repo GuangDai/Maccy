@@ -36,7 +36,7 @@
   - `AppState.visibilityTracker: VisibilityTracker`
   - `AppState.init(history:footer:runtimeServices:visibilityTracker:)`
   - `MemoryGovernor.init(visibilityTracker:)`
-  - `CompositionRoot.init(..., memoryGovernor:)` with root-owned governor lifetime
+  - `CompositionRoot.memoryGovernor: MemoryGovernor` as a read-only internal regression seam
 
 - [ ] **Step 1: Add the source-level RED policy and ownership tests**
 
@@ -49,21 +49,26 @@ import XCTest
 
 @MainActor
 final class MemoryGovernanceTests: XCTestCase {
-  func testMemoryWarningKeepsVisiblePreviewAndReleasesHiddenPreview() {
+  func testCompositionRootMemoryWarningKeepsVisibleImagesAndReleasesHiddenImages() {
     let visible = decorator("visible")
     let hidden = decorator("hidden")
     visible.previewImage = NSImage(size: NSSize(width: 2, height: 2))
+    visible.thumbnailImage = NSImage(size: NSSize(width: 2, height: 2))
     hidden.previewImage = NSImage(size: NSSize(width: 2, height: 2))
+    hidden.thumbnailImage = NSImage(size: NSSize(width: 2, height: 2))
     let tracker = VisibilityTracker()
     tracker.register(visible)
+    let appState = appState(visibilityTracker: tracker)
+    let root = CompositionRoot(appState: appState)
     let history = MemoryHistorySpy(decorators: [visible, hidden])
-    let governor = MemoryGovernor(visibilityTracker: tracker)
-    governor.attach(history: history)
+    root.memoryGovernor.attach(history: history)
 
-    governor.handleMemoryWarning()
+    root.memoryGovernor.handleMemoryWarning()
 
     XCTAssertNotNil(visible.previewImage)
+    XCTAssertNotNil(visible.thumbnailImage)
     XCTAssertNil(hidden.previewImage)
+    XCTAssertNil(hidden.thumbnailImage)
     XCTAssertEqual(history.purgeApplicationImagesCalls, 1)
   }
 
@@ -184,29 +189,31 @@ retain the old `MemoryGovernor.shared`/`MainActor.assumeIsolated` explanation.
 
 - [ ] **Step 4: Make CompositionRoot own the matching governor**
 
-Add:
+Add a read-only internal property; matching the existing `imageProcessor`
+regression seam keeps the production identity structural while allowing
+`@testable` coverage:
 
 ```swift
-private let memoryGovernor: MemoryGovernor
+/// Governor constructed from the composed AppState's visibility tracker.
+/// Internal so the composition-identity contract can be regression tested.
+let memoryGovernor: MemoryGovernor
 ```
 
-Append an optional initializer dependency and construct the production value
-from the AppState tracker:
+Construct it unconditionally from the AppState tracker; do not accept a
+preconstructed governor because it could carry a different tracker:
 
 ```swift
 init(
   appState: AppState = .shared,
   clipboard: Clipboard = .shared,
   storage: Storage = .shared,
-  imageProcessor: (any ImageProcessing)? = nil,
-  memoryGovernor: MemoryGovernor? = nil
+  imageProcessor: (any ImageProcessing)? = nil
 ) {
   self.appState = appState
   self.clipboard = clipboard
   self.storage = storage
   self.imageProcessor = imageProcessor ?? appState.history.decoratorImageProcessor
-  self.memoryGovernor = memoryGovernor
-    ?? MemoryGovernor(visibilityTracker: appState.visibilityTracker)
+  self.memoryGovernor = MemoryGovernor(visibilityTracker: appState.visibilityTracker)
 }
 ```
 
@@ -316,6 +323,7 @@ file list is identical before and after.
   neighboring interface remains.
 - Type consistency: `AppState.visibilityTracker`,
   `MemoryGovernor.init(visibilityTracker:)`, and
-  `CompositionRoot.init(...memoryGovernor:)` match in every task and test.
+  `CompositionRoot.memoryGovernor` match in every task and test; the root has no
+  alternate governor injection path that could violate tracker identity.
 - Scope: five existing Swift files plus one existing test file; no generated
   project change or UI/layout behavior change.

@@ -65,11 +65,11 @@ one.
 
 ### CompositionRoot
 
-`CompositionRoot` owns its `MemoryGovernor`. Its initializer accepts an optional
-governor for tests; otherwise it builds one from
-`appState.visibilityTracker`. `finishLaunching` attaches the composed History
-and starts the owned governor. Callers can no longer substitute a hidden global
-at the finish step.
+`CompositionRoot` owns its `MemoryGovernor` and always builds it from
+`appState.visibilityTracker`; no caller can substitute a governor carrying a
+different tracker. The read-only property is internal only so `@testable`
+regression coverage can exercise the real composition bridge. `finishLaunching`
+attaches the composed History and starts the owned governor.
 
 ### MemoryGovernor
 
@@ -101,9 +101,9 @@ AppState.visibilityTracker
 
 ## Testing
 
-- Extend `MemoryGovernanceTests` with an injected-tracker behavior test: a
-  registered decorator keeps its transient preview while an unregistered one
-  is released, and the attached cache is purged.
+- Extend `MemoryGovernanceTests` through the root-owned governor: a registered
+  decorator keeps its transient preview and thumbnail while an unregistered one
+  releases both, and the attached cache is purged.
 - Add an AppState isolation assertion proving two AppState instances do not
   share viewport membership.
 - Static gates require zero `MemoryGovernor.shared` and
