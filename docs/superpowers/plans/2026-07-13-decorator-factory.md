@@ -295,6 +295,25 @@ git add Maccy/Application/CompositionRoot.swift Maccy/Observables/MemoryGovernan
 git commit -m "refactor(quality): compose decorator image lifetime"
 ```
 
-- [ ] **Step 5: Push one complete verification boundary**
+- [ ] **Step 5: Regenerate the tracked Xcode project through the runner**
 
-Do not build locally. Push the branch once and let `macOS 26 ARM CI` run XcodeGen, strict lint/build, unit, UI, and performance shards. Poll at 90-second intervals. Diagnose any failure by job first and tail of the failed job log; do not rerun a concrete assertion/compiler failure as a flake.
+Push the branch without dispatching normal CI, then run `Regenerate and Validate
+Xcode Project` once. Its validation job must generate twice, pass repeatability,
+test-plan, parity, clean build, and bundle gates, and fail only the expected
+committed-output drift gate. Download `xcodeproj-generated-<run-id>-1`, compare
+it with the checkout, and mechanically copy the changed generated files; never
+hand-edit `project.pbxproj`. Confirm both new Swift filenames occur in the
+generated project and commit:
+
+```bash
+git add Maccy.xcodeproj Maccy.xctestplan
+git commit -m "chore(project): regenerate for decorator factory files"
+```
+
+- [ ] **Step 6: Push one complete verification boundary**
+
+Do not build locally. Push the generated-output commit and dispatch `macOS 26
+ARM CI` once. Require XcodeGen zero drift, strict lint/build, unit, UI, and
+performance shards. Poll at 90-second intervals. Diagnose any failure by job
+first and tail of the failed job log; do not rerun a concrete
+assertion/compiler failure as a flake.
