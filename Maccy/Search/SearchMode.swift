@@ -46,9 +46,9 @@ enum Search {
       return true
     }
     let nestedQuantifierPattern =
-      #"\([^)]*([+*?]|\{\d+,?\d*\})[^)]*\)([+*?]|\{\d+,?\d*\})"#
+      #"\([^)]*([+*?]|\{\d+,?\d*\})[^)]*\)([+*]|\{\d+,?\d*\})"#
     let quantifiedAlternationPattern =
-      #"\([^)]*\|[^)]*\)([+*?]|\{\d+,?\d*\})"#
+      #"\([^)]*\|[^)]*\)([+*]|\{\d+,?\d*\})"#
     return pattern.range(of: nestedQuantifierPattern, options: .regularExpression) != nil
       || pattern.range(of: quantifiedAlternationPattern, options: .regularExpression) != nil
   }
