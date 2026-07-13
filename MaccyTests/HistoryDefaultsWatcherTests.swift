@@ -64,7 +64,7 @@ final class HistoryDefaultsWatcherTests: XCTestCase {
     XCTAssertNil(hidden.previewImage)
   }
 
-  func testAdaptiveRowSizingChangesRequestPopupRemeasurement() async throws {
+  func testAdaptiveRowSizingChangesRequestPopupRemeasurement() async {
     let savedImageHeight = Defaults[.imageMaxHeight]
     let savedTextLines = Defaults[.textRowLines]
     defer {
@@ -74,6 +74,8 @@ final class HistoryDefaultsWatcherTests: XCTestCase {
     Defaults[.imageMaxHeight] = 40
     Defaults[.textRowLines] = 1
 
+    let imageResize = expectation(description: "image row resize requested")
+    let textResize = expectation(description: "text row resize requested")
     var resizeRequests = 0
     let history = History(
       persistence: SwiftDataHistoryPersistence(context: Storage.shared.context),
@@ -82,16 +84,21 @@ final class HistoryDefaultsWatcherTests: XCTestCase {
     history.configureUIEffectSink { effect in
       if case .resizePopup = effect {
         resizeRequests += 1
+        if resizeRequests == 1 {
+          imageResize.fulfill()
+        } else if resizeRequests == 2 {
+          textResize.fulfill()
+        }
       }
     }
     await Task.yield()
 
     Defaults[.imageMaxHeight] = 41
-    try await Task.sleep(for: .milliseconds(100))
+    await fulfillment(of: [imageResize], timeout: 1)
     XCTAssertEqual(resizeRequests, 1)
 
     Defaults[.textRowLines] = 2
-    try await Task.sleep(for: .milliseconds(100))
+    await fulfillment(of: [textResize], timeout: 1)
     XCTAssertEqual(resizeRequests, 2)
   }
 
