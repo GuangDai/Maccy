@@ -32,7 +32,7 @@
 - Consumes: `ImageProcessing`, `ApplicationImageCache.getImage(item:)`, and `HistoryItemDecorator.init`.
 - Produces: `HistoryItemDecoratorFactory.make(_:)`, `imageProcessor`, and `purgeApplicationImages()`.
 
-- [ ] **Step 1: Write the failing factory ownership test**
+- [x] **Step 1: Write the failing factory ownership test**
 
 Add a test-local application-image provider that records each model passed through the factory, then assert the made decorator receives the provider's exact object:
 
@@ -60,7 +60,7 @@ func testDecoratorFactoryOwnsApplicationImageResolution() {
 
 Change each `ApplicationImageCacheTests` case from `ApplicationImageCache.shared` to a fresh `ApplicationImageCache()` so the tests lock instance isolation.
 
-- [ ] **Step 2: Record the RED boundary**
+- [x] **Step 2: Record the RED boundary**
 
 Do not run locally. The expected runner failure is a compile error because `HistoryItemDecoratorFactory` and the explicit `applicationImage` initializer input do not exist. Commit the tests:
 
@@ -69,7 +69,7 @@ git add MaccyTests/HistoryStoreProjectorTests.swift MaccyTests/ApplicationImageC
 git commit -m "test(quality): define decorator image ownership"
 ```
 
-- [ ] **Step 3: Implement the minimal factory and explicit decorator input**
+- [x] **Step 3: Implement the minimal factory and explicit decorator input**
 
 Create a main-actor value that owns only construction resources:
 
@@ -115,7 +115,7 @@ struct HistoryItemDecoratorFactory {
 
 Add `live()` and `isolated()` factory methods. `live()` creates `ImageProcessor(cache: ThumbnailCache())`; `isolated()` uses `PassthroughImageProcessor()`. Each creates its own `ApplicationImageCache`. Make that cache `final`, remove its `.shared`, and change `HistoryItemDecorator.init` to accept `applicationImage: ApplicationImage? = nil`; use a nil-bundle fallback only for standalone test construction. Keep `PassthroughImageProcessor()` as the standalone decorator default until Task 2 removes every production use of that default.
 
-- [ ] **Step 4: Review and commit the factory**
+- [x] **Step 4: Review and commit the factory**
 
 Run read-only checks:
 
@@ -146,7 +146,7 @@ git commit -m "refactor(quality): own decorator image resources"
 - Consumes: `HistoryItemDecoratorFactory.make(_:)` from Task 1.
 - Produces: `History.init(... decoratorFactory:)`, `History.decoratorImageProcessor`, and one construction route for load, reconcile, and incremental insert.
 
-- [ ] **Step 1: Write the failing three-path projection test**
+- [x] **Step 1: Write the failing three-path projection test**
 
 Construct a factory whose application-image closure appends model titles. Load one item, incrementally add a second, then reconcile a third while the first two decorators are reused:
 
@@ -182,7 +182,7 @@ func testInjectedFactoryBuildsEveryNewStoreProjection() async throws {
 }
 ```
 
-- [ ] **Step 2: Commit the RED projection test**
+- [x] **Step 2: Commit the RED projection test**
 
 The expected runner failure is `extra argument 'decoratorFactory' in call`. Commit:
 
@@ -191,7 +191,7 @@ git add MaccyTests/HistoryStoreProjectorTests.swift
 git commit -m "test(quality): require one decorator construction route"
 ```
 
-- [ ] **Step 3: Inject and use the factory**
+- [x] **Step 3: Inject and use the factory**
 
 Add `decoratorFactory` to `HistoryStoreProjector.init` and replace all three bare constructor sites with `decoratorFactory.make(model)`. Add a factory parameter to `History.init` with `.isolated()` as its default, retain it, and pass it to the projector. In `History.makeShared`, create exactly one `.live()` factory and pass it to `History`. Expose only this internal read for the application composition boundary:
 
@@ -203,15 +203,16 @@ var decoratorImageProcessor: any ImageProcessing {
 
 Remove `HistoryItemDecorator.defaultImageProcessor`; change the one test helper that references it to `PassthroughImageProcessor()`.
 
-- [ ] **Step 4: Prove there are no production bypasses and commit**
+- [x] **Step 4: Prove there are no production bypasses and commit**
 
 ```bash
 rg -n "HistoryItemDecorator\(" Maccy/Observables/HistoryStoreProjector.swift
-rg -n "defaultImageProcessor" Maccy MaccyTests
+rg -n "defaultImageProcessor" Maccy/Observables MaccyTests
 git diff --check
 ```
 
-The first search and second search must return no matches. Commit:
+Both searches must return no matches. `CompositionRoot` retains the final live
+default until Task 3 replaces it with the composed History processor. Commit:
 
 ```bash
 git add Maccy/Observables/HistoryStoreProjector.swift Maccy/Observables/History.swift Maccy/Observables/HistoryItemDecorator.swift MaccyTests/HistoryStoreProjectorTests.swift MaccyTests/HistoryDecoratorTests.swift
@@ -232,7 +233,7 @@ git commit -m "refactor(quality): centralize decorator construction"
 - Consumes: `History.decoratorImageProcessor` and `HistoryItemDecoratorFactory.purgeApplicationImages()`.
 - Produces: one shared production processor for ingest and decoration, and memory-pressure cleanup through the composed History.
 
-- [ ] **Step 1: Write the failing memory ownership test**
+- [x] **Step 1: Write the failing memory ownership test**
 
 Add a `HistoryRef` fake that returns no decorators and records application-image purges:
 
@@ -250,14 +251,14 @@ func testMemoryWarningPurgesImagesOwnedByAttachedHistory() {
 
 The fake implements `decorators()` and the new `purgeApplicationImages()` protocol requirement. The RED failure is that the protocol and governor do not yet have this route.
 
-- [ ] **Step 2: Commit the RED memory test**
+- [x] **Step 2: Commit the RED memory test**
 
 ```bash
 git add MaccyTests/MemoryGovernanceTests.swift
 git commit -m "test(quality): define composed image reclamation"
 ```
 
-- [ ] **Step 3: Complete the composition**
+- [x] **Step 3: Complete the composition**
 
 Add `purgeApplicationImages()` to `HistoryRef`, delegate it from the `History` conformance to its factory, and replace `ApplicationImageCache.shared.purge()` in `MemoryGovernor` with `history?.purgeApplicationImages()`.
 
@@ -279,7 +280,7 @@ init(
 
 This preserves explicit processor injection while ensuring the default ingest and decorator paths share object identity.
 
-- [ ] **Step 4: Static verification and commit**
+- [x] **Step 4: Static verification and commit**
 
 ```bash
 rg -n "ApplicationImageCache\.shared|defaultImageProcessor" Maccy MaccyTests
@@ -297,4 +298,3 @@ git commit -m "refactor(quality): compose decorator image lifetime"
 - [ ] **Step 5: Push one complete verification boundary**
 
 Do not build locally. Push the branch once and let `macOS 26 ARM CI` run XcodeGen, strict lint/build, unit, UI, and performance shards. Poll at 90-second intervals. Diagnose any failure by job first and tail of the failed job log; do not rerun a concrete assertion/compiler failure as a flake.
-
