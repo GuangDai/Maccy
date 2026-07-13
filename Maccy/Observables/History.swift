@@ -191,20 +191,7 @@ class History: ItemsContainer {
       }
     }
 
-    Task { @MainActor in
-      for await _ in Defaults.updates(.imageMaxHeight, initial: false) {
-        for item in all {
-          item.cleanupImages()
-        }
-        emit(.resizePopup)
-      }
-    }
-
-    Task { @MainActor in
-      for await _ in Defaults.updates(.textRowLines, initial: false) {
-        emit(.resizePopup)
-      }
-    }
+    observeAdaptiveRowSizingDefaults()
 
     Task { @MainActor in
       for await _ in Defaults.updates(.imageMaxPreviewPixels, initial: false) {
@@ -220,6 +207,24 @@ class History: ItemsContainer {
         // capped to the old window, so rebuild and re-run the active search.
         searchSession.replaceCorpus(all)
         refreshVisibleItems()
+      }
+    }
+  }
+
+  /// Observes the two settings that change realized history-row geometry.
+  private func observeAdaptiveRowSizingDefaults() {
+    Task { @MainActor in
+      for await _ in Defaults.updates(.imageMaxHeight, initial: false) {
+        for item in all {
+          item.cleanupImages()
+        }
+        emit(.resizePopup)
+      }
+    }
+
+    Task { @MainActor in
+      for await _ in Defaults.updates(.textRowLines, initial: false) {
+        emit(.resizePopup)
       }
     }
   }
