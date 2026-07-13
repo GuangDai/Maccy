@@ -143,6 +143,20 @@ final class ClipboardTests: XCTestCase {
     XCTAssertEqual(operations, ["ingest:1", "events:cleared", "ingest:2"])
   }
 
+  /// Clipboard routes main-side store maintenance through the same mailbox
+  /// adapter as pasteboard requests and drops empty batches at the boundary.
+  func testStoreEventsUseClipboardMailboxAdapter() async {
+    let spy = IngestorSpy()
+    clipboard.ingestor = spy
+
+    clipboard.synchronizeStoreEvents([.cleared])
+    clipboard.synchronizeStoreEvents([])
+    await waitForStoreEventBatches(spy, expectedCount: 1)
+
+    let batches = await spy.storeEventBatches
+    XCTAssertEqual(batches, [[.cleared]])
+  }
+
   /// When `changeCount` hasn't advanced, no request is dispatched.
   func testNoChangeDoesNotDispatch() async {
     let spy = IngestorSpy()
@@ -315,29 +329,20 @@ final class ClipboardTests: XCTestCase {
     XCTAssertNil(pasteboard.data(forType: .rtf))
   }
 
-  // MARK: - ingest failure surfacing (NEW-ingest-dualpath-4)
+  // MARK: - Ingest failure surfacing
 
-  /// A persistence failure in the actor (`IngestResult.persistenceFailed`) must
-  /// surface on `History.lastPersistError` via `surfaceIngestFailureIfNeeded`,
-  /// not disappear as only a log line. A filtered-out ingest (`event == nil`
-  /// but not a failure) must NOT flag an error.
-  func testSurfaceIngestFailureFlagsPersistenceFailureOnly() {
-    History.shared.lastPersistError = nil
+  /// A persistence failure invokes the configured output exactly once, while
+  /// a filtered-out ingest remains a no-op and does not require History.shared.
+  func testSurfaceIngestFailureInvokesConfiguredSinkForPersistenceFailureOnly() {
+    var errors: [Error] = []
+    let subject = Clipboard(ingestFailureSink: { errors.append($0) })
 
-    clipboard.surfaceIngestFailureIfNeeded(
+    subject.surfaceIngestFailureIfNeeded(
       IngestResult(event: nil, metrics: .zero, persistenceFailed: true)
     )
-    XCTAssertNotNil(
-      History.shared.lastPersistError,
-      "A persistence failure must surface on lastPersistError, not just a log line"
-    )
+    subject.surfaceIngestFailureIfNeeded(IngestResult(event: nil, metrics: .zero))
 
-    History.shared.lastPersistError = nil
-    clipboard.surfaceIngestFailureIfNeeded(IngestResult(event: nil, metrics: .zero))
-    XCTAssertNil(
-      History.shared.lastPersistError,
-      "A filtered-out (non-failure) ingest must not flag a persistence error"
-    )
+    XCTAssertEqual(errors.count, 1)
   }
 
   // MARK: - helpers
@@ -364,6 +369,15 @@ final class ClipboardTests: XCTestCase {
     for _ in 0..<100 {
       let count = await spy.requests.count
       if count >= expectedRequestCount {
+        return
+      }
+      try? await Task.sleep(nanoseconds: 10_000_000)
+    }
+  }
+
+  private func waitForStoreEventBatches(_ spy: IngestorSpy, expectedCount: Int) async {
+    for _ in 0..<100 {
+      if await spy.storeEventBatches.count >= expectedCount {
         return
       }
       try? await Task.sleep(nanoseconds: 10_000_000)
