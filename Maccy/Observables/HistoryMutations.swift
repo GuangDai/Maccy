@@ -8,6 +8,8 @@ struct HistoryClipboardActions {
   let clear: @MainActor () -> Void
   let copy: @MainActor (HistoryItem, Bool) -> Void
   let paste: @MainActor () -> Void
+
+  static let inert = HistoryClipboardActions(clear: {}, copy: { _, _ in }, paste: {})
 }
 
 /// Runtime services supplied when composing a History facade.
@@ -20,14 +22,23 @@ struct HistoryRuntimeServices {
   let publishStoreEvents: @MainActor ([StoreEvent]) -> Void
   let log: @MainActor (String) -> Void
 
-  static let inert = HistoryRuntimeServices(
-    clipboard: HistoryClipboardActions(clear: {}, copy: { _, _ in }, paste: {}),
-    modifierFlags: { [] },
-    availablePin: { nil },
-    currentEvent: { nil },
-    publishStoreEvents: { _ in },
-    log: { _ in }
-  )
+  init(
+    clipboard: HistoryClipboardActions = .inert,
+    modifierFlags: @escaping @MainActor () -> NSEvent.ModifierFlags = { [] },
+    availablePin: @escaping @MainActor () -> String? = { nil },
+    currentEvent: @escaping @MainActor () -> NSEvent? = { nil },
+    publishStoreEvents: @escaping @MainActor ([StoreEvent]) -> Void = { _ in },
+    log: @escaping @MainActor (String) -> Void = { _ in }
+  ) {
+    self.clipboard = clipboard
+    self.modifierFlags = modifierFlags
+    self.availablePin = availablePin
+    self.currentEvent = currentEvent
+    self.publishStoreEvents = publishStoreEvents
+    self.log = log
+  }
+
+  static let inert = HistoryRuntimeServices()
 }
 
 /// Owns user-initiated history commands and their post-commit projections.

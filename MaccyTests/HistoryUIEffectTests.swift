@@ -103,11 +103,7 @@ final class HistoryUIEffectTests: XCTestCase {
           copy: { _, _ in },
           paste: {}
         ),
-        modifierFlags: { [] },
-        availablePin: { nil },
-        currentEvent: { nil },
-        publishStoreEvents: { storeEvents.append(contentsOf: $0) },
-        log: { _ in }
+        publishStoreEvents: { storeEvents.append(contentsOf: $0) }
       ),
       logsPersistenceErrors: false
     )
@@ -155,11 +151,7 @@ final class HistoryUIEffectTests: XCTestCase {
           },
           paste: { pasteCalls += 1 }
         ),
-        modifierFlags: { .option },
-        availablePin: { nil },
-        currentEvent: { nil },
-        publishStoreEvents: { _ in },
-        log: { _ in }
+        modifierFlags: { .option }
       ),
       logsPersistenceErrors: false
     )
