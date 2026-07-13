@@ -23,8 +23,9 @@ protocol HistoryPersistence {
   func countHistoryItemContents() throws -> Int
 }
 
-/// `HistoryPersistence` backed by `Storage.shared.context` (the main SwiftData
-/// context). Each mutating method processes pending changes and saves.
+/// `HistoryPersistence` backed by a caller-provided SwiftData context. Each
+/// mutating method processes pending changes and saves.
+@MainActor
 struct SwiftDataHistoryPersistence: HistoryPersistence {
   private let context: ModelContext
 
@@ -32,17 +33,14 @@ struct SwiftDataHistoryPersistence: HistoryPersistence {
     self.context = context
   }
 
-  @MainActor
   func delete(_ item: HistoryItem) throws {
-    Storage.shared.context.delete(item)
-    Storage.shared.context.processPendingChanges()
-    try Storage.shared.context.save()
+    context.delete(item)
+    context.processPendingChanges()
+    try context.save()
   }
 
-  @MainActor
   func delete(_ items: [HistoryItem]) throws {
     guard !items.isEmpty else { return }
-    let context = Storage.shared.context
     try context.transaction {
       for item in items {
         context.delete(item)
@@ -52,9 +50,7 @@ struct SwiftDataHistoryPersistence: HistoryPersistence {
     try context.save()
   }
 
-  @MainActor
   func deleteUnpinned() throws {
-    let context = Storage.shared.context
     // Predicate deletion evaluates persisted rows, not unsaved inserts. Commit
     // any pending main-context edits first so the same operation can delete a
     // newly inserted unpinned item while preserving pending pinned items.
@@ -75,36 +71,30 @@ struct SwiftDataHistoryPersistence: HistoryPersistence {
     try context.save()
   }
 
-  @MainActor
   func deleteAll() throws {
-    try Storage.shared.context.delete(model: HistoryItem.self)
-    Storage.shared.context.processPendingChanges()
-    try Storage.shared.context.save()
+    try context.delete(model: HistoryItem.self)
+    context.processPendingChanges()
+    try context.save()
   }
 
-  @MainActor
   func save() throws {
-    Storage.shared.context.processPendingChanges()
-    try Storage.shared.context.save()
+    context.processPendingChanges()
+    try context.save()
   }
 
-  @MainActor
   func fetchAll() throws -> [HistoryItem] {
-    try Storage.shared.context.fetch(FetchDescriptor<HistoryItem>())
+    try context.fetch(FetchDescriptor<HistoryItem>())
   }
 
-  @MainActor
   func model(for id: PersistentIdentifier) -> HistoryItem? {
-    Storage.shared.context.model(for: id) as? HistoryItem
+    context.model(for: id) as? HistoryItem
   }
 
-  @MainActor
   func countHistoryItems() throws -> Int {
-    try Storage.shared.context.fetchCount(FetchDescriptor<HistoryItem>())
+    try context.fetchCount(FetchDescriptor<HistoryItem>())
   }
 
-  @MainActor
   func countHistoryItemContents() throws -> Int {
-    try Storage.shared.context.fetchCount(FetchDescriptor<HistoryItemContent>())
+    try context.fetchCount(FetchDescriptor<HistoryItemContent>())
   }
 }
