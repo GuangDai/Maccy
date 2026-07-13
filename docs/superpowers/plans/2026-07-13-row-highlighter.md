@@ -18,6 +18,7 @@
 - Commit each coherent step. Push only after project generation is synchronized and the full CI matrix passes.
 - Poll CI no more frequently than every 90 seconds.
 - Do not edit the primary worktree's dirty `docs/audit/INDEX.md` or other user-owned files.
+- Subagent execution treats Tasks 1 and 2 as one implementation/review gate: the test contract and its module implementation must be committed and reviewed together, never as a knowingly uncompilable intermediate task.
 
 ---
 
@@ -158,18 +159,13 @@ final class RowHighlighterTests: XCTestCase {
 
 Retain `HistoryItemDecoratorTests.testHighlight` and `testPreviewHighlight` to prove decorator assignment. Move deep-range and render-window behavior to `RowHighlighterTests`; do not duplicate those assertions in both test classes.
 
-- [ ] **Step 3: Commit the interface contract**
+- [ ] **Step 3: Continue directly to the implementation before committing**
 
-```bash
-git add MaccyTests/RowHighlighterTests.swift MaccyTests/HistoryDecoratorTests.swift
-git commit -m "test(quality): define row highlighter interface"
-```
-
-Expected: the commit intentionally references the not-yet-created module and becomes compilable in Task 2 within the same branch. Do not run local tests.
+Stage no commit at this point. The new tests and Task 2 implementation form one independently reviewable deliverable; committing a missing `RowHighlighter` type would violate the task gate even though Swift compile boundaries permit temporary worktree breakage.
 
 ---
 
-### Task 2: Extract highlighting implementation and wire the decorator
+### Task 2: Complete the same implementation gate by extracting and wiring highlighting
 
 **Files:**
 - Create: `Maccy/Search/RowHighlighter.swift`
@@ -357,7 +353,8 @@ Expected: `git diff --check` exits 0; no memo/style implementation remains in th
 - [ ] **Step 4: Commit the extraction**
 
 ```bash
-git add Maccy/Search/RowHighlighter.swift Maccy/Observables/HistoryItemDecorator.swift
+git add Maccy/Search/RowHighlighter.swift Maccy/Observables/HistoryItemDecorator.swift \
+  MaccyTests/RowHighlighterTests.swift MaccyTests/HistoryDecoratorTests.swift
 git commit -m "refactor(quality): extract row text highlighting"
 ```
 
