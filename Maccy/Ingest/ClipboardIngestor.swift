@@ -260,7 +260,21 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     let duplicateSearch = findDuplicate(of: item)
     let dup = duplicateSearch.duplicate
     if let dup {
-      mergeFields(from: dup, into: item, timestamp: timestamp)
+      let recoveredSearchText: String?
+      if dup.searchText == nil {
+        recoveredSearchText = await projectSearchText(
+          for: contentDTOs(of: dup),
+          config: config
+        )
+      } else {
+        recoveredSearchText = nil
+      }
+      mergeFields(
+        from: dup,
+        into: item,
+        timestamp: timestamp,
+        recoveredSearchText: recoveredSearchText
+      )
     }
 
     let dedupHits = dup != nil ? 1 : 0
@@ -342,6 +356,28 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
         contents: contents,
         richTextParsingLimit: 512 * 1_024
       )
+    )
+  }
+
+  /// Rebuilds a legacy row's missing search projection from the exact contents
+  /// that will survive the merge. Only selected RTF/HTML inputs hop to main;
+  /// plain/file/image re-copies remain on this actor.
+  private func projectSearchText(
+    for contents: [ContentDTO],
+    config: IngestConfig
+  ) async -> String {
+    let plan = IngestMainActorPlan(contents: contents, config: config)
+    if plan.contains(.textProjection) {
+      return await MainActor.run {
+        HistoryItemEngine.searchableBody(
+          contents: contents,
+          richTextParsingLimit: config.richTextParsingLimit
+        )
+      }
+    }
+    return HistoryItemEngine.searchableBody(
+      contents: contents,
+      richTextParsingLimit: config.richTextParsingLimit
     )
   }
 
@@ -467,25 +503,18 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   }
 
   /// Copies the duplicate's fields into the new item.
-  private func mergeFields(from dup: HistoryItem, into item: HistoryItem, timestamp: Date) {
-    let mergedSearchText: String?
-    if let existingSearchText = dup.searchText {
-      mergedSearchText = existingSearchText
-    } else if item.supersedes(dup) {
-      // `findDuplicate` already proved the inverse containment. Only reuse the
-      // fresh projection when both items therefore have equivalent canonical
-      // contents; a strict-subset projection would not describe `dup`.
-      mergedSearchText = item.searchText
-    } else {
-      mergedSearchText = nil
-    }
-
+  private func mergeFields(
+    from dup: HistoryItem,
+    into item: HistoryItem,
+    timestamp: Date,
+    recoveredSearchText: String?
+  ) {
     item.contents = dup.contents.map { HistoryItemContent(type: $0.type, value: $0.value) }
     item.firstCopiedAt = dup.firstCopiedAt
     item.numberOfCopies += dup.numberOfCopies
     item.pin = dup.pin
     item.title = dup.title
-    item.searchText = mergedSearchText
+    item.searchText = dup.searchText ?? recoveredSearchText
     if !item.fromMaccy {
       item.application = dup.application
     }
