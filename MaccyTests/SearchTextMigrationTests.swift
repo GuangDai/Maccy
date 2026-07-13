@@ -217,6 +217,37 @@ final class SearchTextMigrationTests: XCTestCase {
     XCTAssertEqual(stored?.first?.searchText, body)
   }
 
+  /// Legacy rich text takes the same AppKit-safe main-actor projection route
+  /// during recovery as a newly ingested RTF row.
+  func testRecopyBackfillsMissingRtfSearchTextOnMainActor() async {
+    let body = "legacy rich body"
+    let attributed = NSAttributedString(string: body)
+    let rtf = attributed.rtf(
+      from: NSRange(location: 0, length: attributed.length),
+      documentAttributes: [:]
+    )
+    let legacy = HistoryItem(contents: [
+      HistoryItemContent(type: NSPasteboard.PasteboardType.rtf.rawValue, value: rtf)
+    ])
+    legacy.title = legacy.generateTitle()
+    Storage.shared.context.insert(legacy)
+    XCTAssertNoThrow(try Storage.shared.context.save())
+    XCTAssertNil(legacy.searchText)
+    let ingestor = makeIngestor()
+
+    let result = await ingestor.ingest(
+      request([content(type: NSPasteboard.PasteboardType.rtf.rawValue, value: rtf)])
+    )
+
+    if case .merged = result.event {
+      // Reaching here also proves legacy RTF recovery did not parse off-main.
+    } else {
+      XCTFail("Expected .merged, got \(String(describing: result.event))")
+    }
+    let stored = try? Storage.shared.context.fetch(FetchDescriptor<HistoryItem>())
+    XCTAssertEqual(stored?.first?.searchText, body)
+  }
+
   /// Dedup uses containment, so an existing row can be a strict content
   /// superset of the new pasteboard payload. A projection derived from the
   /// subset must not be stored beside the retained superset contents.
