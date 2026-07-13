@@ -1,6 +1,6 @@
 # 架构与根因总览(单一权威参考)
 
-本文档是 Maccy 当前架构、瓶颈、数据安全、内存、路线图完成度的**单一权威参考**,由 ~30 份历史审计文档(2026-06-14 深度审查 / 2026-06-25 模块分析 / 2026-06-27 内存实测 / 2026-06-28 路线图缺口审计)蒸馏而成,并更新到 **2026-07-13 History B2–B5 / C3 / C4 / E5 decorator factory + UI ownership 完成态**。完成度细节见 `docs/audit/2026-06-28-roadmap-bs5-bs8-gap-audit/`,内存实测见 `docs/audit/2026-06-27-memory-floor-and-retention/`。`finding-id` 词汇表见本文末尾。
+本文档是 Maccy 当前架构、瓶颈、数据安全、内存、路线图完成度的**单一权威参考**,由 ~30 份历史审计文档(2026-06-14 深度审查 / 2026-06-25 模块分析 / 2026-06-27 内存实测 / 2026-06-28 路线图缺口审计)蒸馏而成,并更新到 **2026-07-13 History B2–B5 / C3 / C4 / E5 decorator factory + UI ownership + RowHighlighter 拆分态**。完成度细节见 `docs/audit/2026-06-28-roadmap-bs5-bs8-gap-audit/`,内存实测见 `docs/audit/2026-06-27-memory-floor-and-retention/`。`finding-id` 词汇表见本文末尾。
 
 > 代码标识符保留英文;历史行号仅用于定位旧证据,当前结构以类型名和 2026-07-13 branch HEAD 为准。
 
@@ -38,6 +38,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 │       └─ HistoryPersistence → SwiftData adapter    │   │                                                    │
 │                                                    │   │ actor ImageProcessor 【BS-3 已接入,E5 显式组合】   │
 │ @Observable HistoryItemDecorator(UI 状态)          │   │  ├─ ImageIO 降采样(CGImageSourceCreateThumbnail)   │
+│  ├─ RowHighlighter(title/preview text projection)  │   │                                                    │
 │  ├─ thumbnailImage/previewImage(就绪位图)          │   │  └─ 后台解码 + 缩略图/预览(预览封顶 800px)         │
 │  └─ applicationImage(NSCache 限界 128)             │   │                                                    │
 └────────────────────────────────────────────────────┘   └────────────────────────────────────────────────────┘
@@ -63,6 +64,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 | `Maccy/ImageProcessing/ImageProcessing.swift` + `ImageProcessor.swift` + `ImageDownsampler.swift` + `ThumbnailCache.swift` | ✅ ImageIO 降采样已接入(BS-3) |
 | `HistoryListState` / `HistorySearchSession` / `HistoryStoreProjector` / `HistoryMutations` | ✅ B2–B5 完成:列表变更单 chokepoint、actor 搜索语料/O(1) lookup、单 persistence 投影、fake-backed mutations + value UI effects。E5 首个 DI slice 又将 clipboard/event/current-event/log 服务构造注入；普通 `History` 实例 inert，live globals 仅在 `History.shared` composition factory。`History.swift` 978→346 LOC；full matrix `29210900842`。 |
 | `HistoryItemDecoratorFactory` / image composition | ✅ E5 decorator slice:projector 的 load/reconcile/incremental insert 只经 factory 构造；factory 显式拥有 `ImageProcessor` 与 `ApplicationImageCache`。`History.shared` 建一套 live 资源，普通 `History` 使用隔离资源；`CompositionRoot` 将同一 processor 交给 ingest，memory warning 经 attached History 清理同一 icon cache。decorator/cache 不再读取隐藏 `.shared`。 |
+| `RowHighlighter` / decorator text projection | ⏳ E5 cohesion slice:`RowHighlighter` 内聚标题与正文预览的 memo key、`AttributedString` 构建、截断/clamp、index 转换与单一高亮样式分支；`HistoryItemDecorator` 仅保留 Observable 赋值适配与图片生命周期所有权。新模块不依赖 `HistoryItem`/SwiftData/图片/`AppState`/进程级 shared；full matrix 待验证。 |
 | `AppState` runtime boundary | ✅ E5 第二 slice (`ed664b2`):空选择 query copy 构造注入；prewarm 使用当前组合的 History；Settings close observer 弱捕获 owning AppState，不再回写 `AppState.shared`。文件内 shared 使用 8→3，剩余仅 composition/Settings 构建区；full matrix `29211587341`。后续 UI-ownership slice 保留 `ContentView` 为 popup 状态 composition root，`HeaderView`/`ToolbarView` 由 SwiftUI environment 接收同一实例；`GeneralSettingsPane` 只接收 popup-shortcut 窄回调。三者均不再各自抓取 global；full matrix `29253455968`（`ui-1` 首次 runner setup 遇 GitHub Service Unavailable，failed-job retry 后通过）。 |
 | Footer action flow | ✅ `7d1d3e2`:FooterItem 携带 closed `FooterAction` value；click/confirmation/keyboard 统一交给 owning AppState 解释，Footer 内 5 个 `AppState.shared` 闭包删除。`f84ffa1` 又覆盖全部 interpreter cases，并把键盘 clear 路由从 title string 收敛为 typed lookup；full matrix `29213836925`。 |
 | Navigation → Preview lead flow | ✅ `38ef0c9`:Navigation 在构造时接收单一 current-lead 输出，旧 lead 解码取消仍内聚于 Navigation；AppState 组合该输出到 Preview 的 auto-open/retarget 输入。`NavigationManager` 不再读取 `AppState.shared`，测试也不再借用 global Preview；full matrix `29214579841`。 |
