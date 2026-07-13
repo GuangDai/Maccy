@@ -295,15 +295,17 @@ git add Maccy/Application/CompositionRoot.swift Maccy/Observables/MemoryGovernan
 git commit -m "refactor(quality): compose decorator image lifetime"
 ```
 
-- [ ] **Step 5: Regenerate the tracked Xcode project through the runner**
+- [x] **Step 5: Regenerate the tracked Xcode project through the runner**
 
 Push the branch without dispatching normal CI, then run `Regenerate and Validate
-Xcode Project` once. Its validation job must generate twice, pass repeatability,
-test-plan, parity, clean build, and bundle gates, and fail only the expected
-committed-output drift gate. Download `xcodeproj-generated-<run-id>-1`, compare
-it with the checkout, and mechanically copy the changed generated files; never
-hand-edit `project.pbxproj`. Confirm both new Swift filenames occur in the
-generated project and commit:
+Xcode Project` once. Its validation job must generate twice and pass
+repeatability, test-plan, settings, clean build, and bundle gates. Source-graph
+parity may differ only by the newly added source/test filenames; committed
+output must show the corresponding generated references and no other drift.
+Download `xcodeproj-generated-<run-id>-1`, compare it with the checkout, and
+mechanically copy the changed generated files; never hand-edit
+`project.pbxproj`. Confirm both new Swift filenames occur in the generated
+project and commit:
 
 ```bash
 git add Maccy.xcodeproj Maccy.xctestplan
