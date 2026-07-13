@@ -29,7 +29,7 @@
 - Consumes: `ClipboardIngestor.ingest(_:)` and `ClipboardIngestor.synchronizeStoreEvents(_:)`.
 - Produces: `IngestMailbox.submit(storeEvents:to:)` alongside the existing request submission method.
 
-- [ ] **Step 1: Write the failing mixed-operation FIFO test**
+- [x] **Step 1: Write the failing mixed-operation FIFO test**
 
 Extend `BlockingIngestor` with an ordered string log and a store-event implementation, then add a test that blocks the first ingest, queues a clear event and second ingest, releases the first call, and asserts exact order:
 
@@ -52,7 +52,7 @@ func testIngestMailboxSerializesStoreEventsWithRequests() async {
 
 The actor records `request.source.changeCount` for ingests and a stable label for the `.cleared` event. Rename the polling helper parameter from `expectedRequestCount` to `expectedOperationCount` and read the actor's operation count.
 
-- [ ] **Step 2: Record the RED test boundary**
+- [x] **Step 2: Record the RED test boundary**
 
 Do not run locally. The expected runner failure is a compile error because `IngestMailbox` has no `submit(storeEvents:to:)` overload. Commit only the test change:
 
@@ -61,7 +61,7 @@ git add MaccyTests/ClipboardTests.swift
 git commit -m "test(quality): define mixed store event mailbox order"
 ```
 
-- [ ] **Step 3: Implement the minimal generalized mailbox**
+- [x] **Step 3: Implement the minimal generalized mailbox**
 
 Replace the request-only entry with a private operation enum:
 
@@ -88,7 +88,7 @@ func submit(storeEvents: [StoreEvent], to ingestor: any ClipboardIngestor) {
 
 Extract the shared `drainTask == nil` check into `startDrainIfNeeded()`. In `drain()`, switch on each operation and await either `ingest` plus completion or `synchronizeStoreEvents`. Retain index-based draining and capacity reuse.
 
-- [ ] **Step 4: Review concurrency invariants and commit**
+- [x] **Step 4: Review concurrency invariants and commit**
 
 Confirm the mailbox remains `@MainActor`, only one drain task can exist, and no detached task was added. Run `git diff --check`, then commit:
 
@@ -111,7 +111,7 @@ git commit -m "fix(quality): serialize store events with clipboard ingest"
 - Consumes: `IngestMailbox.submit(storeEvents:to:)` from Task 1.
 - Produces: `Clipboard.synchronizeStoreEvents(_:)`, `Clipboard.configureIngestFailureSink(_:)`, and an initializer-injected inert failure sink.
 
-- [ ] **Step 1: Write failing adapter and failure-sink tests**
+- [x] **Step 1: Write failing adapter and failure-sink tests**
 
 Add an async adapter test using the existing `IngestorSpy`:
 
@@ -145,14 +145,14 @@ func testSurfaceIngestFailureInvokesConfiguredSinkForPersistenceFailureOnly() {
 
 Add a polling helper that reads `spy.storeEventBatches.count`. These tests intentionally fail to compile until the new Clipboard APIs exist.
 
-- [ ] **Step 2: Commit the RED tests**
+- [x] **Step 2: Commit the RED tests**
 
 ```bash
 git add MaccyTests/ClipboardTests.swift
 git commit -m "test(quality): define clipboard boundary outputs"
 ```
 
-- [ ] **Step 3: Add the Clipboard APIs**
+- [x] **Step 3: Add the Clipboard APIs**
 
 Add an inert-by-default sink stored on the main-actor class:
 
@@ -184,7 +184,7 @@ func synchronizeStoreEvents(_ events: [StoreEvent]) {
 
 Change `surfaceIngestFailureIfNeeded` to call `ingestFailureSink(ClipboardIngestPersistenceError())`; remove its `History.shared` access.
 
-- [ ] **Step 4: Replace live fire-and-forget wiring**
+- [x] **Step 4: Replace live fire-and-forget wiring**
 
 In `History.makeShared`, replace the unstructured task closure with:
 
@@ -202,7 +202,7 @@ clipboard.configureIngestFailureSink { [weak history] error in
 
 Use the existing local `history = appState.history`; do not fetch either singleton in this closure.
 
-- [ ] **Step 5: Verify the dependency direction and commit**
+- [x] **Step 5: Verify the dependency direction and commit**
 
 Run read-only checks:
 
@@ -231,7 +231,7 @@ git commit -m "refactor(quality): compose clipboard history outputs"
 - Consumes: existing `HistoryPersistence.deleteAll()` throwing contract.
 - Produces: complete saved-plus-pending deletion with model-owned child cascading.
 
-- [ ] **Step 1: Write a SQLite cascade regression test**
+- [x] **Step 1: Write a SQLite cascade regression test**
 
 Create a temporary disk-backed `Storage`, insert and save one item with content,
 run the existing `deleteAll()`, then assert both entity counts are zero:
@@ -260,19 +260,19 @@ func testDeleteAllRemovesSavedContentsFromSQLiteStore() throws {
 
 This verifies Apple's SwiftData `.cascade` relationship contract for saved rows.
 
-- [ ] **Step 2: Add a RED saved-plus-pending regression test**
+- [x] **Step 2: Add a RED saved-plus-pending regression test**
 
 Use an isolated in-memory storage. Save one row, insert a second row without
 saving, call `deleteAll()`, and assert both model counts are zero. The old
 predicate delete leaves the pending row behind.
 
-- [ ] **Step 3: Fetch pending parents and delete registered models**
+- [x] **Step 3: Fetch pending parents and delete registered models**
 
 Build a `FetchDescriptor<HistoryItem>` with `includePendingChanges = true`,
 fetch once, and delegate to the existing per-model batch delete implementation.
 Do not pre-save temporary identifiers and do not explicitly delete children.
 
-- [ ] **Step 4: Commit the persistence fix**
+- [x] **Step 4: Commit the persistence fix**
 
 ```bash
 git add Maccy/Observables/HistoryPersistence.swift \
@@ -281,9 +281,23 @@ git commit -m "fix(quality): clear registered history models"
 ```
 
 CI evidence leading to this design: predicate deletion left parent/content
-counts nonzero (for example 46/56 → 11/13); pre-saving pending rows caused the
-next Defaults-driven fetch to trap in SwiftData. Fetching pending models avoids
-both failure modes while child deletion remains the relationship's job.
+counts nonzero (for example 46/56 → 11/13), while fetching pending parents and
+deleting registered models reduced both counts to zero without remapping
+temporary identifiers. Child deletion remains the relationship's job.
+
+- [x] **Step 5: Add a RED Defaults-resort regression test**
+
+Create a fake-backed `History` with a complete projection whose first-copy and
+last-copy orders differ. Change `.sortBy`, then assert the same decorators are
+reordered and `fetchAll()` is never called.
+
+- [x] **Step 6: Resort the owned projection without store IO**
+
+Add `HistoryStoreProjector.resort()` and route the `.sortBy` / `.pinTo`
+watchers through it. CI showed that the former post-clear reconcile could trap
+inside SwiftData on the first `HistoryConsumeTests` case; the preferences change
+only ordering, so fetching persistence was both unnecessary and the wrong
+boundary.
 
 ---
 
@@ -297,7 +311,7 @@ both failure modes while child deletion remains the relationship's job.
 - Consumes: completed commits from Tasks 1-3.
 - Produces: one CI-green branch ready for fast-forward integration.
 
-- [ ] **Step 1: Perform static review before push**
+- [x] **Step 1: Perform static review before push**
 
 Run only host-safe checks:
 
