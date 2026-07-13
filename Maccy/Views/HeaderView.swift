@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The popup header containing the search field and the preview toggle button.
 struct HeaderView: View {
-  @State private var appState = AppState.shared
+  @Environment(AppState.self) private var appState
 
   let controller: SlideoutController
   @FocusState.Binding var searchFocused: Bool
@@ -12,6 +12,8 @@ struct HeaderView: View {
   }
 
   var body: some View {
+    @Bindable var appState = appState
+
     HStack(alignment: .top, spacing: 0) {
       HStack(alignment: .center, spacing: 0) {
         ListHeaderView(

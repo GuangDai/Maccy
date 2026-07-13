@@ -71,7 +71,7 @@ struct ToolbarButton<Label: View>: View {
 /// The slideout toolbar: context-sensitive pin/delete actions for the current
 /// selection, plus a remove-paste-stack action when a paste stack is selected.
 struct ToolbarView: View {
-  @State private var appState = AppState.shared
+  @Environment(AppState.self) private var appState
 
   @Namespace var unionNamespace
 
