@@ -113,16 +113,34 @@ final class ClipboardTests: XCTestCase {
     mailbox.submit(request(changeCount: 2), to: blocking) { _ in }
     mailbox.submit(request(changeCount: 3), to: blocking) { _ in }
 
-    await waitForBlockingIngestor(blocking, expectedRequestCount: 1)
+    await waitForBlockingIngestor(blocking, expectedOperationCount: 1)
     let blockedCount = await blocking.requestCount
     XCTAssertEqual(blockedCount, 1)
 
     await blocking.releaseFirstRequest()
-    await waitForBlockingIngestor(blocking, expectedRequestCount: 3)
+    await waitForBlockingIngestor(blocking, expectedOperationCount: 3)
 
     let requests = await blocking.requests
     let changeCounts = requests.map(\.source.changeCount)
     XCTAssertEqual(changeCounts, [1, 2, 3])
+  }
+
+  /// Store-event maintenance shares the ingest FIFO, so a committed removal
+  /// cannot be overtaken by a later observed clipboard request.
+  func testIngestMailboxSerializesStoreEventsWithRequests() async {
+    let blocking = BlockingIngestor()
+    let mailbox = IngestMailbox()
+
+    mailbox.submit(request(changeCount: 1), to: blocking) { _ in }
+    await waitForBlockingIngestor(blocking, expectedOperationCount: 1)
+    mailbox.submit(storeEvents: [.cleared], to: blocking)
+    mailbox.submit(request(changeCount: 2), to: blocking) { _ in }
+
+    await blocking.releaseFirstRequest()
+    await waitForBlockingIngestor(blocking, expectedOperationCount: 3)
+
+    let operations = await blocking.operations
+    XCTAssertEqual(operations, ["ingest:1", "events:cleared", "ingest:2"])
   }
 
   /// When `changeCount` hasn't advanced, no request is dispatched.
@@ -354,10 +372,10 @@ final class ClipboardTests: XCTestCase {
 
   private func waitForBlockingIngestor(
     _ ingestor: BlockingIngestor,
-    expectedRequestCount: Int
+    expectedOperationCount: Int
   ) async {
     for _ in 0..<100 {
-      if await ingestor.requestCount >= expectedRequestCount {
+      if await ingestor.operationCount >= expectedOperationCount {
         return
       }
       try? await Task.sleep(nanoseconds: 10_000_000)
@@ -390,12 +408,15 @@ final class ClipboardTests: XCTestCase {
 /// Suspends its first ingest so the mailbox's backpressure is observable.
 private actor BlockingIngestor: ClipboardIngestor {
   private(set) var requests: [IngestRequest] = []
+  private(set) var operations: [String] = []
   private var firstContinuation: CheckedContinuation<Void, Never>?
 
   var requestCount: Int { requests.count }
+  var operationCount: Int { operations.count }
 
   func ingest(_ request: IngestRequest) async -> IngestResult {
     requests.append(request)
+    operations.append("ingest:\(request.source.changeCount)")
     if requests.count == 1 {
       await withCheckedContinuation { continuation in
         firstContinuation = continuation
@@ -409,5 +430,13 @@ private actor BlockingIngestor: ClipboardIngestor {
     firstContinuation = nil
   }
 
-  func synchronizeStoreEvents(_ events: [StoreEvent]) async {}
+  func synchronizeStoreEvents(_ events: [StoreEvent]) async {
+    let containsOnlyClear = events.allSatisfy { event in
+      if case .cleared = event {
+        return true
+      }
+      return false
+    }
+    operations.append(containsOnlyClear ? "events:cleared" : "events:\(events.count)")
+  }
 }
