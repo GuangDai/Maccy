@@ -8,7 +8,9 @@ final class CompositionRoot {
   private let appState: AppState
   private let clipboard: Clipboard
   private let storage: Storage
-  private let memoryGovernor: MemoryGovernor
+  /// Governor constructed from the composed AppState's visibility tracker.
+  /// Internal so the composition-identity contract can be regression tested.
+  let memoryGovernor: MemoryGovernor
   /// Processor selected from the composed History unless explicitly overridden.
   /// Internal so the composition-identity contract can be regression tested.
   let imageProcessor: any ImageProcessing
@@ -18,15 +20,13 @@ final class CompositionRoot {
     appState: AppState = .shared,
     clipboard: Clipboard = .shared,
     storage: Storage = .shared,
-    imageProcessor: (any ImageProcessing)? = nil,
-    memoryGovernor: MemoryGovernor? = nil
+    imageProcessor: (any ImageProcessing)? = nil
   ) {
     self.appState = appState
     self.clipboard = clipboard
     self.storage = storage
     self.imageProcessor = imageProcessor ?? appState.history.decoratorImageProcessor
-    self.memoryGovernor = memoryGovernor
-      ?? MemoryGovernor(visibilityTracker: appState.visibilityTracker)
+    self.memoryGovernor = MemoryGovernor(visibilityTracker: appState.visibilityTracker)
   }
 
   /// Installs application bridges and starts clipboard ingestion before launch completes.

@@ -4,21 +4,26 @@ import XCTest
 
 @MainActor
 final class MemoryGovernanceTests: XCTestCase {
-  func testMemoryWarningKeepsVisiblePreviewAndReleasesHiddenPreview() {
+  func testCompositionRootMemoryWarningKeepsVisibleImagesAndReleasesHiddenImages() {
     let visible = decorator("visible")
     let hidden = decorator("hidden")
     visible.previewImage = NSImage(size: NSSize(width: 2, height: 2))
+    visible.thumbnailImage = NSImage(size: NSSize(width: 2, height: 2))
     hidden.previewImage = NSImage(size: NSSize(width: 2, height: 2))
+    hidden.thumbnailImage = NSImage(size: NSSize(width: 2, height: 2))
     let tracker = VisibilityTracker()
     tracker.register(visible)
+    let appState = appState(visibilityTracker: tracker)
+    let root = CompositionRoot(appState: appState)
     let history = MemoryHistorySpy(decorators: [visible, hidden])
-    let governor = MemoryGovernor(visibilityTracker: tracker)
-    governor.attach(history: history)
+    root.memoryGovernor.attach(history: history)
 
-    governor.handleMemoryWarning()
+    root.memoryGovernor.handleMemoryWarning()
 
     XCTAssertNotNil(visible.previewImage)
+    XCTAssertNotNil(visible.thumbnailImage)
     XCTAssertNil(hidden.previewImage)
+    XCTAssertNil(hidden.thumbnailImage)
     XCTAssertEqual(history.purgeApplicationImagesCalls, 1)
   }
 
