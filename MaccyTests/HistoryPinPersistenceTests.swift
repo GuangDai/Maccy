@@ -60,6 +60,20 @@ final class HistoryPinPersistenceTests: XCTestCase {
     XCTAssertEqual(stored.first?.pin, "a")
   }
 
+  /// Clear-all includes unsaved inserts and their relationship content instead
+  /// of applying a store predicate only to rows saved before the command.
+  func testDeleteAllHandlesPendingInsertsAndContents() throws {
+    let isolatedStorage = Storage(storedInMemoryForTesting: true)
+    let context = isolatedStorage.context
+    context.insert(historyItem("pending-clear-all"))
+    XCTAssertTrue(context.hasChanges)
+
+    try SwiftDataHistoryPersistence(context: context).deleteAll()
+
+    XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItem>()), 0)
+    XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItemContent>()), 0)
+  }
+
   /// Persistence operations target the context supplied at construction,
   /// not global storage.
   func testPersistenceUsesInjectedContext() throws {
