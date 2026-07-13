@@ -7,13 +7,16 @@ import Foundation
 /// every observed clipboard snapshot is delivered in submission order.
 @MainActor
 final class IngestMailbox {
-  private struct Entry {
-    let request: IngestRequest
-    let ingestor: any ClipboardIngestor
-    let completion: @MainActor (IngestResult) -> Void
+  private enum Operation {
+    case ingest(
+      request: IngestRequest,
+      ingestor: any ClipboardIngestor,
+      completion: @MainActor (IngestResult) -> Void
+    )
+    case synchronize(events: [StoreEvent], ingestor: any ClipboardIngestor)
   }
 
-  private var entries: [Entry] = []
+  private var operations: [Operation] = []
   private var nextIndex = 0
   private var drainTask: Task<Void, Never>?
 
@@ -23,7 +26,19 @@ final class IngestMailbox {
     to ingestor: any ClipboardIngestor,
     completion: @escaping @MainActor (IngestResult) -> Void
   ) {
-    entries.append(Entry(request: request, ingestor: ingestor, completion: completion))
+    operations.append(.ingest(request: request, ingestor: ingestor, completion: completion))
+    startDrainIfNeeded()
+  }
+
+  /// Enqueues committed store events behind any already-observed copies.
+  func submit(storeEvents: [StoreEvent], to ingestor: any ClipboardIngestor) {
+    guard !storeEvents.isEmpty else { return }
+    operations.append(.synchronize(events: storeEvents, ingestor: ingestor))
+    startDrainIfNeeded()
+  }
+
+  /// Starts the single shared drain task when the mailbox transitions from idle.
+  private func startDrainIfNeeded() {
     guard drainTask == nil else { return }
 
     drainTask = Task { @MainActor [weak self] in
@@ -33,14 +48,19 @@ final class IngestMailbox {
 
   /// Drains by index instead of `removeFirst()` so a burst stays O(requests).
   private func drain() async {
-    while nextIndex < entries.count {
-      let entry = entries[nextIndex]
+    while nextIndex < operations.count {
+      let operation = operations[nextIndex]
       nextIndex += 1
-      let result = await entry.ingestor.ingest(entry.request)
-      entry.completion(result)
+      switch operation {
+      case .ingest(let request, let ingestor, let completion):
+        let result = await ingestor.ingest(request)
+        completion(result)
+      case .synchronize(let events, let ingestor):
+        await ingestor.synchronizeStoreEvents(events)
+      }
     }
 
-    entries.removeAll(keepingCapacity: true)
+    operations.removeAll(keepingCapacity: true)
     nextIndex = 0
     drainTask = nil
   }
