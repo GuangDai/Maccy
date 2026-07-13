@@ -21,7 +21,7 @@ final class ApplicationImageCacheTests: XCTestCase {
 
   /// Items with no source application share the single fallback instance.
   func testNilApplicationReturnsSharedFallback() {
-    let cache = ApplicationImageCache.shared
+    let cache = ApplicationImageCache()
     let first = cache.getImage(item: item(application: nil))
     let second = cache.getImage(item: item(application: nil))
     XCTAssertTrue(first === second, "Nil-application items must share the fallback instance.")
@@ -29,7 +29,7 @@ final class ApplicationImageCacheTests: XCTestCase {
 
   /// A known bundle id is cached: the second lookup returns the same instance.
   func testKnownApplicationIsCachedAndReused() {
-    let cache = ApplicationImageCache.shared
+    let cache = ApplicationImageCache()
     cache.purge()
     let bundle = "org.maccy.test.cached-app"
     let first = cache.getImage(item: item(application: bundle))
@@ -39,7 +39,7 @@ final class ApplicationImageCacheTests: XCTestCase {
 
   /// `purge()` empties the cache, so the next lookup recreates the image.
   func testPurgeForcesRecreation() {
-    let cache = ApplicationImageCache.shared
+    let cache = ApplicationImageCache()
     cache.purge()
     let bundle = "org.maccy.test.purge-app"
     let before = cache.getImage(item: item(application: bundle))

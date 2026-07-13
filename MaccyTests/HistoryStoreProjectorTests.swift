@@ -18,6 +18,26 @@ final class HistoryStoreProjectorTests: XCTestCase {
     try await super.tearDown()
   }
 
+  func testDecoratorFactoryOwnsApplicationImageResolution() {
+    let model = item(title: "factory")
+    let expected = ApplicationImage(bundleIdentifier: nil)
+    var resolved: [HistoryItem] = []
+    let factory = HistoryItemDecoratorFactory(
+      imageProcessor: PassthroughImageProcessor(),
+      applicationImage: {
+        resolved.append($0)
+        return expected
+      },
+      purgeApplicationImages: {}
+    )
+
+    let decorated = factory.make(model)
+
+    XCTAssertEqual(resolved.count, 1)
+    XCTAssertTrue(resolved[0] === model)
+    XCTAssertTrue(decorated.applicationImage === expected)
+  }
+
   func testLoadFailurePreservesOldListAndRecordsError() async {
     let persistence = RecordingProjectorPersistence()
     persistence.fetchError = ProjectorTestError.expected
