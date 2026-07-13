@@ -6,6 +6,8 @@ import Settings
 
 /// General settings: launch-at-login, updates, shortcuts, search mode, and paste behavior.
 struct GeneralSettingsPane: View {
+  private let onPopupShortcutAvailabilityChange: @MainActor (Bool) -> Void
+
   /// URL that opens this app's notification settings in System Settings.
   private let notificationsURL = URL(
     string: "x-apple.systempreferences:com.apple.preference.notifications?id=\(Bundle.main.bundleIdentifier ?? "")"
@@ -18,6 +20,11 @@ struct GeneralSettingsPane: View {
   @State private var pasteWithoutFormatting = HistoryItemAction.pasteWithoutFormatting.modifierFlags.description
 
   @State private var updater = SoftwareUpdater()
+
+  @MainActor
+  init(onPopupShortcutAvailabilityChange: @escaping @MainActor (Bool) -> Void) {
+    self.onPopupShortcutAvailabilityChange = onPopupShortcutAvailabilityChange
+  }
 
   var body: some View {
     Settings.Container(contentWidth: 450) {
@@ -36,13 +43,7 @@ struct GeneralSettingsPane: View {
 
       Settings.Section(label: { Text("Open", tableName: "GeneralSettings") }) {
         KeyboardShortcuts.Recorder(for: .popup, onChange: { newShortcut in
-          if newShortcut == nil {
-            // No shortcut is recorded. Remove keys monitor
-            AppState.shared.popup.deinitEventsMonitor()
-          } else {
-            // User is using shortcut. Ensure keys monitor is initialized
-            AppState.shared.popup.initEventsMonitor()
-          }
+          onPopupShortcutAvailabilityChange(newShortcut != nil)
         })
           .help(Text("OpenTooltip", tableName: "GeneralSettings"))
       }
@@ -121,6 +122,6 @@ struct GeneralSettingsPane: View {
 }
 
 #Preview {
-  GeneralSettingsPane()
+  GeneralSettingsPane(onPopupShortcutAvailabilityChange: { _ in })
     .environment(\.locale, .init(identifier: "en"))
 }

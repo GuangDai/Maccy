@@ -243,7 +243,13 @@ class AppState {
             title: NSLocalizedString("Title", tableName: "GeneralSettings", comment: ""),
             toolbarIcon: NSImage.gearshape ?? NSImage()
           ) {
-            GeneralSettingsPane()
+            GeneralSettingsPane { [popup] hasShortcut in
+              if hasShortcut {
+                popup.initEventsMonitor()
+              } else {
+                popup.deinitEventsMonitor()
+              }
+            }
           },
           Settings.Pane(
             identifier: Settings.PaneIdentifier.storage,
