@@ -196,6 +196,13 @@ class History: ItemsContainer {
         for item in all {
           item.cleanupImages()
         }
+        emit(.resizePopup)
+      }
+    }
+
+    Task { @MainActor in
+      for await _ in Defaults.updates(.textRowLines, initial: false) {
+        emit(.resizePopup)
       }
     }
 

@@ -49,7 +49,7 @@ struct HistoryItemView: View {
       selectionIndex: nil,
       selectionAppearance: selectionAppearance,
       rowHeight: rowHeight,
-      imageContentHeight: CGFloat(min(max(imageMaxHeight, 1), 200)),
+      imageContentHeight: HistoryRowLayout.effectiveImageContentHeight(imageMaxHeight),
       titleLineLimit: min(max(textRowLines, 1), 4)
     ) {
       Text(verbatim: item.title)

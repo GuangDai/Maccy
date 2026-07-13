@@ -31,7 +31,12 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
     let cap = Defaults[.imageMaxPreviewPixels]
     return cap > 0 ? capped(raw, max: CGFloat(cap)) : raw
   }
-  static var thumbnailImageSize: NSSize { NSSize(width: 340, height: max(1, Defaults[.imageMaxHeight])) }
+  static var thumbnailImageSize: NSSize {
+    NSSize(
+      width: 340,
+      height: HistoryRowLayout.effectiveImageContentHeight(Defaults[.imageMaxHeight])
+    )
+  }
 
   /// Returns `size` with its longer side clamped to `max`, preserving aspect.
   private static func capped(_ size: NSSize, max maxPixels: CGFloat) -> NSSize {
