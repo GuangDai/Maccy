@@ -183,15 +183,17 @@ class History: ItemsContainer {
 
     Task { @MainActor in
       for await _ in Defaults.updates(.showSpecialSymbols, initial: false) {
-        for item in items {
+        for item in all {
           updateTitle(item: item, title: item.item.generateTitle())
         }
+        searchSession.replaceCorpus(all)
+        refreshVisibleItems()
       }
     }
 
     Task { @MainActor in
       for await _ in Defaults.updates(.imageMaxHeight, initial: false) {
-        for item in items {
+        for item in all {
           item.cleanupImages()
         }
       }
@@ -199,7 +201,7 @@ class History: ItemsContainer {
 
     Task { @MainActor in
       for await _ in Defaults.updates(.imageMaxPreviewPixels, initial: false) {
-        for item in items {
+        for item in all {
           item.cleanupImages()
         }
       }

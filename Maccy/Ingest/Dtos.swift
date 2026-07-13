@@ -149,17 +149,10 @@ func snapshot(of item: HistoryItem) -> ItemSnapshotDTO {
   )
 }
 
-/// Projects the index key for a history item from each content entry's type,
-/// derived fingerprint, and byte size.
+/// Projects the canonical, transient-filtered dedup signature used by both the
+/// authoritative containment check and the candidate index.
 func signatureDTO(of item: HistoryItem) -> SignatureDTO {
-  SignatureDTO(entries: item.contents.map { content in
-    let value = content.value
-    return ContentSignatureEntry(
-      type: content.type,
-      fingerprint: value.flatMap(ClipboardDataProcessor.fingerprintIfLarge),
-      size: value?.count ?? 0
-    )
-  })
+  item.duplicateSignature.dto
 }
 
 /// Projects a `@Model HistoryItem`'s contents and stored fingerprints into

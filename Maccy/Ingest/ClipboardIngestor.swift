@@ -358,7 +358,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
   /// contents, so `supersedes` returns false and it is skipped.
   private func findDuplicate(of item: HistoryItem) -> DuplicateSearchResult {
     let signature = item.duplicateSignature
-    let indexSignature = signatureDTO(of: item)
+    let indexSignature = signature.dto
     var backfillCandidates: [HistoryItem] = []
     for candidateID in signatureIndex.candidates(forEntries: indexSignature.entries) {
       guard let candidatePID = persistentIDByStoredID[candidateID],

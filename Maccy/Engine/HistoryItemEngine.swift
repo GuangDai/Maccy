@@ -22,6 +22,13 @@ enum HistoryItemEngine {
       }
     }
 
+    /// Canonical value projection used by the dedup index and store events.
+    /// It is derived from the same transient-filtered, persisted-fingerprint-
+    /// aware entries used by the authoritative containment check.
+    var dto: SignatureDTO {
+      SignatureDTO(entries: contents.map(\.dto))
+    }
+
     /// Returns true if every entry in this signature is present in `contents`.
     func isContained(in contents: [ContentDTO]) -> Bool {
       let index = ContentIndex(contents)
@@ -162,6 +169,14 @@ private struct ContentSignature: Sendable {
     // transient rather than permanent.
     self.fingerprint = content.fingerprint
       ?? content.value.flatMap(ClipboardDataProcessor.fingerprintIfLarge)
+  }
+
+  var dto: ContentSignatureEntry {
+    ContentSignatureEntry(
+      type: type,
+      fingerprint: fingerprint,
+      size: value?.count ?? 0
+    )
   }
 }
 
