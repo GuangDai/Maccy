@@ -74,6 +74,30 @@ final class HistoryPinPersistenceTests: XCTestCase {
     XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItemContent>()), 0)
   }
 
+  /// SQLite batch deletion removes saved child rows explicitly instead of
+  /// relying on in-memory relationship-cascade behavior.
+  func testDeleteAllRemovesSavedContentsFromSQLiteStore() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let storage = Storage(
+      url: directory.appending(path: "Storage.sqlite"),
+      storedInMemoryForTesting: false,
+      onCorruption: { _ in }
+    )
+    let context = storage.context
+    context.insert(historyItem("saved-clear-all"))
+    try context.save()
+    XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItemContent>()), 1)
+
+    try SwiftDataHistoryPersistence(context: context).deleteAll()
+
+    XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItem>()), 0)
+    XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItemContent>()), 0)
+  }
+
   /// Persistence operations target the context supplied at construction,
   /// not global storage.
   func testPersistenceUsesInjectedContext() throws {

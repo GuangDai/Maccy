@@ -130,17 +130,28 @@ final class ClipboardTests: XCTestCase {
   func testIngestMailboxSerializesStoreEventsWithRequests() async {
     let blocking = BlockingIngestor()
     let mailbox = IngestMailbox()
+    let completionsDelivered = expectation(description: "Both ingest completions delivered")
+    completionsDelivered.expectedFulfillmentCount = 2
+    var completedChangeCounts: [Int] = []
 
-    mailbox.submit(request(changeCount: 1), to: blocking) { _ in }
+    mailbox.submit(request(changeCount: 1), to: blocking) { _ in
+      completedChangeCounts.append(1)
+      completionsDelivered.fulfill()
+    }
     await waitForBlockingIngestor(blocking, expectedOperationCount: 1)
     mailbox.submit(storeEvents: [.cleared], to: blocking)
-    mailbox.submit(request(changeCount: 2), to: blocking) { _ in }
+    mailbox.submit(request(changeCount: 2), to: blocking) { _ in
+      completedChangeCounts.append(2)
+      completionsDelivered.fulfill()
+    }
 
     await blocking.releaseFirstRequest()
     await waitForBlockingIngestor(blocking, expectedOperationCount: 3)
+    await fulfillment(of: [completionsDelivered], timeout: 1)
 
     let operations = await blocking.operations
     XCTAssertEqual(operations, ["ingest:1", "events:cleared", "ingest:2"])
+    XCTAssertEqual(completedChangeCounts, [1, 2])
   }
 
   /// Clipboard routes main-side store maintenance through the same mailbox
@@ -343,6 +354,30 @@ final class ClipboardTests: XCTestCase {
     subject.surfaceIngestFailureIfNeeded(IngestResult(event: nil, metrics: .zero))
 
     XCTAssertEqual(errors.count, 1)
+  }
+
+  /// The composition root connects Clipboard failures to the History instance
+  /// owned by the supplied AppState, without starting the polling timer.
+  func testCompositionRootRoutesClipboardFailuresToComposedHistory() {
+    let storage = Storage(storedInMemoryForTesting: true)
+    let history = History(
+      persistence: SwiftDataHistoryPersistence(context: storage.context),
+      logsPersistenceErrors: false
+    )
+    let appState = AppState(history: history, footer: Footer())
+    let subject = Clipboard()
+    let compositionRoot = CompositionRoot(
+      appState: appState,
+      clipboard: subject,
+      storage: storage
+    )
+
+    compositionRoot.configureIngestFailureReporting()
+    subject.surfaceIngestFailureIfNeeded(
+      IngestResult(event: nil, metrics: .zero, persistenceFailed: true)
+    )
+
+    XCTAssertNotNil(history.lastPersistError)
   }
 
   // MARK: - helpers
