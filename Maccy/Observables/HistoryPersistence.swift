@@ -72,9 +72,13 @@ struct SwiftDataHistoryPersistence: HistoryPersistence {
   }
 
   func deleteAll() throws {
-    try context.delete(model: HistoryItem.self)
-    context.processPendingChanges()
-    try context.save()
+    // Fetch includes unsaved inserts, so clearing does not need a pre-save that
+    // remaps their temporary identifiers. Delete registered parents one by one
+    // to keep the context coherent; their relationship owns child cascading.
+    var descriptor = FetchDescriptor<HistoryItem>()
+    descriptor.includePendingChanges = true
+    let items = try context.fetch(descriptor)
+    try delete(items)
   }
 
   func save() throws {

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Serialize store-event synchronization with clipboard ingestion and remove the Clipboard-to-History singleton edge, while verifying the audit's clear-all claim against a real SQLite store.
+**Goal:** Serialize store-event synchronization with clipboard ingestion, remove the Clipboard-to-History singleton edge, and make clear-all pending-aware without destabilizing SwiftData model identifiers.
 
-**Architecture:** Generalize the existing main-actor `IngestMailbox` into one FIFO for ingest and synchronization operations. Keep `Clipboard` as the narrow adapter, with failures leaving it through a composition-injected sink. Preserve `SwiftDataHistoryPersistence.deleteAll()` because its declared cascade is the authoritative child-cleanup owner; verify that contract with SQLite rather than adding a second delete path.
+**Architecture:** Generalize the existing main-actor `IngestMailbox` into one FIFO for ingest and synchronization operations. Keep `Clipboard` as the narrow adapter, with failures leaving it through a composition-injected sink. Keep the model relationship as the authoritative child-cleanup owner; fetch parents with pending changes included and delete registered models individually instead of predicate-deleting or pre-saving temporary identifiers.
 
 **Tech Stack:** Swift 6 complete concurrency, AppKit, SwiftData, XCTest, XcodeGen, GitHub Actions macOS arm64 runner.
 
@@ -221,14 +221,15 @@ git commit -m "refactor(quality): compose clipboard history outputs"
 
 ---
 
-### Task 3: Verify clear-all cascade semantics
+### Task 3: Pending-aware clear-all cascade semantics
 
 **Files:**
+- Modify: `Maccy/Observables/HistoryPersistence.swift`
 - Test: `MaccyTests/HistoryPinPersistenceTests.swift`
 
 **Interfaces:**
 - Consumes: existing `HistoryPersistence.deleteAll()` throwing contract.
-- Produces: SQLite evidence that its model-owned child cascade is complete.
+- Produces: complete saved-plus-pending deletion with model-owned child cascading.
 
 - [ ] **Step 1: Write a SQLite cascade regression test**
 
@@ -257,19 +258,32 @@ func testDeleteAllRemovesSavedContentsFromSQLiteStore() throws {
 }
 ```
 
-This is a verification test, not a RED production change: Apple's SwiftData
-contract says the parent's `.cascade` relationship applies to this batch delete.
+This verifies Apple's SwiftData `.cascade` relationship contract for saved rows.
 
-- [ ] **Step 2: Keep production deletion unchanged and commit the test**
+- [ ] **Step 2: Add a RED saved-plus-pending regression test**
+
+Use an isolated in-memory storage. Save one row, insert a second row without
+saving, call `deleteAll()`, and assert both model counts are zero. The old
+predicate delete leaves the pending row behind.
+
+- [ ] **Step 3: Fetch pending parents and delete registered models**
+
+Build a `FetchDescriptor<HistoryItem>` with `includePendingChanges = true`,
+fetch once, and delegate to the existing per-model batch delete implementation.
+Do not pre-save temporary identifiers and do not explicitly delete children.
+
+- [ ] **Step 4: Commit the persistence fix**
 
 ```bash
-git add MaccyTests/HistoryPinPersistenceTests.swift
-git commit -m "test(quality): verify clear all SQLite cascade"
+git add Maccy/Observables/HistoryPersistence.swift \
+  MaccyTests/HistoryPinPersistenceTests.swift
+git commit -m "fix(quality): clear registered history models"
 ```
 
-Do not pre-save synthetic pending inserts or explicitly delete
-`HistoryItemContent`. The pre-save variant can remap identifiers of registered
-models before the clear, while child deletion remains the relationship's job.
+CI evidence leading to this design: predicate deletion left parent/content
+counts nonzero (for example 46/56 → 11/13); pre-saving pending rows caused the
+next Defaults-driven fetch to trap in SwiftData. Fetching pending models avoids
+both failure modes while child deletion remains the relationship's job.
 
 ---
 

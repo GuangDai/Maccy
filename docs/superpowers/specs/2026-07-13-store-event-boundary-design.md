@@ -24,8 +24,8 @@ reaches `Clipboard.shared`, while `Clipboard` writes ingest failures directly to
 - Do not change ingest coalescing, dedup semantics, or history ordering.
 - Do not add per-candidate persistence fetches to the copy hot path.
 - Do not migrate legacy `searchText` rows in this batch.
-- Do not change `deleteAll()` persistence semantics; live history mutations
-  operate on committed rows, and the model already owns child deletion.
+- Do not explicitly delete `HistoryItemContent`; the model relationship owns
+  child deletion.
 - Do not remove the remaining production `History -> Clipboard` adapter; that
   direction is the application command boundary and is no longer a cycle once
   the reverse edge is removed.
@@ -63,16 +63,17 @@ This keeps success and failure delivery separate at the leaf while making their
 application ownership explicit at the composition boundary. A non-failure
 result remains a no-op.
 
-### Verified non-issue: clear-all cascade
+### Pending-aware clear-all without identifier remapping
 
 The audit claimed that batch-deleting `HistoryItem` bypasses its relationship
 cascade. Apple's SwiftData documentation states the opposite, the repository's
 architecture reference marks this cascade as correct, and a SQLite-backed test
-confirms both parent and content counts reach zero. The production method stays
-unchanged. Pre-saving synthetic pending inserts is specifically avoided because
-it remaps identifiers for models still registered in the main context and can
-make the next fetch trap inside SwiftData; the live path has no unsaved ingest
-rows to rescue.
+confirms saved parent and content counts reach zero. CI then exposed a distinct
+problem: predicate deletion omits pending inserts, while pre-saving them can
+remap identifiers for models still registered in the main context and make the
+next fetch trap inside SwiftData. `deleteAll()` therefore fetches parents with
+`includePendingChanges = true` and deletes those registered models individually.
+The relationship remains the single owner of child cascading.
 
 ## Data flow
 
@@ -101,8 +102,9 @@ pasteboard change -> Clipboard request snapshot
 - Verify the composition root wires a failure into the supplied `AppState`'s
   history rather than `History.shared` where practical through existing seams.
 - Add a temporary SQLite-backed `Storage` regression test proving that the
-  declared cascade removes saved content rows; leave production clear-all code
-  untouched.
+  declared cascade removes saved content rows.
+- Add saved-plus-pending coverage proving clear-all removes both without a
+  pre-save.
 
 ## Risks and controls
 
@@ -110,15 +112,14 @@ pasteboard change -> Clipboard request snapshot
   A single sequence-recording actor test locks both properties.
 - Reconfiguring the failure sink after launch could retain application state.
   The composition closure captures the composed history weakly.
-- Treating synthetic unsaved inserts as a clear-all requirement can destabilize
-  the registered main context. The SQLite regression test covers the real
-  persisted-store contract without manufacturing that state.
+- Pre-saving pending inserts can destabilize the registered main context. Fetch
+  them directly and delete registered parents without remapping identifiers.
 
 ## Success criteria
 
 - No fire-and-forget store-event synchronization remains in production wiring.
 - `Clipboard.swift` contains no reference to `History.shared`.
 - Mailbox tests prove mixed operations execute FIFO and losslessly.
-- SQLite clear-all leaves both saved model counts at zero through the declared
-  cascade, with no production persistence change.
+- Clear-all leaves saved and pending parent/content counts at zero through the
+  declared cascade, and a subsequent main-context fetch remains valid.
 - Generated-project, lint/build, unit, UI, and performance CI shards remain green.
