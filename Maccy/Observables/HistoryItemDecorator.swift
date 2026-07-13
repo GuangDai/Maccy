@@ -64,11 +64,8 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   private(set) var previewBodyRanges: [Range<Int>] = []
 
   var isVisible: Bool = true
-  var selectionIndex: Int = -1
   /// Whether this row is part of the current selection.
-  var isSelected: Bool {
-    return selectionIndex != -1
-  }
+  var isSelected = false
   var shortcuts: [KeyShortcut] = []
 
   /// Display name of the source app (or `"iCloud"` for Universal Clipboard).

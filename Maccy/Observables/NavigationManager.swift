@@ -22,12 +22,12 @@ class NavigationManager {
     self.onLeadChange = onLeadChange
   }
 
-  /// The current multi-capable selection; `willSet` mirrors the selection index
-  /// onto each decorator.
+  /// The current multi-capable selection; `willSet` mirrors membership onto
+  /// each decorator.
   var selection: Selection<HistoryItemDecorator> = Selection() {
     willSet {
-      selection.forEach { _, item in item.selectionIndex = -1 }
-      newValue.forEach { index, item in item.selectionIndex = index }
+      selection.forEach { _, item in item.isSelected = false }
+      newValue.forEach { _, item in item.isSelected = true }
     }
   }
 
