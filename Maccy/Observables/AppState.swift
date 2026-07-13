@@ -76,14 +76,17 @@ class AppState {
     self.history = history
     self.footer = footer
     self.runtimeServices = runtimeServices
-    popup = Popup()
+    let popup = Popup()
+    self.popup = popup
     let preview = SlideoutController(
       onContentResize: { contentWidth in
         Defaults[.windowSize].width = contentWidth
       },
       onSlideoutResize: { previewWidth in
         Defaults[.previewWidth] = previewWidth
-      })
+      },
+      preferredHeight: { popup.preferredHeight(for: popup.height) }
+    )
     self.preview = preview
     navigator = NavigationManager(
       history: history,

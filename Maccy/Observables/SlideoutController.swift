@@ -59,9 +59,9 @@ class SlideoutController {
 
   let onContentResize: (CGFloat) -> Void
   let onSlideoutResize: (CGFloat) -> Void
-  @ObservationIgnored private let preferredHeight: (CGFloat) -> CGFloat
+  @ObservationIgnored private let preferredHeight: () -> CGFloat
   @ObservationIgnored private weak var attachedWindow: NSWindow?
-  @ObservationIgnored private var handledLead: HistoryItemDecorator?
+  @ObservationIgnored private var currentLead: HistoryItemDecorator?
 
   let minimumContentWidth: CGFloat = 200
   var contentResizeWidth: CGFloat = 0
@@ -98,8 +98,8 @@ class SlideoutController {
   var resizingMode: ResizingMode = .none
 
   /// The underlying panel window, if any.
-  var nswindow: NSWindow? {
-    return AppState.shared.appDelegate?.panel
+  var window: NSWindow? {
+    return attachedWindow
   }
 
   private var autoOpenTask: Task<Void, Never>?
@@ -110,7 +110,7 @@ class SlideoutController {
   init(
     onContentResize: @escaping (CGFloat) -> Void,
     onSlideoutResize: @escaping (CGFloat) -> Void,
-    preferredHeight: @escaping (CGFloat) -> CGFloat = { $0 }
+    preferredHeight: @escaping () -> CGFloat
   ) {
     self.onContentResize = onContentResize
     self.onSlideoutResize = onSlideoutResize
@@ -139,8 +139,7 @@ class SlideoutController {
     if newState.isOpen {
       newSize.width += slideoutWidth
     }
-    let popup = AppState.shared.popup
-    newSize.height = popup.preferredHeight(for: popup.height)
+    newSize.height = preferredHeight()
     return newSize
   }
 
@@ -161,11 +160,10 @@ class SlideoutController {
   /// so it can't re-trigger the storm.
   func togglePreview(trigger: SlideoutToggleTrigger = .manual) {
     if !state.isOpen {
-      let navigator = AppState.shared.navigator
-      guard navigator.leadHistoryItem != nil else { return }
+      guard let currentLead else { return }
       // Bind the pane to the current lead on open. Auto-open already set this
       // via scheduleRetarget; this covers the manual path.
-      previewedItem = navigator.leadHistoryItem
+      previewedItem = currentLead
     }
 
     if trigger == .manual {
@@ -178,7 +176,7 @@ class SlideoutController {
 
     cancelAutoOpen()
 
-    guard let window = nswindow else { return }
+    guard let window else { return }
 
     let opening = !state.isOpen
     state = opening ? .open : .closed
@@ -247,8 +245,7 @@ class SlideoutController {
       guard autoOpenEnabled, !autoOpenSuppressed else { return }
       previewedItem = lead
       if !state.isOpen {
-        let navigator = AppState.shared.navigator
-        guard navigator.leadHistoryItem != nil else { return }
+        guard currentLead?.id == lead.id else { return }
         togglePreview(trigger: .autoOpen)
       }
     }
@@ -278,7 +275,7 @@ class SlideoutController {
 
   /// Applies a navigation lead change to preview auto-open/retarget state.
   func handleLeadChange(_ lead: HistoryItemDecorator?) {
-    handledLead = lead
+    currentLead = lead
     if let lead {
       resetAutoOpenSuppression()
       scheduleRetarget(lead: lead)

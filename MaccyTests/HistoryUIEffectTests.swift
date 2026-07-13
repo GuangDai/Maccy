@@ -358,7 +358,7 @@ final class NavigationLeadChangeTests: XCTestCase {
 @MainActor
 final class SlideoutRuntimeTests: XCTestCase {
   func testSizeUsesInjectedPreferredHeight() {
-    let controller = makeController(preferredHeight: { _ in 321 })
+    let controller = makeController(preferredHeight: { 321 })
 
     let size = controller.computeSizeWithPreview(
       NSSize(width: 400, height: 100),
@@ -368,8 +368,7 @@ final class SlideoutRuntimeTests: XCTestCase {
     XCTAssertEqual(size.height, 321)
   }
 
-  func testManualToggleUsesHandledLeadAndAttachedWindow() {
-    AppState.shared.navigator.selectWithoutScrolling()
+  func testManualToggleUsesCurrentLeadAndAttachedWindow() {
     let controller = makeController()
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
@@ -395,7 +394,7 @@ final class SlideoutRuntimeTests: XCTestCase {
   }
 
   private func makeController(
-    preferredHeight: @escaping (CGFloat) -> CGFloat = { $0 }
+    preferredHeight: @escaping () -> CGFloat = { 0 }
   ) -> SlideoutController {
     SlideoutController(
       onContentResize: { _ in },

@@ -1,3 +1,4 @@
+import AppKit
 import Defaults
 import Foundation
 
@@ -49,8 +50,12 @@ final class CompositionRoot {
     }
   }
 
-  /// Attaches and starts memory governance after the application UI is built.
-  func finishLaunching(memoryGovernor: MemoryGovernor = .shared) {
+  /// Attaches the panel and starts memory governance after the UI is built.
+  func finishLaunching(
+    panel: NSWindow,
+    memoryGovernor: MemoryGovernor = .shared
+  ) {
+    appState.preview.attach(window: panel)
     memoryGovernor.attach(history: appState.history)
     memoryGovernor.start()
   }

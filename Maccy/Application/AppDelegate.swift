@@ -100,7 +100,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       ContentView()
     }
 
-    compositionRoot.finishLaunching()
+    compositionRoot.finishLaunching(panel: panel)
 
     #if DEBUG
     debugHooks.install()
