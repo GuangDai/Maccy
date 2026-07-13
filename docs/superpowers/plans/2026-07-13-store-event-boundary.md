@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Serialize store-event synchronization with clipboard ingestion, remove the Clipboard-to-History singleton edge, and make clear-all include pending rows without bypassing relationship ownership.
+**Goal:** Serialize store-event synchronization with clipboard ingestion and remove the Clipboard-to-History singleton edge, while verifying the audit's clear-all claim against a real SQLite store.
 
-**Architecture:** Generalize the existing main-actor `IngestMailbox` into one FIFO for ingest and synchronization operations. Keep `Clipboard` as the narrow adapter, with failures leaving it through a composition-injected sink. Keep persistence cleanup inside `SwiftDataHistoryPersistence`, save pending inserts before the predicate delete, and let the declared cascade own child deletion.
+**Architecture:** Generalize the existing main-actor `IngestMailbox` into one FIFO for ingest and synchronization operations. Keep `Clipboard` as the narrow adapter, with failures leaving it through a composition-injected sink. Preserve `SwiftDataHistoryPersistence.deleteAll()` because its declared cascade is the authoritative child-cleanup owner; verify that contract with SQLite rather than adding a second delete path.
 
 **Tech Stack:** Swift 6 complete concurrency, AppKit, SwiftData, XCTest, XcodeGen, GitHub Actions macOS arm64 runner.
 
@@ -221,68 +221,55 @@ git commit -m "refactor(quality): compose clipboard history outputs"
 
 ---
 
-### Task 3: Pending-safe clear-all persistence semantics
+### Task 3: Verify clear-all cascade semantics
 
 **Files:**
-- Modify: `Maccy/Observables/HistoryPersistence.swift`
 - Test: `MaccyTests/HistoryPinPersistenceTests.swift`
 
 **Interfaces:**
 - Consumes: existing `HistoryPersistence.deleteAll()` throwing contract.
-- Produces: the same public contract with pending-row deletion and model-owned child cascading.
+- Produces: SQLite evidence that its model-owned child cascade is complete.
 
-- [ ] **Step 1: Write a pending-insert regression test**
+- [ ] **Step 1: Write a SQLite cascade regression test**
 
-Add a test beside `testDeleteUnpinnedHandlesPendingInserts`:
+Create a temporary disk-backed `Storage`, insert and save one item with content,
+run the existing `deleteAll()`, then assert both entity counts are zero:
 
 ```swift
-func testDeleteAllHandlesPendingInsertsAndContents() throws {
-  let isolatedStorage = Storage(storedInMemoryForTesting: true)
-  let context = isolatedStorage.context
-  context.insert(historyItem("pending-clear-all"))
-  XCTAssertTrue(context.hasChanges)
+func testDeleteAllRemovesSavedContentsFromSQLiteStore() throws {
+  let directory = FileManager.default.temporaryDirectory
+    .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+  try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
 
-  try SwiftDataHistoryPersistence(context: context).deleteAll()
+  let storage = Storage(
+    url: directory.appending(path: "Storage.sqlite"),
+    storedInMemoryForTesting: false,
+    onCorruption: { _ in }
+  )
+  storage.context.insert(historyItem("saved-clear-all"))
+  try storage.context.save()
 
-  XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItem>()), 0)
-  XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItemContent>()), 0)
+  try SwiftDataHistoryPersistence(context: storage.context).deleteAll()
+
+  XCTAssertEqual(try storage.context.fetchCount(FetchDescriptor<HistoryItem>()), 0)
+  XCTAssertEqual(try storage.context.fetchCount(FetchDescriptor<HistoryItemContent>()), 0)
 }
 ```
 
-Keep the existing saved-row child-count assertion. The new test defines the missing pending-change semantics and fails under the old batch-first implementation when pending inserts are not part of the store predicate.
+This is a verification test, not a RED production change: Apple's SwiftData
+contract says the parent's `.cascade` relationship applies to this batch delete.
 
-- [ ] **Step 2: Commit the RED persistence test**
+- [ ] **Step 2: Keep production deletion unchanged and commit the test**
 
 ```bash
 git add MaccyTests/HistoryPinPersistenceTests.swift
-git commit -m "test(quality): define complete clear all persistence"
+git commit -m "test(quality): verify clear all SQLite cascade"
 ```
 
-- [ ] **Step 3: Implement the pending-safe cascade**
-
-Replace `deleteAll()` with:
-
-```swift
-func deleteAll() throws {
-  if context.hasChanges {
-    try context.save()
-  }
-  try context.delete(model: HistoryItem.self)
-  context.processPendingChanges()
-  try context.save()
-}
-```
-
-This makes pending inserts visible to the batch deletion. `HistoryItem.contents`
-declares `.cascade`, so the parent delete remains the single owner of child-row
-cleanup; do not issue a second batch delete for `HistoryItemContent`.
-
-- [ ] **Step 4: Commit the persistence fix**
-
-```bash
-git add Maccy/Observables/HistoryPersistence.swift
-git commit -m "fix(quality): delete all persisted history content"
-```
+Do not pre-save synthetic pending inserts or explicitly delete
+`HistoryItemContent`. The pre-save variant can remap identifiers of registered
+models before the clear, while child deletion remains the relationship's job.
 
 ---
 
