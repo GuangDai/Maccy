@@ -92,11 +92,12 @@ final class RowHighlighterTests: XCTestCase {
     ) else {
       return XCTFail("identical preview inputs must reuse the memo")
     }
-    guard case .replacement = highlighter.preview(
+    guard case .replacement(let restyled?) = highlighter.preview(
       query: "bar", text: text, ranges: ranges, style: .underline
     ) else {
       return XCTFail("preview style changes must rebuild")
     }
+    XCTAssertEqual(restyled, expected(text: text, match: "bar", style: .underline))
     guard case .replacement(nil) = highlighter.preview(
       query: "", text: text, ranges: ranges, style: .underline
     ) else {
