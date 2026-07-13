@@ -258,6 +258,15 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertEqual(providerCalls, 1)
   }
 
+  func testToggleUnpinnedPublishesPinnedShortcutBeforeReturning() {
+    let target = decorator(item(title: "target"))
+    let harness = makeHarness([target], availablePin: { "m" })
+
+    harness.subject.togglePin(target)
+
+    assertShortcuts(target.shortcuts, match: "m")
+  }
+
   private func makeHarness(
     _ decorators: [HistoryItemDecorator],
     modifierFlags: NSEvent.ModifierFlags = [],

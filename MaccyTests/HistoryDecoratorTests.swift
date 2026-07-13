@@ -44,6 +44,17 @@ class HistoryItemDecoratorTests: XCTestCase {
     XCTAssertNil(itemDecorator.thumbnailImage)
   }
 
+  /// The decorator exposes the backing model title directly: a mutation is
+  /// visible in the same main-actor turn, without waiting for a recursively
+  /// re-armed Observation callback to dispatch through the main queue.
+  func testTitleProjectsBackingModelWithoutAsyncMirror() {
+    let itemDecorator = historyItemDecorator("before")
+
+    itemDecorator.item.title = "after"
+
+    XCTAssertEqual(itemDecorator.title, "after")
+  }
+
   /// An RTF content entry yields its plain-text content as the title.
   func testRTF() {
     let rtf = NSAttributedString(string: "foo").rtf(
