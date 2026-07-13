@@ -64,15 +64,12 @@ class Popup {
     4
   }
 
-  /// Per-row height (version-dependent).
-  static let itemHeight: CGFloat = if #available(macOS 26.0, *) {
-    24
-  } else {
-    22
-  }
+  /// Compact single-line row height (version-dependent).
+  static var itemHeight: CGFloat { HistoryRowLayout.baseHeight }
 
-  /// Caps the measured scroll-content height so the popup shows at most
-  /// `maxVisibleItems` rows (older items scroll into view). Returns
+  /// Caps the measured scroll-content height to `maxVisibleItems` configured
+  /// text-row units (taller image rows can reduce the visible item count).
+  /// Returns
   /// `contentHeight` unchanged when `maxVisibleItems <= 0` (no cap). The final
   /// window height is still floor-clamped to the preview/header minimum and
   /// ceiling-clamped to the saved window height by `preferredHeight(for:)`.
@@ -217,17 +214,18 @@ class Popup {
     return min(max(newHeight, minimumHeight), maximumHeight)
   }
 
-  /// Resizes the panel to fit `height`, capped to `maxVisibleItems` rows.
+  /// Resizes the panel to fit `height`, capped to `maxVisibleItems` configured
+  /// text-row units; taller image rows may reduce the visible item count.
   func resize(height: CGFloat) {
     // `height` is the full scroll-content height (all visible-unpinned rows).
-    // Cap it to maxVisibleItems rows so the popup window never grows beyond N
-    // rows; the ScrollView reveals the rest. Default maxVisibleItems (36) keeps
-    // the content taller than the preferredHeight window-height guardrail, so
-    // the shipped ~800px look is unchanged unless the user lowers the count.
+    // Cap it to maxVisibleItems configured text-row units; the ScrollView
+    // reveals the rest. Default maxVisibleItems (36) keeps the content taller
+    // than the preferredHeight window-height guardrail, so the shipped ~800px
+    // look is unchanged unless the user lowers the count.
     let listHeight = Self.cappedListHeight(
       contentHeight: height,
       maxVisibleItems: Defaults[.maxVisibleItems],
-      itemHeight: Self.itemHeight
+      itemHeight: HistoryRowLayout.textHeight(lines: Defaults[.textRowLines])
     )
     self.height = listHeight + headerHeight + extraTopHeight + extraBottomHeight + footerHeight
     runtimeServices.resizePanel(preferredHeight(for: self.height))

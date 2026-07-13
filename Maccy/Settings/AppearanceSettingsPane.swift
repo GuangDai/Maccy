@@ -9,8 +9,10 @@ struct AppearanceSettingsPane: View {
   @Default(.popupScreen) private var popupScreen
   @Default(.pinTo) private var pinTo
   @Default(.imageMaxHeight) private var imageHeight
+  @Default(.textRowLines) private var textRowLines
   @Default(.imageMaxPreviewPixels) private var imageMaxPreviewPixels
   @Default(.previewDelay) private var previewDelay
+  @Default(.previewMinimumHeightPercent) private var previewMinimumHeightPercent
   @Default(.maxVisibleItems) private var maxVisibleItems
   @Default(.textPreviewLimit) private var textPreviewLimit
   @Default(.highlightMatch) private var highlightMatch
@@ -31,10 +33,24 @@ struct AppearanceSettingsPane: View {
     return formatter
   }()
 
+  private let textRowLinesFormatter: NumberFormatter = {
+    let formatter = NumberFormatter()
+    formatter.minimum = 1
+    formatter.maximum = 4
+    return formatter
+  }()
+
   private let previewDelayFormatter: NumberFormatter = {
     let formatter = NumberFormatter()
     formatter.minimum = 0
     formatter.maximum = 100_000
+    return formatter
+  }()
+
+  private let previewMinimumHeightPercentFormatter: NumberFormatter = {
+    let formatter = NumberFormatter()
+    formatter.minimum = 25
+    formatter.maximum = 100
     return formatter
   }()
 
@@ -111,6 +127,16 @@ struct AppearanceSettingsPane: View {
         }
       }
 
+      Settings.Section(label: { Text("TextRowLines", tableName: "AppearanceSettings") }) {
+        HStack {
+          TextField("", value: $textRowLines, formatter: textRowLinesFormatter)
+            .frame(width: 120)
+            .help(Text("TextRowLinesTooltip", tableName: "AppearanceSettings"))
+          Stepper("", value: $textRowLines, in: 1...4)
+            .labelsHidden()
+        }
+      }
+
       Settings.Section(label: { Text("ImageMaxPreviewPixels", tableName: "AppearanceSettings") }) {
         HStack {
           TextField("", value: $imageMaxPreviewPixels, formatter: imageMaxPreviewPixelsFormatter)
@@ -137,6 +163,22 @@ struct AppearanceSettingsPane: View {
             .frame(width: 120)
             .help(Text("PreviewDelayTooltip", tableName: "AppearanceSettings"))
           Stepper("", value: $previewDelay, in: 0...100_000)
+            .labelsHidden()
+        }
+      }
+
+      Settings.Section(
+        label: { Text("PreviewMinimumHeightPercent", tableName: "AppearanceSettings") }
+      ) {
+        HStack {
+          TextField(
+            "",
+            value: $previewMinimumHeightPercent,
+            formatter: previewMinimumHeightPercentFormatter
+          )
+          .frame(width: 120)
+          .help(Text("PreviewMinimumHeightPercentTooltip", tableName: "AppearanceSettings"))
+          Stepper("", value: $previewMinimumHeightPercent, in: 25...100)
             .labelsHidden()
         }
       }

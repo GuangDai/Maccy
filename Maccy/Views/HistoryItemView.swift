@@ -1,3 +1,4 @@
+import Defaults
 import SwiftUI
 
 /// Renders a single clipboard history entry, tracking viewport visibility and selection state.
@@ -6,6 +7,9 @@ struct HistoryItemView: View {
   var previous: HistoryItemDecorator?
   var next: HistoryItemDecorator?
   var index: Int
+
+  @Default(.imageMaxHeight) private var imageMaxHeight
+  @Default(.textRowLines) private var textRowLines
 
   /// The connection appearance derived from whether the adjacent rows are also selected.
   private var selectionAppearance: SelectionAppearance {
@@ -26,6 +30,13 @@ struct HistoryItemView: View {
   @Environment(AppState.self) private var appState
 
   var body: some View {
+    let isImage = item.hasImage
+    let rowHeight = HistoryRowLayout.rowHeight(
+      isImage: isImage,
+      maxImageHeight: imageMaxHeight,
+      textLines: textRowLines
+    )
+
     ListItemView(
       id: item.id,
       selectionId: item.id,
@@ -36,7 +47,10 @@ struct HistoryItemView: View {
       shortcuts: item.shortcuts,
       isSelected: item.isSelected,
       selectionIndex: nil,
-      selectionAppearance: selectionAppearance
+      selectionAppearance: selectionAppearance,
+      rowHeight: rowHeight,
+      imageContentHeight: CGFloat(min(max(imageMaxHeight, 1), 200)),
+      titleLineLimit: min(max(textRowLines, 1), 4)
     ) {
       Text(verbatim: item.title)
     }

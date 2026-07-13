@@ -81,8 +81,15 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
     return url.deletingPathExtension().lastPathComponent
   }
 
+  @ObservationIgnored private var hasImageContentCache: Bool?
+
   /// Whether the item carries image data.
-  var hasImage: Bool { imageData != nil }
+  var hasImage: Bool {
+    if let hasImageContentCache { return hasImageContentCache }
+    let hasImage = imageData != nil
+    hasImageContentCache = hasImage
+    return hasImage
+  }
 
   var previewImageGenerationTask: Task<(), Never>?
   var thumbnailImageGenerationTask: Task<(), Never>?

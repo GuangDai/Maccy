@@ -12,11 +12,13 @@ enum HistoryRowLayout {
   }
 
   static func textHeight(lines: Int) -> CGFloat {
-    baseHeight
+    let clampedLines = min(max(lines, 1), 4)
+    return baseHeight + CGFloat(clampedLines - 1) * textLineIncrement
   }
 
   static func imageHeight(maxImageHeight: Int) -> CGFloat {
-    baseHeight
+    let contentHeight = CGFloat(min(max(maxImageHeight, 1), 200))
+    return max(baseHeight, contentHeight + 10)
   }
 
   static func rowHeight(

@@ -52,6 +52,9 @@ struct ListItemView<Title: View, ID: Hashable>: View {
   var selectionIndex: Int?
   var help: LocalizedStringKey?
   var selectionAppearance: SelectionAppearance = .none
+  var rowHeight: CGFloat = HistoryRowLayout.baseHeight
+  var imageContentHeight: CGFloat = max(1, HistoryRowLayout.baseHeight - 10)
+  var titleLineLimit: Int = 1
   @ViewBuilder var title: () -> Title
 
   @Default(.showApplicationIcons) private var showIcons
@@ -87,12 +90,16 @@ struct ListItemView<Title: View, ID: Hashable>: View {
         Image(nsImage: image)
           .resizable()
           .scaledToFit()
-          .frame(height: Popup.itemHeight - 10)
+          .frame(height: imageContentHeight)
           .accessibilityIdentifier("copy-history-item")
           .padding(.trailing, 5)
           .padding(.vertical, 5)
       } else {
-        ListItemTitleView(attributedTitle: attributedTitle, title: title)
+        ListItemTitleView(
+          attributedTitle: attributedTitle,
+          lineLimit: titleLineLimit,
+          title: title
+        )
           .padding(.trailing, 5)
       }
 
@@ -128,7 +135,7 @@ struct ListItemView<Title: View, ID: Hashable>: View {
     // thumbnail landed, which fed a layout-feedback loop in the enclosing
     // `LazyVStack`. A fixed height keeps row geometry invariant to thumbnail
     // state.
-    .frame(height: Popup.itemHeight)
+    .frame(height: rowHeight)
     .id(id)
     .frame(maxWidth: .infinity, alignment: .leading)
     .foregroundStyle(isSelected ? Color.white : .primary)
