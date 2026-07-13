@@ -53,6 +53,8 @@ extension Defaults.Keys {
     ])
   )
   static let imageMaxHeight = Key<Int>("imageMaxHeight", default: 40)
+  /// Number of lines reserved for text-only history rows.
+  static let textRowLines = Key<Int>("textRowLines", default: 1)
   /// Longest-side cap (px) for a decoded preview image.
   ///
   /// `0` means no cap; the image decodes at screen resolution — visually "original"
@@ -72,6 +74,11 @@ extension Defaults.Keys {
   /// The retarget timer's cancel-on-change acts as the debounce, so one knob covers
   /// both modes. See `SlideoutController`.
   static let previewDelay = Key<Int>("previewDelay", default: 200)
+  /// Minimum open-preview height as a percentage of the configured popup height.
+  static let previewMinimumHeightPercent = Key<Int>(
+    "previewMinimumHeightPercent",
+    default: 60
+  )
   static let removeFormattingByDefault = Key<Bool>("removeFormattingByDefault", default: false)
   static let searchMode = Key<Search.Mode>("searchMode", default: .exact)
   static let showFooter = Key<Bool>("showFooter", default: true)

@@ -123,8 +123,12 @@ struct PreviewTextRep: NSViewRepresentable {
   /// Body-relative grapheme ranges to highlight.
   let ranges: [Range<Int>]
 
+  static func makeScrollView() -> NSScrollView {
+    NSTextView.scrollableTextView()
+  }
+
   func makeNSView(context: Context) -> NSScrollView {
-    let scrollView = NSTextView.scrollableTextView()
+    let scrollView = Self.makeScrollView()
     if let textView = scrollView.documentView as? NSTextView {
       configure(textView)
     }

@@ -53,6 +53,10 @@ class Popup {
   static let horizontalPadding: CGFloat = 5
   static let minimumPreviewHeight: CGFloat = 150
 
+  static func previewMinimumHeight(maximumHeight: CGFloat, percent: Int) -> CGFloat {
+    minimumPreviewHeight
+  }
+
   /// Radius for items inset by the padding, so they visually share the menu's curvature.
   static let cornerRadius: CGFloat = if #available(macOS 26.0, *) {
     7
