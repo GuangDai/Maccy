@@ -217,6 +217,35 @@ final class SearchTextMigrationTests: XCTestCase {
     XCTAssertEqual(stored?.first?.searchText, body)
   }
 
+  /// Dedup uses containment, so an existing row can be a strict content
+  /// superset of the new pasteboard payload. A projection derived from the
+  /// subset must not be stored beside the retained superset contents.
+  func testRecopySubsetDoesNotStoreMismatchedSearchText() async {
+    let body = "shared plain text"
+    let fileURL = URL(fileURLWithPath: "/tmp/legacy.txt")
+    let legacy = HistoryItem(contents: [
+      HistoryItemContent(type: NSPasteboard.PasteboardType.fileURL.rawValue, value: fileURL.dataRepresentation),
+      contentEntry(stringType, body)
+    ])
+    legacy.title = legacy.generateTitle()
+    Storage.shared.context.insert(legacy)
+    XCTAssertNoThrow(try Storage.shared.context.save())
+    let ingestor = makeIngestor()
+
+    let result = await ingestor.ingest(
+      request([content(type: stringType, value: Data(body.utf8))])
+    )
+
+    if case .merged = result.event {
+      // Expected: the retained legacy row fully contains the new payload.
+    } else {
+      XCTFail("Expected .merged, got \(String(describing: result.event))")
+    }
+    let stored = try? Storage.shared.context.fetch(FetchDescriptor<HistoryItem>())
+    XCTAssertEqual(stored?.first?.contents.count, 2)
+    XCTAssertNil(stored?.first?.searchText)
+  }
+
   // MARK: - Helpers
 
   /// Builds a single plain-string content entry.
