@@ -33,7 +33,7 @@ enum SelectionAppearance {
 }
 
 /// A single history list row: optional app icon, thumbnail or accessory image,
-/// title, selection index badge, and keyboard-shortcut hints.
+/// title, selection state, and keyboard-shortcut hints.
 ///
 /// Row geometry is intentionally fixed (see the `.frame(height:)` in `body`):
 /// the thumbnail is bounded to the row height with aspect-fit so an asynchronously
@@ -49,7 +49,6 @@ struct ListItemView<Title: View, ID: Hashable>: View {
   var attributedTitle: AttributedString?
   var shortcuts: [KeyShortcut]
   var isSelected: Bool
-  var selectionIndex: Int?
   var help: LocalizedStringKey?
   var selectionAppearance: SelectionAppearance = .none
   var rowHeight: CGFloat = HistoryRowLayout.baseHeight
@@ -106,18 +105,6 @@ struct ListItemView<Title: View, ID: Hashable>: View {
       Spacer()
 
       HStack(spacing: 5) {
-        if let index = selectionIndex {
-          Text("\(index + 1)")
-            .font(.caption)
-            .frame(minWidth: 10, alignment: .center)
-            .padding(3)
-            .background(
-              Color.secondary.opacity(isSelected ? 0.5 : 0.8),
-              in: Capsule()
-            )
-            .foregroundStyle(Color.white)
-        }
-
         if !shortcuts.isEmpty {
           ZStack(alignment: .trailing) {
             ForEach(shortcuts) { shortcut in

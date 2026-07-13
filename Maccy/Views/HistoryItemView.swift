@@ -46,7 +46,6 @@ struct HistoryItemView: View {
       attributedTitle: item.attributedTitle,
       shortcuts: item.shortcuts,
       isSelected: item.isSelected,
-      selectionIndex: nil,
       selectionAppearance: selectionAppearance,
       rowHeight: rowHeight,
       imageContentHeight: HistoryRowLayout.effectiveImageContentHeight(imageMaxHeight),
