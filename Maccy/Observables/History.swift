@@ -352,17 +352,14 @@ class History: ItemsContainer {
   /// Rebuilds pin shortcuts and then unpinned ones.
   private func updateShortcuts() {
     for item in pinnedItems {
-      if let pin = item.item.pin {
-        item.shortcuts = KeyShortcut.create(character: pin)
-      }
+      item.updatePinnedShortcut()
     }
 
     mutations.updateUnpinnedShortcuts()
   }
 
-  /// Sets both the decorator's and model's title.
+  /// Updates the model title projected directly by the decorator.
   private func updateTitle(item: HistoryItemDecorator, title: String) {
-    item.title = title
     item.item.title = title
   }
 

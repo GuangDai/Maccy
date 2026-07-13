@@ -5,17 +5,17 @@ import Logging
 import Observation
 import Sauce
 
-/// Main-actor view model wrapping a `HistoryItem` `@Model`: holds the title,
-/// highlights, keyboard shortcuts, and lazily generated thumbnail/preview images
-/// for one row in the history list.
+/// Main-actor view model wrapping a `HistoryItem` `@Model`: projects its title,
+/// and holds highlights, keyboard shortcuts, and lazily generated
+/// thumbnail/preview images for one row in the history list.
 @MainActor
 @Observable
 class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObserving {
   /// Identity-only equality. `nonisolated` so it satisfies `Equatable`/
   /// `Hashable` from a `@MainActor` type; reads only the `let` UUID `id`
-  /// (Sendable). `title`/`attributedTitle` are main-mutated vars, so hashing
-  /// them would cross isolation; `@Observable` already drives SwiftUI updates on
-  /// title change, so `Hashable` need only reflect identity.
+  /// (Sendable). `title` reads main-isolated model state and `attributedTitle`
+  /// is main-mutated, so hashing them would cross isolation; `Hashable` need
+  /// only reflect identity.
   nonisolated static func == (lhs: HistoryItemDecorator, rhs: HistoryItemDecorator) -> Bool {
     return lhs.id == rhs.id
   }
@@ -50,7 +50,10 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
 
   let id = UUID()
 
-  var title: String = ""
+  /// Direct projection of the SwiftData source of truth. Reading the model here
+  /// lets Swift Observation track the real dependency and makes a model update
+  /// visible in the same main-actor turn, without a duplicate stored mirror.
+  var title: String { item.title }
   var attributedTitle: AttributedString?
   /// Preview-pane highlight over the item's body text (``text``), built when a
   /// search match lands in the body. `nil` when there is no body match — the
@@ -173,10 +176,10 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   private let logger = Logger(label: "org.p0deje.Maccy")
   @ObservationIgnored private var rowHighlighter = RowHighlighter()
 
-  /// Creates a decorator for `item`, seeding title/shortcuts and the app icon,
-  /// and starting pin/title observation. Persisted projections supply both
-  /// image dependencies through `HistoryItemDecoratorFactory`; the fallbacks
-  /// keep standalone test construction isolated from process-wide resources.
+  /// Creates a decorator for `item`, seeding shortcuts and the app icon.
+  /// Persisted projections supply both image dependencies through
+  /// `HistoryItemDecoratorFactory`; the fallbacks keep standalone test
+  /// construction isolated from process-wide resources.
   init(
     _ item: HistoryItem,
     shortcuts: [KeyShortcut] = [],
@@ -185,12 +188,16 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   ) {
     self.item = item
     self.shortcuts = shortcuts
-    self.title = item.title
     self.imageProcessor = imageProcessor
     self.applicationImage = applicationImage ?? ApplicationImage(bundleIdentifier: nil)
+  }
 
-    synchronizeItemPin()
-    synchronizeItemTitle()
+  /// Derives the pinned keyboard shortcut from the persisted pin after a
+  /// successful mutation. Unpinned numeric slots remain owned by
+  /// `HistoryMutations.updateUnpinnedShortcuts()`.
+  func updatePinnedShortcut() {
+    guard let pin = item.pin else { return }
+    shortcuts = KeyShortcut.create(character: pin)
   }
 
   /// Kicks off thumbnail generation (off-main) if not already cached or in flight.
@@ -434,45 +441,4 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
     }
   }
 
-  /// Re-syncs this decorator's pin shortcut whenever the model's `pin` changes,
-  /// re-arming itself each change until invalidated.
-  private func synchronizeItemPin() {
-    guard !isInvalidated else {
-      return
-    }
-
-    _ = withObservationTracking {
-      item.pin
-    } onChange: {
-      DispatchQueue.main.async { [weak self] in
-        guard let self, !self.isInvalidated else {
-          return
-        }
-        if let pin = self.item.pin {
-          self.shortcuts = KeyShortcut.create(character: pin)
-        }
-        self.synchronizeItemPin()
-      }
-    }
-  }
-
-  /// Re-syncs this decorator's `title` whenever the model's title changes,
-  /// re-arming itself each change until invalidated.
-  private func synchronizeItemTitle() {
-    guard !isInvalidated else {
-      return
-    }
-
-    _ = withObservationTracking {
-      item.title
-    } onChange: {
-      DispatchQueue.main.async { [weak self] in
-        guard let self, !self.isInvalidated else {
-          return
-        }
-        self.title = self.item.title
-        self.synchronizeItemTitle()
-      }
-    }
-  }
 }

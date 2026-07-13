@@ -205,6 +205,7 @@ final class HistoryMutations {
       errorSink("Failed to save pinned history item", error)
       return
     }
+    item.updatePinnedShortcut()
 
     let sortedModels = sorter.sort(listState.all.map(\.item))
     var reordered = listState.all
