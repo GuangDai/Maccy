@@ -77,6 +77,38 @@ final class RowHighlighterTests: XCTestCase {
     XCTAssertEqual(deep, AttributedString("foo bar"))
   }
 
+  func testPreviewMemoReusesInputsRebuildsForStyleAndClearsOnce() {
+    let text = "foo bar"
+    let ranges = [4..<7]
+    var highlighter = RowHighlighter()
+
+    guard case .replacement = highlighter.preview(
+      query: "bar", text: text, ranges: ranges, style: .bold
+    ) else {
+      return XCTFail("first preview render must return a replacement")
+    }
+    guard case .unchanged = highlighter.preview(
+      query: "bar", text: text, ranges: ranges, style: .bold
+    ) else {
+      return XCTFail("identical preview inputs must reuse the memo")
+    }
+    guard case .replacement = highlighter.preview(
+      query: "bar", text: text, ranges: ranges, style: .underline
+    ) else {
+      return XCTFail("preview style changes must rebuild")
+    }
+    guard case .replacement(nil) = highlighter.preview(
+      query: "", text: text, ranges: ranges, style: .underline
+    ) else {
+      return XCTFail("first preview clear must remove the attributed value")
+    }
+    guard case .unchanged = highlighter.preview(
+      query: "", text: text, ranges: ranges, style: .underline
+    ) else {
+      return XCTFail("repeated preview clear must not retrigger observation")
+    }
+  }
+
   func testTitleDropsRangesBeyondTheRenderWindow() {
     let text = String(repeating: "a", count: TextLimits.highlight) + "z"
     let deepRange = text.range(of: "z")!
