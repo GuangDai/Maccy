@@ -135,6 +135,7 @@ final class HistoryStoreProjectorTests: XCTestCase {
       runtimeServices: HistoryRuntimeServices(
         clipboard: HistoryClipboardActions(clear: {}, copy: { _, _ in }, paste: {}),
         modifierFlags: { [] },
+        availablePin: { nil },
         currentEvent: { nil },
         publishStoreEvents: { eventBatches.append($0) },
         log: { _ in }

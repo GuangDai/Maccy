@@ -16,8 +16,10 @@ class History: ItemsContainer {
 
   private static func makeShared() -> History {
     let mutationLogger = Logger(label: "org.p0deje.Maccy")
+    let context = Storage.shared.context
+    let pinService = PinService(context: context)
     return History(
-      persistence: SwiftDataHistoryPersistence(context: Storage.shared.context),
+      persistence: SwiftDataHistoryPersistence(context: context),
       runtimeServices: HistoryRuntimeServices(
         clipboard: HistoryClipboardActions(
           clear: { Clipboard.shared.clear() },
@@ -31,6 +33,7 @@ class History: ItemsContainer {
             .intersection(.deviceIndependentFlagsMask)
             .subtracting([.capsLock, .numericPad, .function]) ?? []
         },
+        availablePin: { pinService.randomAvailablePin },
         currentEvent: { NSApp.currentEvent },
         publishStoreEvents: { Clipboard.shared.synchronizeStoreEvents($0) },
         log: { mutationLogger.info("\($0)") }
@@ -128,6 +131,7 @@ class History: ItemsContainer {
       sorter: Sorter(),
       clipboard: runtimeServices.clipboard,
       modifierFlags: runtimeServices.modifierFlags,
+      availablePin: runtimeServices.availablePin,
       log: runtimeServices.log
     )
     self.mutations = mutations

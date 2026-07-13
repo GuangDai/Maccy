@@ -15,6 +15,7 @@ struct HistoryClipboardActions {
 struct HistoryRuntimeServices {
   let clipboard: HistoryClipboardActions
   let modifierFlags: @MainActor () -> NSEvent.ModifierFlags
+  let availablePin: @MainActor () -> String?
   let currentEvent: @MainActor () -> NSEvent?
   let publishStoreEvents: @MainActor ([StoreEvent]) -> Void
   let log: @MainActor (String) -> Void
@@ -22,6 +23,7 @@ struct HistoryRuntimeServices {
   static let inert = HistoryRuntimeServices(
     clipboard: HistoryClipboardActions(clear: {}, copy: { _, _ in }, paste: {}),
     modifierFlags: { [] },
+    availablePin: { nil },
     currentEvent: { nil },
     publishStoreEvents: { _ in },
     log: { _ in }
@@ -37,6 +39,7 @@ final class HistoryMutations {
   private let sorter: Sorter
   private let clipboard: HistoryClipboardActions
   private let modifierFlags: @MainActor () -> NSEvent.ModifierFlags
+  private let availablePin: @MainActor () -> String?
   private let log: @MainActor (String) -> Void
   private var uiEffectSink: HistoryUIEffectSink = { _ in }
   private var storeEventSink: @MainActor ([StoreEvent]) -> Void = { _ in }
@@ -49,6 +52,7 @@ final class HistoryMutations {
     sorter: Sorter,
     clipboard: HistoryClipboardActions,
     modifierFlags: @escaping @MainActor () -> NSEvent.ModifierFlags,
+    availablePin: @escaping @MainActor () -> String?,
     log: @escaping @MainActor (String) -> Void
   ) {
     self.persistence = persistence
@@ -57,6 +61,7 @@ final class HistoryMutations {
     self.sorter = sorter
     self.clipboard = clipboard
     self.modifierFlags = modifierFlags
+    self.availablePin = availablePin
     self.log = log
   }
 
@@ -177,7 +182,11 @@ final class HistoryMutations {
     guard let item else { return }
 
     let previousPin = item.item.pin
-    item.togglePin()
+    if item.item.pin != nil {
+      item.item.pin = nil
+    } else if let pin = availablePin() {
+      item.item.pin = pin
+    }
     do {
       try persistence.save()
     } catch {

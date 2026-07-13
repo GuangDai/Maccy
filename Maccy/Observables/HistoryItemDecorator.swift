@@ -127,7 +127,6 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   /// doesn't inject its own. `AppDelegate` feeds the same instance into the
   /// ingestor so the cache is shared across the ingest and view paths.
   private let imageProcessor: ImageProcessing
-  private let pinService: PinService
   @ObservationIgnored private var textPreviewCache: String?
   @ObservationIgnored private var textPreviewCacheLimit: Int = -1
 
@@ -187,14 +186,12 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   init(
     _ item: HistoryItem,
     shortcuts: [KeyShortcut] = [],
-    imageProcessor: ImageProcessing = HistoryItemDecorator.defaultImageProcessor,
-    pinService: PinService = PinService(context: Storage.shared.context)
+    imageProcessor: ImageProcessing = HistoryItemDecorator.defaultImageProcessor
   ) {
     self.item = item
     self.shortcuts = shortcuts
     self.title = item.title
     self.imageProcessor = imageProcessor
-    self.pinService = pinService
     self.applicationImage = ApplicationImageCache.shared.getImage(item: item)
 
     synchronizeItemPin()
@@ -514,15 +511,6 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
 
     previewAttributedText = attributed
     previewHighlightMemo = PreviewHighlightMemo(text: text, ranges: ranges, style: style)
-  }
-
-  /// Toggles the item's pin between its current value and a free pin slot.
-  func togglePin() {
-    if item.pin != nil {
-      item.pin = nil
-    } else if let pin = pinService.randomAvailablePin {
-      item.pin = pin
-    }
   }
 
   /// Re-syncs this decorator's pin shortcut whenever the model's `pin` changes,
