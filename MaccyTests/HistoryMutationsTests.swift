@@ -1,6 +1,7 @@
 import AppKit.NSEvent
 import Defaults
 import Foundation
+import Observation
 import SwiftData
 import XCTest
 @testable import Maccy
@@ -98,6 +99,42 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertEqual(harness.clipboard.clearCalls, 0)
     XCTAssertEqual(effectNames(effects), ["resizePopup"])
     XCTAssertTrue(harness.errors.isEmpty)
+  }
+
+  func testUpdateUnpinnedShortcutsDoesNotPublishWhenBindingsAreStable() async {
+    let decorators = (0..<10).map { decorator(item(title: "item-\($0)")) }
+    let harness = makeHarness(decorators)
+    harness.subject.updateUnpinnedShortcuts()
+    let probes = decorators.map(ShortcutObservationProbe.init)
+
+    harness.subject.updateUnpinnedShortcuts()
+    await Task.yield()
+
+    XCTAssertEqual(probes.map(\.changeCount), Array(repeating: 0, count: 10))
+    for (index, decorator) in decorators.prefix(9).enumerated() {
+      assertShortcuts(decorator.shortcuts, match: String(index + 1))
+    }
+    XCTAssertTrue(decorators[9].shortcuts.isEmpty)
+  }
+
+  func testUpdateUnpinnedShortcutsPublishesOnlyChangedBindings() async {
+    let decorators = (0..<10).map { decorator(item(title: "item-\($0)")) }
+    let harness = makeHarness(decorators)
+    harness.subject.updateUnpinnedShortcuts()
+    let probes = decorators.map(ShortcutObservationProbe.init)
+    var reordered = decorators
+    reordered.swapAt(0, 9)
+    harness.listState.publishVisible(reordered)
+
+    harness.subject.updateUnpinnedShortcuts()
+    await Task.yield()
+
+    XCTAssertEqual(probes.map(\.changeCount), [1, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+    assertShortcuts(decorators[9].shortcuts, match: "1")
+    XCTAssertTrue(decorators[0].shortcuts.isEmpty)
+    for index in 1..<9 {
+      assertShortcuts(decorators[index].shortcuts, match: String(index + 1))
+    }
   }
 
   func testSelectWithoutModifiersUsesDefaultCopyAndPastePolicy() async {
@@ -305,6 +342,20 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertEqual(harness.clipboard.copies.first?.1, removeFormatting, file: file, line: line)
   }
 
+  private func assertShortcuts(
+    _ actual: [KeyShortcut],
+    match character: String,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    let expected = KeyShortcut.create(character: character)
+    XCTAssertEqual(actual.count, expected.count, file: file, line: line)
+    for (actual, expected) in zip(actual, expected) {
+      XCTAssertEqual(actual.key, expected.key, file: file, line: line)
+      XCTAssertEqual(actual.modifierFlags, expected.modifierFlags, file: file, line: line)
+    }
+  }
+
   private func waitForCorpusMove(
     in backend: MutationSearchBackend
   ) async -> (removed: [UUID], inserted: [MutationCorpusInsert]) {
@@ -323,6 +374,21 @@ final class HistoryMutationsTests: XCTestCase {
     effects.compactMap { effect in
       guard case .scrollTo(let id) = effect else { return nil }
       return id
+    }
+  }
+}
+
+@MainActor
+private final class ShortcutObservationProbe {
+  private(set) var changeCount = 0
+
+  init(_ item: HistoryItemDecorator) {
+    withObservationTracking {
+      _ = item.shortcuts
+    } onChange: {
+      Task { @MainActor [weak self] in
+        self?.changeCount += 1
+      }
     }
   }
 }
