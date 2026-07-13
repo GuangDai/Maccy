@@ -204,11 +204,33 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertTrue(harness.errors.isEmpty)
   }
 
+  func testToggleUnpinnedUsesInjectedPinProvider() {
+    let target = decorator(item(title: "target"))
+    var providerCalls = 0
+    let harness = makeHarness(
+      [target],
+      availablePin: {
+        providerCalls += 1
+        return "m"
+      }
+    )
+
+    harness.subject.togglePin(target)
+
+    XCTAssertEqual(target.item.pin, "m")
+    XCTAssertEqual(providerCalls, 1)
+  }
+
   private func makeHarness(
     _ decorators: [HistoryItemDecorator],
-    modifierFlags: NSEvent.ModifierFlags = []
+    modifierFlags: NSEvent.ModifierFlags = [],
+    availablePin: @escaping @MainActor () -> String? = { "p" }
   ) -> MutationHarness {
-    MutationHarness(decorators: decorators, modifierFlags: modifierFlags)
+    MutationHarness(
+      decorators: decorators,
+      modifierFlags: modifierFlags,
+      availablePin: availablePin
+    )
   }
 
   private func item(title: String, pin: String? = nil) -> HistoryItem {
@@ -329,7 +351,8 @@ private final class MutationHarness {
 
   init(
     decorators: [HistoryItemDecorator],
-    modifierFlags: NSEvent.ModifierFlags
+    modifierFlags: NSEvent.ModifierFlags,
+    availablePin: @escaping @MainActor () -> String?
   ) {
     let persistence = MutationPersistence()
     let listState = HistoryListState(decorators: decorators)
@@ -359,6 +382,7 @@ private final class MutationHarness {
         paste: { [clipboard] in clipboard.pasteCalls += 1 }
       ),
       modifierFlags: { modifierFlags },
+      availablePin: availablePin,
       log: { _ in }
     )
     subject.configureUIEffectSink { [weak self] in self?.effects.append($0) }

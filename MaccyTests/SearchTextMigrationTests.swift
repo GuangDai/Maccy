@@ -192,6 +192,31 @@ final class SearchTextMigrationTests: XCTestCase {
     XCTAssertEqual(stored?.first?.title.count, HistoryItem.titlePreviewLimit)
   }
 
+  /// Re-copying a pre-column row uses the freshly projected body instead of
+  /// carrying the legacy `nil` into the merged successor forever.
+  func testRecopyBackfillsMissingSearchText() async {
+    let body = "legacy body becomes searchable when copied again"
+    let legacy = HistoryItem(contents: [contentEntry(stringType, body)])
+    legacy.title = legacy.generateTitle()
+    Storage.shared.context.insert(legacy)
+    XCTAssertNoThrow(try Storage.shared.context.save())
+    XCTAssertNil(legacy.searchText)
+    let ingestor = makeIngestor()
+
+    let result = await ingestor.ingest(
+      request([content(type: stringType, value: Data(body.utf8))])
+    )
+
+    if case .merged = result.event {
+      // Expected: re-copy replaces the legacy duplicate with a projected row.
+    } else {
+      XCTFail("Expected .merged, got \(String(describing: result.event))")
+    }
+    let stored = try? Storage.shared.context.fetch(FetchDescriptor<HistoryItem>())
+    XCTAssertEqual(stored?.count, 1)
+    XCTAssertEqual(stored?.first?.searchText, body)
+  }
+
   // MARK: - Helpers
 
   /// Builds a single plain-string content entry.
