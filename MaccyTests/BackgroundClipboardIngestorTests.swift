@@ -282,6 +282,34 @@ final class BackgroundClipboardIngestorTests: XCTestCase {
     )
   }
 
+  func testPinnedDuplicateMergeDoesNotEvictUnpinnedHistory() async {
+    Defaults[.size] = 2
+    let context = Storage.shared.context
+    for (index, title) in ["A", "C", "B"].enumerated() {
+      let item = HistoryItem(
+        contents: [HistoryItemContent(type: stringType, value: Data(title.utf8))]
+      )
+      item.title = title
+      item.firstCopiedAt = Date(timeIntervalSince1970: Double(index))
+      item.lastCopiedAt = item.firstCopiedAt
+      if title == "B" { item.pin = "1" }
+      context.insert(item)
+    }
+    try? context.save()
+
+    let ingestor = BackgroundClipboardIngestor(
+      modelContainer: Storage.shared.container,
+      image: PassthroughImageProcessor(),
+      now: { Date(timeIntervalSince1970: 100) },
+      onEvent: { _, _ in }
+    )
+
+    _ = await ingestor.ingest(request(text: "B"))
+
+    let stored = (try? context.fetch(FetchDescriptor<HistoryItem>())) ?? []
+    XCTAssertEqual(Set(stored.map(\.title)), ["A", "B", "C"])
+  }
+
   // MARK: - Metrics sanity
 
   /// The reported parse time is finite and non-negative on a text ingest.

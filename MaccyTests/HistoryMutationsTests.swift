@@ -28,6 +28,7 @@ final class HistoryMutationsTests: XCTestCase {
     let unpinned = decorator(item(title: "unpinned"))
     let removedID = storedItemID(for: unpinned.item)
     let harness = makeHarness([pinned, unpinned])
+    harness.searchSession.query = "needle"
 
     harness.subject.clear()
     let removedCorpusIDs = await waitForRemovedCorpus(in: harness.backend)
@@ -38,6 +39,7 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertEqual(removedCorpusIDs, [unpinned.id])
     XCTAssertEqual(harness.storeEvents, [.removed(removedID)])
     XCTAssertEqual(harness.clipboard.clearCalls, 1)
+    XCTAssertEqual(harness.searchSession.query, "")
     XCTAssertEqual(effectNames(effects), ["closePopup", "resizePopup"])
   }
 
@@ -45,6 +47,7 @@ final class HistoryMutationsTests: XCTestCase {
     let first = decorator(item(title: "first"))
     let second = decorator(item(title: "second", pin: "p"))
     let harness = makeHarness([first, second])
+    harness.searchSession.query = "needle"
 
     harness.subject.clearAll()
     let clearCorpusCalls = await waitForClearCorpus(in: harness.backend)
@@ -55,6 +58,7 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertEqual(clearCorpusCalls, 1)
     XCTAssertEqual(harness.storeEvents, [.cleared])
     XCTAssertEqual(harness.clipboard.clearCalls, 1)
+    XCTAssertEqual(harness.searchSession.query, "")
     XCTAssertEqual(effectNames(effects), ["closePopup", "resizePopup"])
   }
 
