@@ -232,12 +232,22 @@ final class HistoryMutations {
   }
 
   func updateUnpinnedShortcuts() {
-    let visible = listState.items.filter { $0.isUnpinned && $0.isVisible }
-    for item in visible {
-      item.shortcuts = []
+    for (index, item) in listState.items.lazy
+      .filter({ $0.isUnpinned && $0.isVisible })
+      .enumerated() {
+      let desired = index < 9
+        ? KeyShortcut.create(character: String(index + 1))
+        : []
+      guard !haveSameBindings(item.shortcuts, desired) else {
+        continue
+      }
+      item.shortcuts = desired
     }
-    for (index, item) in visible.prefix(9).enumerated() {
-      item.shortcuts = KeyShortcut.create(character: String(index + 1))
+  }
+
+  private func haveSameBindings(_ lhs: [KeyShortcut], _ rhs: [KeyShortcut]) -> Bool {
+    lhs.count == rhs.count && zip(lhs, rhs).allSatisfy {
+      $0.key == $1.key && $0.modifierFlags == $1.modifierFlags
     }
   }
 

@@ -147,7 +147,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 | `@unchecked Sendable` on HistoryItemDecorator/AppDelegate | [已修] | `IMG-035`/`historyitem-unchecked-sendable`:BS-7 实际归零(grep 0 标注),complete 模式 CI 绿 |
 | `WrappingTextView` 双次 sizeThatFits | [未修] | `LT-RENDER-02` |
 | `.drawingGroup()` 每行每重绘栅格化 | [部分] | `LT-RENDER-03`:标题/预览高亮 memoize 已做，并由 `RowHighlighter` 直接测试锁定重复输入不重新赋值；`.drawingGroup()` 本身仍保留，所以状态仍为部分。 |
-| `updateUnpinnedShortcuts` 双遍赋值 | [未修] | `updateunpinned-double-pass` |
+| `updateUnpinnedShortcuts` 双遍赋值 | [待 CI] | 单遍计算可见 unpinned 项的目标 1–9 bindings，并仅在 key/modifier 语义变化时赋值；不变项保留 shortcut UUID 且不发 Observation 通知。full matrix 待验证。 |
 
 ---
 
