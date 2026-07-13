@@ -98,6 +98,8 @@ final class PopupTests: XCTestCase {
 
   func testInjectedRuntimeOwnsOpenCycleAndCommitEffects() async {
     let recorder = PopupRuntimeRecorder()
+    let commitExpectation = expectation(description: "selection commits after modifier handling")
+    recorder.onCommitSelection = { commitExpectation.fulfill() }
     let popup = Popup(runtimeServices: recorder.services, installsEventHandlers: false)
 
     popup.handleTestingHotKeyDown()
@@ -109,7 +111,8 @@ final class PopupTests: XCTestCase {
     popup.handleTestingHotKeyDown()
     XCTAssertEqual(recorder.highlightNextCalls, 1)
     popup.handleTestingModifiersReleased()
-    await Task.yield()
+    XCTAssertEqual(recorder.commitSelectionCalls, 0)
+    await fulfillment(of: [commitExpectation], timeout: 1)
     XCTAssertEqual(recorder.commitSelectionCalls, 1)
   }
 
@@ -155,6 +158,7 @@ private final class PopupRuntimeRecorder {
   var shortcutCalls = 0
   var highlightNextCalls = 0
   var commitSelectionCalls = 0
+  var onCommitSelection: (() -> Void)?
 
   var services: PopupRuntimeServices {
     PopupRuntimeServices(
@@ -172,7 +176,10 @@ private final class PopupRuntimeRecorder {
         return self?.shortcutHandled == true
       },
       highlightNext: { [weak self] in self?.highlightNextCalls += 1 },
-      commitSelection: { [weak self] in self?.commitSelectionCalls += 1 }
+      commitSelection: { [weak self] in
+        self?.commitSelectionCalls += 1
+        self?.onCommitSelection?()
+      }
     )
   }
 }
