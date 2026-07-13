@@ -142,15 +142,15 @@ struct PreviewTextRep: NSViewRepresentable {
     if let textView = scrollView.documentView as? NSTextView {
       textView.minSize = .zero
       textView.maxSize = NSSize(
-        width: .greatestFiniteMagnitude,
-        height: .greatestFiniteMagnitude
+        width: CGFloat.greatestFiniteMagnitude,
+        height: CGFloat.greatestFiniteMagnitude
       )
       textView.isVerticallyResizable = true
       textView.isHorizontallyResizable = false
       textView.autoresizingMask = [.width]
       textView.textContainer?.size = NSSize(
         width: scrollView.contentSize.width,
-        height: .greatestFiniteMagnitude
+        height: CGFloat.greatestFiniteMagnitude
       )
       textView.textContainer?.widthTracksTextView = true
       textView.textContainer?.heightTracksTextView = false
