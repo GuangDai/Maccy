@@ -64,6 +64,37 @@ final class HistoryDefaultsWatcherTests: XCTestCase {
     XCTAssertNil(hidden.previewImage)
   }
 
+  func testAdaptiveRowSizingChangesRequestPopupRemeasurement() async throws {
+    let savedImageHeight = Defaults[.imageMaxHeight]
+    let savedTextLines = Defaults[.textRowLines]
+    defer {
+      Defaults[.imageMaxHeight] = savedImageHeight
+      Defaults[.textRowLines] = savedTextLines
+    }
+    Defaults[.imageMaxHeight] = 40
+    Defaults[.textRowLines] = 1
+
+    var resizeRequests = 0
+    let history = History(
+      persistence: SwiftDataHistoryPersistence(context: Storage.shared.context),
+      logsPersistenceErrors: false
+    )
+    history.configureUIEffectSink { effect in
+      if case .resizePopup = effect {
+        resizeRequests += 1
+      }
+    }
+    await Task.yield()
+
+    Defaults[.imageMaxHeight] = 41
+    try await Task.sleep(for: .milliseconds(100))
+    XCTAssertEqual(resizeRequests, 1)
+
+    Defaults[.textRowLines] = 2
+    try await Task.sleep(for: .milliseconds(100))
+    XCTAssertEqual(resizeRequests, 2)
+  }
+
   private func decorator(_ text: String) -> HistoryItemDecorator {
     HistoryItemDecorator(
       HistoryBuilder()

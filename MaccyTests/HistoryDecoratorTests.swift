@@ -89,6 +89,12 @@ class HistoryItemDecoratorTests: XCTestCase {
     XCTAssertEqual(itemDecorator.thumbnailImage!.size, NSSize(width: 40, height: 40))
   }
 
+  func testThumbnailTargetClampsInvalidPersistedHeight() {
+    Defaults[.imageMaxHeight] = 999
+
+    XCTAssertEqual(HistoryItemDecorator.thumbnailImageSize.height, 200)
+  }
+
   // MARK: - Preview cancellation
 
   /// `cancelPreviewGeneration()` cancels an in-flight preview decode, drops the
