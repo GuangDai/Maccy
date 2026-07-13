@@ -57,6 +57,11 @@ the duration of each call. This avoids replacing the global reach with a new
 strong ownership cycle through navigator/preview callbacks. No production path
 reads a global singleton from `Popup`.
 
+The initializer also accepts `installsEventHandlers` (default `true`).
+Production keeps the default; isolated state-machine tests pass `false` so they
+do not replace the process-wide KeyboardShortcuts handler or install an AppKit
+event monitor. This is lifecycle control, not an application dependency.
+
 The local NSEvent monitor captures its own Popup instance weakly and calls
 `shouldConsumeFlagsChanged` on that instance. It no longer finds the instance
 through `AppState.shared.popup`.
