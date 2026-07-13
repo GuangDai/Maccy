@@ -66,6 +66,66 @@ final class PopupTests: XCTestCase {
     )
   }
 
+  func testInjectedRuntimeOwnsWindowAndSizingEffects() {
+    let recorder = PopupRuntimeRecorder()
+    let popup = Popup(runtimeServices: recorder.services, installsEventHandlers: false)
+    let savedWindowSize = Defaults[.windowSize]
+    let savedMaxVisibleItems = Defaults[.maxVisibleItems]
+    defer {
+      Defaults[.windowSize] = savedWindowSize
+      Defaults[.maxVisibleItems] = savedMaxVisibleItems
+    }
+    Defaults[.windowSize] = NSSize(width: 450, height: 800)
+    Defaults[.maxVisibleItems] = 100
+
+    popup.open(height: 120, at: .cursor)
+    XCTAssertEqual(recorder.initialSelectionCalls, 1)
+    XCTAssertEqual(recorder.openedPanels.count, 1)
+    XCTAssertEqual(recorder.openedPanels.first?.0, 120)
+    XCTAssertEqual(recorder.openedPanels.first?.1, .cursor)
+
+    XCTAssertTrue(popup.isClosed())
+    recorder.panelPresented = true
+    XCTAssertFalse(popup.isClosed())
+    popup.close()
+    XCTAssertEqual(recorder.closePanelCalls, 1)
+
+    recorder.previewMinimumRequired = true
+    XCTAssertEqual(popup.preferredHeight(for: 10), Popup.minimumPreviewHeight)
+    popup.resize(height: 120)
+    XCTAssertEqual(recorder.resizedHeights, [Popup.minimumPreviewHeight])
+  }
+
+  func testInjectedRuntimeOwnsOpenCycleAndCommitEffects() async {
+    let recorder = PopupRuntimeRecorder()
+    let popup = Popup(runtimeServices: recorder.services, installsEventHandlers: false)
+
+    popup.handleTestingHotKeyDown()
+    XCTAssertEqual(recorder.prewarmCalls, 1)
+    XCTAssertEqual(recorder.initialSelectionCalls, 1)
+    XCTAssertEqual(recorder.openedPanels.count, 1)
+
+    recorder.panelPresented = true
+    popup.handleTestingHotKeyDown()
+    XCTAssertEqual(recorder.highlightNextCalls, 1)
+    popup.handleTestingModifiersReleased()
+    await Task.yield()
+    XCTAssertEqual(recorder.commitSelectionCalls, 1)
+  }
+
+  func testHandledShortcutStopsCycleAndClosePaths() {
+    let recorder = PopupRuntimeRecorder()
+    recorder.panelPresented = true
+    recorder.shortcutHandled = true
+    let popup = Popup(runtimeServices: recorder.services, installsEventHandlers: false)
+
+    popup.handleTestingHotKeyDown()
+
+    XCTAssertEqual(recorder.shortcutCalls, 1)
+    XCTAssertEqual(recorder.highlightNextCalls, 0)
+    XCTAssertEqual(recorder.closePanelCalls, 0)
+  }
+
   /// Builds a `HistoryItem` carrying a single string content entry, inserted
   /// into the shared context, with its title derived from the value.
   private func historyItem(_ value: String) -> HistoryItem {
@@ -79,5 +139,40 @@ final class PopupTests: XCTestCase {
     item.numberOfCopies = 1
     item.title = item.generateTitle()
     return item
+  }
+}
+
+@MainActor
+private final class PopupRuntimeRecorder {
+  var initialSelectionCalls = 0
+  var openedPanels: [(CGFloat, PopupPosition)] = []
+  var closePanelCalls = 0
+  var panelPresented = false
+  var previewMinimumRequired = false
+  var resizedHeights: [CGFloat] = []
+  var prewarmCalls = 0
+  var shortcutHandled = false
+  var shortcutCalls = 0
+  var highlightNextCalls = 0
+  var commitSelectionCalls = 0
+
+  var services: PopupRuntimeServices {
+    PopupRuntimeServices(
+      selectInitialItem: { [weak self] in self?.initialSelectionCalls += 1 },
+      openPanel: { [weak self] height, position in
+        self?.openedPanels.append((height, position))
+      },
+      closePanel: { [weak self] in self?.closePanelCalls += 1 },
+      isPanelPresented: { [weak self] in self?.panelPresented == true },
+      requiresPreviewMinimumHeight: { [weak self] in self?.previewMinimumRequired == true },
+      resizePanel: { [weak self] in self?.resizedHeights.append($0) },
+      prewarmVisibleWindow: { [weak self] in self?.prewarmCalls += 1 },
+      selectPressedShortcut: { [weak self] in
+        self?.shortcutCalls += 1
+        return self?.shortcutHandled == true
+      },
+      highlightNext: { [weak self] in self?.highlightNextCalls += 1 },
+      commitSelection: { [weak self] in self?.commitSelectionCalls += 1 }
+    )
   }
 }
