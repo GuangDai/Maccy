@@ -468,14 +468,24 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
 
   /// Copies the duplicate's fields into the new item.
   private func mergeFields(from dup: HistoryItem, into item: HistoryItem, timestamp: Date) {
+    let mergedSearchText: String?
+    if let existingSearchText = dup.searchText {
+      mergedSearchText = existingSearchText
+    } else if item.supersedes(dup) {
+      // `findDuplicate` already proved the inverse containment. Only reuse the
+      // fresh projection when both items therefore have equivalent canonical
+      // contents; a strict-subset projection would not describe `dup`.
+      mergedSearchText = item.searchText
+    } else {
+      mergedSearchText = nil
+    }
+
     item.contents = dup.contents.map { HistoryItemContent(type: $0.type, value: $0.value) }
     item.firstCopiedAt = dup.firstCopiedAt
     item.numberOfCopies += dup.numberOfCopies
     item.pin = dup.pin
     item.title = dup.title
-    // Preserve an existing projection, but let a freshly parsed re-copy heal a
-    // pre-column row whose lightweight-migration value is still nil.
-    item.searchText = dup.searchText ?? item.searchText
+    item.searchText = mergedSearchText
     if !item.fromMaccy {
       item.application = dup.application
     }
