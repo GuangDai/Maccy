@@ -38,6 +38,36 @@ final class HistoryStoreProjectorTests: XCTestCase {
     XCTAssertTrue(decorated.applicationImage === expected)
   }
 
+  func testInjectedFactoryBuildsEveryNewStoreProjection() async throws {
+    let persistence = RecordingProjectorPersistence()
+    let first = item(title: "load")
+    persistence.fetchedItems = [first]
+    var decoratedTitles: [String] = []
+    let factory = HistoryItemDecoratorFactory(
+      imageProcessor: PassthroughImageProcessor(),
+      applicationImage: {
+        decoratedTitles.append($0.title)
+        return ApplicationImage(bundleIdentifier: nil)
+      },
+      purgeApplicationImages: {}
+    )
+    let history = History(
+      persistence: persistence,
+      decoratorFactory: factory,
+      logsPersistenceErrors: false
+    )
+
+    try await history.load()
+    let second = item(title: "incremental")
+    persistence.models[second.persistentModelID] = second
+    history.consume(.added(snapshot(of: second)))
+    let third = item(title: "reconcile")
+    persistence.fetchedItems = [first, second, third]
+    history.consume(.cleared)
+
+    XCTAssertEqual(decoratedTitles, ["load", "incremental", "reconcile"])
+  }
+
   func testLoadFailurePreservesOldListAndRecordsError() async {
     let persistence = RecordingProjectorPersistence()
     persistence.fetchError = ProjectorTestError.expected
