@@ -408,23 +408,14 @@ final class SlideoutRuntimeTests: XCTestCase {
 @MainActor
 final class FloatingPanelDependencyTests: XCTestCase {
   func testCloseResetsInjectedPreview() {
-    let history = History(
-      persistence: RuntimeServicesPersistence(),
-      logsPersistenceErrors: false
-    )
     let preview = SlideoutController(
       onContentResize: { _ in },
       onSlideoutResize: { _ in },
       preferredHeight: { 300 }
     )
-    let navigator = NavigationManager(
-      history: history,
-      footer: Footer()
-    )
     let panel = FloatingPanel(
       contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
       preview: preview,
-      navigator: navigator,
       onClose: {},
       view: { EmptyView() }
     )

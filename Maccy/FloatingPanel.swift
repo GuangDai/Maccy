@@ -14,7 +14,6 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
   /// Invoked after the panel closes.
   let onClose: () -> Void
   private let preview: SlideoutController
-  private let navigator: NavigationManager
 
   /// Whether the user can drag the panel. Disabled when anchored to the status item.
   override var isMovable: Bool {
@@ -28,12 +27,10 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     identifier: String = "",
     statusBarButton: NSStatusBarButton? = nil,
     preview: SlideoutController,
-    navigator: NavigationManager,
     onClose: @escaping () -> Void,
     view: () -> Content
   ) {
     self.preview = preview
-    self.navigator = navigator
     self.onClose = onClose
 
     super.init(
@@ -121,7 +118,6 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
 
   /// Recomputes the preview placement against the current window frame, if the preview is closed.
   func determinePreviewPlacement() {
-    let preview = AppState.shared.preview
     guard !preview.state.isOpen else { return }
     let newSize = preview.computeSizeWithPreview(frame.size, state: .open)
     preview.placement = preview.computePlacement(window: self, for: newSize)
@@ -132,7 +128,7 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
   func saveWindowPosition() {
     if let screenFrame = screen?.visibleFrame {
       // Only store the size of the window without the preview
-      let width = AppState.shared.preview.contentWidth
+      let width = preview.contentWidth
 
       let anchorX = frame.minX + width / 2 - screenFrame.minX
       let anchorY = frame.maxY - screenFrame.minY
@@ -149,8 +145,6 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
   /// Constrains the live-resize frame: pins height to the stored frame (height
   /// is governed by `maxVisibleItems`) and enforces preview/content width floors.
   func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
-    let preview = AppState.shared.preview
-
     if inLiveResize && preview.resizingMode == .none {
       let screenPoint = NSEvent.mouseLocation
       let windowPoint = convertPoint(fromScreen: screenPoint)
@@ -186,12 +180,12 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     }
     finalFrameSize.width = max(finalFrameSize.width, minContent + minPreview)
 
-    if !AppState.shared.preview.state.isAnimating {
+    if !preview.state.isAnimating {
       // Width follows the drag; height is governed by maxVisibleItems, so
       // preserve the stored window height rather than clobbering it with the
       // (frozen) frame height.
       var size = Defaults[.windowSize]
-      size.width = AppState.shared.preview.contentWidth
+      size.width = preview.contentWidth
       saveWindowFrame(frame: NSRect(origin: frame.origin, size: size))
     }
 
@@ -210,27 +204,24 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
 
   /// Cancels any pending preview auto-open at the start of a live resize.
   func windowWillStartLiveResize(_ notification: Notification) {
-    AppState.shared.preview.cancelAutoOpen()
+    preview.cancelAutoOpen()
   }
 
   /// Re-targets the preview to the lead item and ends resize tracking.
   func windowDidEndLiveResize(_ notification: Notification) {
-    AppState.shared.preview.scheduleRetarget(lead: AppState.shared.navigator.leadHistoryItem)
-    AppState.shared.preview.endResize()
+    preview.scheduleCurrentLeadRetarget()
+    preview.endResize()
   }
 
   /// Enables preview auto-open and re-targets it to the lead item when the window gains key.
   func windowDidBecomeKey(_ notification: Notification) {
-    AppState.shared.preview.enableAutoOpen()
-
-    if AppState.shared.navigator.leadHistoryItem != nil {
-      AppState.shared.preview.scheduleRetarget(lead: AppState.shared.navigator.leadHistoryItem)
-    }
+    preview.enableAutoOpen()
+    preview.scheduleCurrentLeadRetarget()
   }
 
   /// Disables preview auto-open when the window loses key.
   func windowDidResignKey(_ notification: Notification) {
-    AppState.shared.preview.disableAutoOpen()
+    preview.disableAutoOpen()
   }
 
   /// Closes the panel automatically when it loses focus (e.g. an outside click),
@@ -245,8 +236,8 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
   /// Closes the panel and tears down preview state, then invokes `onClose`.
   override func close() {
     super.close()
-    AppState.shared.preview.state = .closed
-    AppState.shared.preview.previewedItem = nil
+    preview.state = .closed
+    preview.previewedItem = nil
     isPresented = false
     statusBarButton?.isHighlighted = false
     onClose()

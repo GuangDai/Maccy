@@ -8,7 +8,18 @@ import SwiftUI
 class AppDelegate: NSObject, NSApplicationDelegate {
   /// The main floating panel hosting the content view.
   var panel: FloatingPanel<ContentView>!
-  private lazy var compositionRoot = CompositionRoot()
+  private let appState: AppState
+  private lazy var compositionRoot = CompositionRoot(appState: appState)
+
+  override init() {
+    appState = .shared
+    super.init()
+  }
+
+  init(appState: AppState) {
+    self.appState = appState
+    super.init()
+  }
 
   #if DEBUG
   private let debugHooks = DebugHooks()
@@ -65,7 +76,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     Task {
       for await value in Defaults.updates(.showRecentCopyInMenuBar) {
         if value {
-          statusItem.button?.title = AppState.shared.menuIconText
+          statusItem.button?.title = appState.menuIconText
         } else {
           statusItem.button?.title = ""
         }
@@ -91,13 +102,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     migrateUserDefaults()
     disableUnusedGlobalHotkeys()
 
+    let appState = self.appState
     panel = FloatingPanel(
       contentRect: NSRect(origin: .zero, size: Defaults[.windowSize]),
       identifier: Bundle.main.bundleIdentifier ?? "org.p0deje.Maccy",
       statusBarButton: statusItem.button,
-      preview: AppState.shared.preview,
-      navigator: AppState.shared.navigator,
-      onClose: { AppState.shared.popup.reset() }
+      preview: appState.preview,
+      onClose: { [appState] in appState.popup.reset() }
     ) {
       ContentView()
     }
@@ -111,7 +122,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
   /// Reopens (toggles) the panel when the dock icon is clicked.
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-    panel.toggle(height: AppState.shared.popup.height)
+    panel.toggle(height: appState.popup.height)
     return true
   }
 
@@ -122,7 +133,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     #endif
 
     if Defaults[.clearOnQuit] {
-      AppState.shared.history.clear()
+      appState.history.clear()
     }
   }
 
@@ -170,21 +181,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       }
     }
 
-    panel.toggle(height: AppState.shared.popup.height, at: .statusItem)
+    panel.toggle(height: appState.popup.height, at: .statusItem)
   }
 
   /// Keeps the status item title in sync with the recent-copy text via
   /// observation tracking.
   private func synchronizeMenuIconText() {
     _ = withObservationTracking {
-      AppState.shared.menuIconText
+      appState.menuIconText
     } onChange: {
       Task { @MainActor [weak self] in
         guard let self else {
           return
         }
         if Defaults[.showRecentCopyInMenuBar] {
-          self.statusItem.button?.title = AppState.shared.menuIconText
+          self.statusItem.button?.title = self.appState.menuIconText
         }
         self.synchronizeMenuIconText()
       }

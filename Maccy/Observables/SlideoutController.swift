@@ -251,6 +251,11 @@ class SlideoutController {
     }
   }
 
+  /// Re-arms preview retargeting for the latest lead received from Navigation.
+  func scheduleCurrentLeadRetarget() {
+    scheduleRetarget(lead: currentLead)
+  }
+
   /// Cancels any pending auto-open.
   func cancelAutoOpen() {
     autoOpenTask?.cancel()
