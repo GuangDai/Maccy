@@ -17,61 +17,9 @@ struct PreviewItemView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      if item.hasImage {
-        AsyncView<NSImage?, _, _> {
-          return await item.asyncGetPreviewImage()
-        } content: { image in
-          if let image = image {
-            previewImage {
-              Image(nsImage: image)
-                .resizable()
-            }
-          } else {
-            previewImage {
-              ZStack {
-                Color.gray.opacity(0.3)
-                  .frame(
-                    idealWidth: HistoryItemDecorator.previewImageSize.width,
-                    idealHeight: HistoryItemDecorator.previewImageSize.height
-                  )
-                Image(systemName: "photo.badge.exclamationmark")
-                  .symbolRenderingMode(.multicolor)
-                  .frame(alignment: .center)
-              }
-            }
-          }
-        } placeholder: {
-          previewImage {
-            ZStack {
-              Color.gray.opacity(0.3)
-                .frame(
-                  idealWidth: HistoryItemDecorator.previewImageSize.width,
-                  idealHeight: HistoryItemDecorator.previewImageSize.height
-                )
-              ProgressView()
-                .frame(alignment: .center)
-            }
-          }
-        }
-      } else if item.needsScrollablePreview {
-        PreviewTextRep(
-          text: item.item.searchText ?? item.text,
-          query: item.previewBodyQuery,
-          ranges: item.previewBodyRanges
-        )
-      } else {
-        ScrollView {
-          if let preview = item.previewAttributedText {
-            Text(preview)
-              .font(.body)
-          } else {
-            Text(item.text)
-              .font(.body)
-          }
-        }
-      }
-
-      Spacer(minLength: 0)
+      previewBody
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .layoutPriority(1)
 
       Divider()
         .padding(.vertical)
@@ -106,6 +54,66 @@ struct PreviewItemView: View {
     }
     .controlSize(.small)
   }
+
+  @ViewBuilder
+  private var previewBody: some View {
+    if item.hasImage {
+      AsyncView<NSImage?, _, _> {
+        return await item.asyncGetPreviewImage()
+      } content: { image in
+        if let image {
+          previewImage {
+            Image(nsImage: image)
+              .resizable()
+          }
+        } else {
+          previewImage {
+            ZStack {
+              Color.gray.opacity(0.3)
+                .frame(
+                  idealWidth: HistoryItemDecorator.previewImageSize.width,
+                  idealHeight: HistoryItemDecorator.previewImageSize.height
+                )
+              Image(systemName: "photo.badge.exclamationmark")
+                .symbolRenderingMode(.multicolor)
+                .frame(alignment: .center)
+            }
+          }
+        }
+      } placeholder: {
+        previewImage {
+          ZStack {
+            Color.gray.opacity(0.3)
+              .frame(
+                idealWidth: HistoryItemDecorator.previewImageSize.width,
+                idealHeight: HistoryItemDecorator.previewImageSize.height
+              )
+            ProgressView()
+              .frame(alignment: .center)
+          }
+        }
+      }
+    } else if item.needsScrollablePreview {
+      PreviewTextRep(
+        text: item.item.searchText ?? item.text,
+        query: item.previewBodyQuery,
+        ranges: item.previewBodyRanges
+      )
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    } else {
+      ScrollView(.vertical) {
+        Group {
+          if let preview = item.previewAttributedText {
+            Text(preview).font(.body)
+          } else {
+            Text(item.text).font(.body)
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
 }
 
 /// Scrollable plain-text preview backed by `NSTextView`.
@@ -124,7 +132,31 @@ struct PreviewTextRep: NSViewRepresentable {
   let ranges: [Range<Int>]
 
   static func makeScrollView() -> NSScrollView {
-    NSTextView.scrollableTextView()
+    let scrollView = NSTextView.scrollableTextView()
+    scrollView.borderType = .noBorder
+    scrollView.drawsBackground = false
+    scrollView.hasVerticalScroller = true
+    scrollView.hasHorizontalScroller = false
+    scrollView.autohidesScrollers = true
+
+    if let textView = scrollView.documentView as? NSTextView {
+      textView.minSize = .zero
+      textView.maxSize = NSSize(
+        width: .greatestFiniteMagnitude,
+        height: .greatestFiniteMagnitude
+      )
+      textView.isVerticallyResizable = true
+      textView.isHorizontallyResizable = false
+      textView.autoresizingMask = [.width]
+      textView.textContainer?.containerSize = NSSize(
+        width: scrollView.contentSize.width,
+        height: .greatestFiniteMagnitude
+      )
+      textView.textContainer?.widthTracksTextView = true
+      textView.textContainer?.heightTracksTextView = false
+      textView.textContainer?.lineBreakMode = .byWordWrapping
+    }
+    return scrollView
   }
 
   func makeNSView(context: Context) -> NSScrollView {
