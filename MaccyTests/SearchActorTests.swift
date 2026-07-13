@@ -117,6 +117,19 @@ final class SearchActorTests: XCTestCase {
     XCTAssertTrue(results.isEmpty)
   }
 
+  func testRegexpSearchDoesNotScanBodyBeyondLimit() async {
+    let body = String(repeating: "a", count: TextLimits.regexp + 1) + "needle"
+    let corpus = [item(1, "title", body: body)]
+
+    let results = await searchActor.search(
+      query: "needle",
+      within: corpus,
+      mode: .regexp
+    )
+
+    XCTAssertTrue(results.isEmpty)
+  }
+
   /// An invalid regex is treated as matching nothing rather than trapping.
   func testRegexpInvalidPatternReturnsEmpty() async {
     let corpus = [item(1, "foo")]

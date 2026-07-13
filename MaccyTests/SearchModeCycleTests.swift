@@ -38,4 +38,9 @@ final class SearchModeCycleTests: XCTestCase {
     let glyphs = Search.Mode.allCases.map(\.abbreviation)
     XCTAssertEqual(glyphs.count, Set(glyphs).count, "abbreviations must be unique")
   }
+
+  func test_unsafeRegexpRejectsOptionalAndAlternationBacktracking() {
+    XCTAssertTrue(Search.isLikelyUnsafeRegularExpression("(a?)+$"))
+    XCTAssertTrue(Search.isLikelyUnsafeRegularExpression("(a|aa)*$"))
+  }
 }

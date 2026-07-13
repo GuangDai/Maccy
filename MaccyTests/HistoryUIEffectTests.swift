@@ -214,6 +214,27 @@ final class AppStateRuntimeServicesTests: XCTestCase {
     XCTAssertEqual(history.searchQuery, "")
   }
 
+  func testEmptySelectionAndEmptyQueryDoNotCopy() async {
+    let history = History(
+      persistence: RuntimeServicesPersistence(),
+      logsPersistenceErrors: false
+    )
+    var copiedText: [String] = []
+    let appState = AppState(
+      history: history,
+      footer: Footer(),
+      runtimeServices: AppStateRuntimeServices(
+        copyText: { copiedText.append($0) },
+        readStorageSize: { "" }
+      )
+    )
+
+    appState.select()
+    await Task.yield()
+
+    XCTAssertTrue(copiedText.isEmpty)
+  }
+
   func testPrewarmUsesTheAppStatesInjectedHistory() async {
     let persistence = RuntimeServicesPersistence()
     let history = History(

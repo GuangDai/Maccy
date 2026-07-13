@@ -71,6 +71,7 @@ final class HistoryPinPersistenceTests: XCTestCase {
     try SwiftDataHistoryPersistence(context: context).deleteAll()
 
     XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItem>()), 0)
+    XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItemContent>()), 0)
   }
 
   /// Pin availability is queried through the caller-provided context and excludes assigned keys.

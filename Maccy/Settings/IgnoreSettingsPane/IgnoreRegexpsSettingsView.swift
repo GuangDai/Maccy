@@ -1,6 +1,17 @@
 import SwiftUI
 import Defaults
 
+/// Owns the value rule for replacing one configured ignore regexp.
+enum IgnoreRegexpEditor {
+  static func replacing(
+    _ original: String,
+    with draft: String,
+    in patterns: [String]
+  ) -> [String] {
+    patterns
+  }
+}
+
 /// Tab for managing regular expressions whose matching copies are ignored.
 struct IgnoreRegexpsSettingsView: View {
   @Default(.ignoreRegexp) private var ignoredRegexps

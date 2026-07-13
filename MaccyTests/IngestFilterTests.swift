@@ -397,6 +397,28 @@ final class IngestFilterTests: XCTestCase {
     XCTAssertEqual(result.map(\.type), [stringType])
   }
 
+  func testIgnoreRegexpEditorReplacesOnlyTheEditedPattern() {
+    XCTAssertEqual(
+      IgnoreRegexpEditor.replacing(
+        "bar",
+        with: "baz",
+        in: ["foo", "bar"]
+      ),
+      ["foo", "baz"]
+    )
+  }
+
+  func testIgnoreRegexpEditorRejectsEmptyAndUnchangedDrafts() {
+    XCTAssertEqual(
+      IgnoreRegexpEditor.replacing("bar", with: "", in: ["foo", "bar"]),
+      ["foo", "bar"]
+    )
+    XCTAssertEqual(
+      IgnoreRegexpEditor.replacing("bar", with: "bar", in: ["foo", "bar"]),
+      ["foo", "bar"]
+    )
+  }
+
   func testUnsafeRegexpIsSkippedAndContentKept() {
     // A pattern with nested quantifiers is rejected by
     // Search.isLikelyUnsafeRegularExpression and skipped, so it does not ignore.
