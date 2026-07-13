@@ -384,6 +384,19 @@ final class IngestFilterTests: XCTestCase {
     XCTAssertEqual(result.map(\.type), [stringType])
   }
 
+  func testEmptyIgnoreRegexpIsSkippedAndContentKept() {
+    var config = defaultConfig
+    config.ignoreRegexp = [""]
+
+    let result = filterContents(
+      [dto(stringType, "hello world")],
+      application: nil,
+      config: config
+    )
+
+    XCTAssertEqual(result.map(\.type), [stringType])
+  }
+
   func testUnsafeRegexpIsSkippedAndContentKept() {
     // A pattern with nested quantifiers is rejected by
     // Search.isLikelyUnsafeRegularExpression and skipped, so it does not ignore.
