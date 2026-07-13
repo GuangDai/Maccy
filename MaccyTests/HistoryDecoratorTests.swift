@@ -370,7 +370,7 @@ class HistoryItemDecoratorTests: XCTestCase {
   private func historyItemDecorator(
     _ value: Data?,
     _ type: NSPasteboard.PasteboardType,
-    imageProcessor: ImageProcessing = HistoryItemDecorator.defaultImageProcessor
+    imageProcessor: ImageProcessing = PassthroughImageProcessor()
   ) -> HistoryItemDecorator {
     let contents = [
       HistoryItemContent(

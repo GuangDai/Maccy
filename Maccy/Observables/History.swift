@@ -18,8 +18,10 @@ class History: ItemsContainer {
     let mutationLogger = Logger(label: "org.p0deje.Maccy")
     let context = Storage.shared.context
     let pinService = PinService(context: context)
+    let decoratorFactory = HistoryItemDecoratorFactory.live()
     return History(
       persistence: SwiftDataHistoryPersistence(context: context),
+      decoratorFactory: decoratorFactory,
       runtimeServices: HistoryRuntimeServices(
         clipboard: HistoryClipboardActions(
           clear: { Clipboard.shared.clear() },
@@ -96,7 +98,14 @@ class History: ItemsContainer {
   @ObservationIgnored private let searchSession: HistorySearchSession
   @ObservationIgnored private let storeProjector: HistoryStoreProjector
   @ObservationIgnored private let mutations: HistoryMutations
+  @ObservationIgnored private let decoratorFactory: HistoryItemDecoratorFactory
   var searchGeneration: Int { searchSession.generation }
+
+  /// Processor owned by this History's decorator factory. The application
+  /// composition reuses it for ingestion so both paths share one cache.
+  var decoratorImageProcessor: any ImageProcessing {
+    decoratorFactory.imageProcessor
+  }
 
   /// All history decorators, including those hidden by the current search.
   /// `items` holds only the visible (filtered) subset.
@@ -112,17 +121,20 @@ class History: ItemsContainer {
   init(
     persistence: HistoryPersistence,
     listState: HistoryListState = HistoryListState(),
+    decoratorFactory: HistoryItemDecoratorFactory = .isolated(),
     runtimeServices: HistoryRuntimeServices = .inert,
     logsPersistenceErrors: Bool = true
   ) {
     self.listState = listState
+    self.decoratorFactory = decoratorFactory
     self.runtimeServices = runtimeServices
     let searchSession = HistorySearchSession(listState: listState)
     self.searchSession = searchSession
     self.storeProjector = HistoryStoreProjector(
       persistence: persistence,
       listState: listState,
-      searchSession: searchSession
+      searchSession: searchSession,
+      decoratorFactory: decoratorFactory
     )
     let mutations = HistoryMutations(
       persistence: persistence,

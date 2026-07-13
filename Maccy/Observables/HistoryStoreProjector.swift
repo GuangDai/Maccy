@@ -9,6 +9,7 @@ final class HistoryStoreProjector {
   private let listState: HistoryListState
   private let searchSession: HistorySearchSession
   private let sorter: Sorter
+  private let decoratorFactory: HistoryItemDecoratorFactory
   private var uiEffectSink: HistoryUIEffectSink = { _ in }
   private var errorSink: @MainActor (String, Error) -> Void = { _, _ in }
   private var didPublishVisible: @MainActor () -> Void = {}
@@ -18,11 +19,13 @@ final class HistoryStoreProjector {
     persistence: HistoryPersistence,
     listState: HistoryListState,
     searchSession: HistorySearchSession,
+    decoratorFactory: HistoryItemDecoratorFactory,
     sorter: Sorter = Sorter()
   ) {
     self.persistence = persistence
     self.listState = listState
     self.searchSession = searchSession
+    self.decoratorFactory = decoratorFactory
     self.sorter = sorter
   }
 
@@ -46,7 +49,7 @@ final class HistoryStoreProjector {
   func load() throws {
     let models = try persistence.fetchAll()
     let decorators = autoreleasepool {
-      sorter.sort(models).map { HistoryItemDecorator($0) }
+      sorter.sort(models).map { decoratorFactory.make($0) }
     }
     let unpinnedOverflow = Array(
       decorators.filter(\.isUnpinned).dropFirst(max(1, Defaults[.size]))
@@ -112,7 +115,7 @@ final class HistoryStoreProjector {
       uniquingKeysWith: { first, _ in first }
     )
     let rebuilt = sorted.map { model in
-      existingByID[model.persistentModelID] ?? HistoryItemDecorator(model)
+      existingByID[model.persistentModelID] ?? decoratorFactory.make(model)
     }
     let rebuiltIDs = Set(rebuilt.map { $0.item.persistentModelID })
     for decorator in listState.all where !rebuiltIDs.contains(decorator.item.persistentModelID) {
@@ -153,7 +156,7 @@ final class HistoryStoreProjector {
       return
     }
 
-    let decorator = HistoryItemDecorator(model)
+    let decorator = decoratorFactory.make(model)
     let position = BinaryInsertion.index(
       for: decorator,
       in: listState.all,
