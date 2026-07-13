@@ -9,19 +9,17 @@ import SwiftUI
 class NavigationManager {
   private var history: History
   private var footer: Footer
-  private var leadChangeSink: @MainActor (HistoryItemDecorator?) -> Void = { _ in }
+  private let onLeadChange: @MainActor (HistoryItemDecorator?) -> Void
 
-  /// Creates the manager bound to its history and footer.
-  init(history: History, footer: Footer) {
+  /// Creates the manager bound to its history, footer, and lead-change output.
+  init(
+    history: History,
+    footer: Footer,
+    onLeadChange: @escaping @MainActor (HistoryItemDecorator?) -> Void = { _ in }
+  ) {
     self.history = history
     self.footer = footer
-  }
-
-  /// Configures the composition-owned observer for lead changes.
-  func configureLeadChangeSink(
-    _ sink: @escaping @MainActor (HistoryItemDecorator?) -> Void
-  ) {
-    leadChangeSink = sink
+    self.onLeadChange = onLeadChange
   }
 
   /// The current multi-capable selection; `willSet` mirrors the selection index
@@ -63,14 +61,7 @@ class NavigationManager {
       Task { @MainActor in
         previous?.cancelPreviewGeneration()
       }
-      let preview = AppState.shared.preview
-      if leadHistoryItem != nil {
-        preview.resetAutoOpenSuppression()
-        preview.scheduleRetarget(lead: leadHistoryItem)
-      } else {
-        preview.cancelAutoOpen()
-        preview.previewedItem = nil
-      }
+      onLeadChange(leadHistoryItem)
     }
   }
 

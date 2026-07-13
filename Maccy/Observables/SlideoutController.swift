@@ -262,4 +262,15 @@ class SlideoutController {
   func resetAutoOpenSuppression() {
     autoOpenSuppressed = false
   }
+
+  /// Applies a navigation lead change to preview auto-open/retarget state.
+  func handleLeadChange(_ lead: HistoryItemDecorator?) {
+    if let lead {
+      resetAutoOpenSuppression()
+      scheduleRetarget(lead: lead)
+    } else {
+      cancelAutoOpen()
+      previewedItem = nil
+    }
+  }
 }

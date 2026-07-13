@@ -319,9 +319,6 @@ final class FooterActionTests: XCTestCase {
 @MainActor
 final class NavigationLeadChangeTests: XCTestCase {
   func testSelectionPublishesCurrentLead() {
-    AppState.shared.preview.disableAutoOpen()
-    defer { AppState.shared.preview.enableAutoOpen() }
-
     let first = HistoryItemDecorator(
       HistoryBuilder()
         .withContent(type: "public.utf8-plain-text", value: Data("first".utf8))
@@ -337,9 +334,12 @@ final class NavigationLeadChangeTests: XCTestCase {
       listState: HistoryListState(decorators: [first, second]),
       logsPersistenceErrors: false
     )
-    let navigator = NavigationManager(history: history, footer: Footer())
     var changes: [HistoryItemDecorator?] = []
-    navigator.configureLeadChangeSink { changes.append($0) }
+    let navigator = NavigationManager(
+      history: history,
+      footer: Footer(),
+      onLeadChange: { changes.append($0) }
+    )
 
     navigator.select(item: first)
     navigator.select(item: second)

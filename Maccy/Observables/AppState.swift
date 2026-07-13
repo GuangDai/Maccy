@@ -77,14 +77,21 @@ class AppState {
     self.footer = footer
     self.runtimeServices = runtimeServices
     popup = Popup()
-    navigator = NavigationManager(history: history, footer: footer)
-    preview = SlideoutController(
+    let preview = SlideoutController(
       onContentResize: { contentWidth in
         Defaults[.windowSize].width = contentWidth
       },
       onSlideoutResize: { previewWidth in
         Defaults[.previewWidth] = previewWidth
       })
+    self.preview = preview
+    navigator = NavigationManager(
+      history: history,
+      footer: footer,
+      onLeadChange: { current in
+        preview.handleLeadChange(current)
+      }
+    )
     preview.contentWidth = Defaults[.windowSize].width
     preview.slideoutWidth = Defaults[.previewWidth]
     history.configureUIEffectSink { [weak self] effect in
