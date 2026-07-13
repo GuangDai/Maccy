@@ -74,8 +74,8 @@ final class HistoryPinPersistenceTests: XCTestCase {
     XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItemContent>()), 0)
   }
 
-  /// SQLite batch deletion removes saved child rows explicitly instead of
-  /// relying on in-memory relationship-cascade behavior.
+  /// SQLite batch deletion honors the model's cascade relationship rather
+  /// than only appearing correct in the in-memory test store.
   func testDeleteAllRemovesSavedContentsFromSQLiteStore() throws {
     let directory = FileManager.default.temporaryDirectory
       .appending(path: UUID().uuidString, directoryHint: .isDirectory)

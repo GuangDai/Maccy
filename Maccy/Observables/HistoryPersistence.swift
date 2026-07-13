@@ -72,13 +72,14 @@ struct SwiftDataHistoryPersistence: HistoryPersistence {
   }
 
   func deleteAll() throws {
+    // Predicate deletion only sees persisted rows. Commit pending inserts
+    // first, then let HistoryItem's cascade relationship remove its contents.
+    // Explicitly batch-deleting both sides of that relationship leaves the
+    // SwiftData context in an invalid state on the next fetch.
     if context.hasChanges {
       try context.save()
     }
-    try context.transaction {
-      try context.delete(model: HistoryItem.self)
-      try context.delete(model: HistoryItemContent.self)
-    }
+    try context.delete(model: HistoryItem.self)
     context.processPendingChanges()
     try context.save()
   }

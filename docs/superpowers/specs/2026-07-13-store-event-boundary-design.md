@@ -10,17 +10,16 @@ item from its dedup index, while a newly observed copy overtakes that removal.
 
 The same boundary also contains a dependency cycle: the live `History` factory
 reaches `Clipboard.shared`, while `Clipboard` writes ingest failures directly to
-`History.shared.lastPersistError`. Separately, `deleteAll()` batch-deletes only
-`HistoryItem`; store-level batch deletes do not provide a reliable child-row
-cascade for `HistoryItemContent`.
+`History.shared.lastPersistError`. Separately, `deleteAll()` starts with a store
+predicate, so it must first commit pending inserts before clearing the store.
 
 ## Goals
 
 - Give pasteboard ingests and main-side store events one FIFO order.
 - Preserve every observed copy and every committed delete/clear event.
 - Remove the `Clipboard -> History.shared` dependency.
-- Make clear-all remove both history items and their content rows, including
-  changes that were pending when the command began.
+- Make clear-all include changes that were pending when the command began while
+  preserving the model's existing cascade semantics.
 - Keep all actor boundaries DTO-only and preserve current user-visible behavior.
 
 ## Non-goals
@@ -65,13 +64,13 @@ This keeps success and failure delivery separate at the leaf while making their
 application ownership explicit at the composition boundary. A non-failure
 result remains a no-op.
 
-### Complete clear-all transaction
+### Pending-safe clear-all cascade
 
 `SwiftDataHistoryPersistence.deleteAll()` will first save pending main-context
-changes, matching `deleteUnpinned()`. It will then batch-delete
-`HistoryItem` and `HistoryItemContent` inside one transaction, process pending
-changes, and save once. Explicitly deleting both entities makes the store result
-independent of relationship cascade behavior in in-memory versus SQLite stores.
+changes, matching `deleteUnpinned()`. It will then batch-delete `HistoryItem`,
+process pending changes, and save once. The model's
+`@Relationship(deleteRule: .cascade)` owns child deletion, as required by the
+SwiftData contract; deleting both sides explicitly can invalidate the context.
 
 ## Data flow
 
@@ -100,8 +99,8 @@ pasteboard change -> Clipboard request snapshot
 - Verify the composition root wires a failure into the supplied `AppState`'s
   history rather than `History.shared` where practical through existing seams.
 - Add a pending-insert clear-all test and retain the child-count assertion.
-  Use a temporary SQLite-backed `Storage` test when needed to cover store-level
-  batch behavior instead of relying only on the in-memory configuration.
+  Use a temporary SQLite-backed `Storage` test to verify that the declared
+  cascade works in the persistent store as well as in memory.
 
 ## Risks and controls
 
@@ -118,5 +117,6 @@ pasteboard change -> Clipboard request snapshot
 - No fire-and-forget store-event synchronization remains in production wiring.
 - `Clipboard.swift` contains no reference to `History.shared`.
 - Mailbox tests prove mixed operations execute FIFO and losslessly.
-- Clear-all leaves both model counts at zero for saved and pending rows.
+- Clear-all leaves both model counts at zero for saved and pending rows without
+  explicitly double-deleting the relationship child.
 - Generated-project, lint/build, unit, UI, and performance CI shards remain green.

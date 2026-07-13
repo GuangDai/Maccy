@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Serialize store-event synchronization with clipboard ingestion, remove the Clipboard-to-History singleton edge, and make clear-all delete every persisted content row.
+**Goal:** Serialize store-event synchronization with clipboard ingestion, remove the Clipboard-to-History singleton edge, and make clear-all include pending rows without bypassing relationship ownership.
 
-**Architecture:** Generalize the existing main-actor `IngestMailbox` into one FIFO for ingest and synchronization operations. Keep `Clipboard` as the narrow adapter, with failures leaving it through a composition-injected sink. Keep persistence cleanup inside `SwiftDataHistoryPersistence` and delete both SwiftData entities in one transaction.
+**Architecture:** Generalize the existing main-actor `IngestMailbox` into one FIFO for ingest and synchronization operations. Keep `Clipboard` as the narrow adapter, with failures leaving it through a composition-injected sink. Keep persistence cleanup inside `SwiftDataHistoryPersistence`, save pending inserts before the predicate delete, and let the declared cascade own child deletion.
 
 **Tech Stack:** Swift 6 complete concurrency, AppKit, SwiftData, XCTest, XcodeGen, GitHub Actions macOS arm64 runner.
 
@@ -221,7 +221,7 @@ git commit -m "refactor(quality): compose clipboard history outputs"
 
 ---
 
-### Task 3: Complete clear-all persistence semantics
+### Task 3: Pending-safe clear-all persistence semantics
 
 **Files:**
 - Modify: `Maccy/Observables/HistoryPersistence.swift`
@@ -229,7 +229,7 @@ git commit -m "refactor(quality): compose clipboard history outputs"
 
 **Interfaces:**
 - Consumes: existing `HistoryPersistence.deleteAll()` throwing contract.
-- Produces: the same public contract with complete parent/child and pending-row deletion.
+- Produces: the same public contract with pending-row deletion and model-owned child cascading.
 
 - [ ] **Step 1: Write a pending-insert regression test**
 
@@ -258,7 +258,7 @@ git add MaccyTests/HistoryPinPersistenceTests.swift
 git commit -m "test(quality): define complete clear all persistence"
 ```
 
-- [ ] **Step 3: Implement one complete transaction**
+- [ ] **Step 3: Implement the pending-safe cascade**
 
 Replace `deleteAll()` with:
 
@@ -267,16 +267,15 @@ func deleteAll() throws {
   if context.hasChanges {
     try context.save()
   }
-  try context.transaction {
-    try context.delete(model: HistoryItem.self)
-    try context.delete(model: HistoryItemContent.self)
-  }
+  try context.delete(model: HistoryItem.self)
   context.processPendingChanges()
   try context.save()
 }
 ```
 
-This mirrors `deleteUnpinned`: it makes pending inserts visible to batch deletion and explicitly clears both entity tables.
+This makes pending inserts visible to the batch deletion. `HistoryItem.contents`
+declares `.cascade`, so the parent delete remains the single owner of child-row
+cleanup; do not issue a second batch delete for `HistoryItemContent`.
 
 - [ ] **Step 4: Commit the persistence fix**
 
