@@ -221,13 +221,15 @@ final class SearchTextMigrationTests: XCTestCase {
   /// during recovery as a newly ingested RTF row.
   func testRecopyBackfillsMissingRtfSearchTextOnMainActor() async {
     let body = "legacy rich body"
+    let sharedImage = Data("shared image bytes".utf8)
     let attributed = NSAttributedString(string: body)
     let rtf = attributed.rtf(
       from: NSRange(location: 0, length: attributed.length),
       documentAttributes: [:]
     )
     let legacy = HistoryItem(contents: [
-      HistoryItemContent(type: NSPasteboard.PasteboardType.rtf.rawValue, value: rtf)
+      HistoryItemContent(type: NSPasteboard.PasteboardType.rtf.rawValue, value: rtf),
+      HistoryItemContent(type: NSPasteboard.PasteboardType.png.rawValue, value: sharedImage)
     ])
     legacy.title = legacy.generateTitle()
     Storage.shared.context.insert(legacy)
@@ -236,7 +238,7 @@ final class SearchTextMigrationTests: XCTestCase {
     let ingestor = makeIngestor()
 
     let result = await ingestor.ingest(
-      request([content(type: NSPasteboard.PasteboardType.rtf.rawValue, value: rtf)])
+      request([content(type: NSPasteboard.PasteboardType.png.rawValue, value: sharedImage)])
     )
 
     if case .merged = result.event {
@@ -245,6 +247,7 @@ final class SearchTextMigrationTests: XCTestCase {
       XCTFail("Expected .merged, got \(String(describing: result.event))")
     }
     let stored = try? Storage.shared.context.fetch(FetchDescriptor<HistoryItem>())
+    XCTAssertEqual(stored?.first?.contents.count, 2)
     XCTAssertEqual(stored?.first?.searchText, body)
   }
 
