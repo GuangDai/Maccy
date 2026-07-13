@@ -8,7 +8,14 @@ enum IgnoreRegexpEditor {
     with draft: String,
     in patterns: [String]
   ) -> [String] {
-    patterns
+    guard !draft.isEmpty,
+          draft != original,
+          let index = patterns.firstIndex(of: original) else {
+      return patterns
+    }
+    var result = patterns
+    result[index] = draft
+    return result
   }
 }
 
@@ -17,23 +24,19 @@ struct IgnoreRegexpsSettingsView: View {
   @Default(.ignoreRegexp) private var ignoredRegexps
 
   @FocusState private var focus: String.ID?
-  @State private var edit = ""
   @State private var selection = ""
 
   var body: some View {
     VStack(alignment: .leading) {
       List(selection: $selection) {
         ForEach(ignoredRegexps) { regexp in
-          TextField("", text: Binding(
-            get: { regexp },
-            set: {
-              guard !$0.isEmpty, regexp != $0 else { return }
-              edit = $0
-            })
-          ).onSubmit {
-            remove(regexp)
-            ignoredRegexps.append(edit)
-          }.focused($focus, equals: regexp)
+          IgnoreRegexpRow(regexp: regexp, focus: $focus) { draft in
+            ignoredRegexps = IgnoreRegexpEditor.replacing(
+              regexp,
+              with: draft,
+              in: ignoredRegexps
+            )
+          }
         }
       }.onDeleteCommand {
         remove(selection)
@@ -61,6 +64,30 @@ struct IgnoreRegexpsSettingsView: View {
     guard let regexp else { return }
 
     ignoredRegexps.removeAll(where: { $0 == regexp })
+  }
+}
+
+private struct IgnoreRegexpRow: View {
+  let regexp: String
+  @FocusState.Binding var focus: String.ID?
+  let onSubmit: (String) -> Void
+  @State private var draft: String
+
+  init(
+    regexp: String,
+    focus: FocusState<String.ID?>.Binding,
+    onSubmit: @escaping (String) -> Void
+  ) {
+    self.regexp = regexp
+    _focus = focus
+    self.onSubmit = onSubmit
+    _draft = State(initialValue: regexp)
+  }
+
+  var body: some View {
+    TextField("", text: $draft)
+      .onSubmit { onSubmit(draft) }
+      .focused($focus, equals: regexp)
   }
 }
 

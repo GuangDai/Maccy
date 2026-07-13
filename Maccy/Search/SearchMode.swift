@@ -45,8 +45,12 @@ enum Search {
     guard pattern.count <= TextLimits.regexpInput else {
       return true
     }
-    let nestedQuantifierPattern = #"\([^)]*([+*]|\{\d+,?\d*\})[^)]*\)([+*]|\{\d+,?\d*\})"#
+    let nestedQuantifierPattern =
+      #"\([^)]*([+*?]|\{\d+,?\d*\})[^)]*\)([+*?]|\{\d+,?\d*\})"#
+    let quantifiedAlternationPattern =
+      #"\([^)]*\|[^)]*\)([+*?]|\{\d+,?\d*\})"#
     return pattern.range(of: nestedQuantifierPattern, options: .regularExpression) != nil
+      || pattern.range(of: quantifiedAlternationPattern, options: .regularExpression) != nil
   }
 
   /// Whether a pattern contains syntax that can add matches after exact search.

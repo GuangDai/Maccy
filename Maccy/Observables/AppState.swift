@@ -132,7 +132,7 @@ class AppState {
       } else {
         performFooterAction(item.action)
       }
-    } else {
+    } else if !history.searchQuery.isEmpty {
       runtimeServices.copyText(history.searchQuery)
       history.searchQuery = ""
     }

@@ -250,16 +250,17 @@ actor SearchActor {
       let upper = limitedTitle.distance(from: limitedTitle.startIndex, to: matchRange.upperBound)
       return SearchMatchDTO(id: item.id, title: item.title, score: nil, ranges: [lower..<upper])
     }
-    guard !item.body.isEmpty else {
+    let limitedBody = item.body.shortened(to: regexpSearchLimit)
+    guard !limitedBody.isEmpty else {
       return nil
     }
-    let bodyRange = NSRange(item.body.startIndex..., in: item.body)
-    guard let match = regex.firstMatch(in: item.body, range: bodyRange),
-          let matchRange = Range(match.range, in: item.body) else {
+    let bodyRange = NSRange(limitedBody.startIndex..., in: limitedBody)
+    guard let match = regex.firstMatch(in: limitedBody, range: bodyRange),
+          let matchRange = Range(match.range, in: limitedBody) else {
       return nil
     }
-    let lower = item.body.distance(from: item.body.startIndex, to: matchRange.lowerBound)
-    let upper = item.body.distance(from: item.body.startIndex, to: matchRange.upperBound)
+    let lower = limitedBody.distance(from: limitedBody.startIndex, to: matchRange.lowerBound)
+    let upper = limitedBody.distance(from: limitedBody.startIndex, to: matchRange.upperBound)
     return SearchMatchDTO(id: item.id, title: item.title, score: nil, ranges: [lower..<upper], inBody: true)
   }
 }
