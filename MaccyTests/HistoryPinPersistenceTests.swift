@@ -60,8 +60,24 @@ final class HistoryPinPersistenceTests: XCTestCase {
     XCTAssertEqual(stored.first?.pin, "a")
   }
 
-  /// SQLite batch deletion honors the model's cascade relationship rather
-  /// than only appearing correct in the in-memory test store.
+  /// Clear-all removes rows already in the store and inserts still pending in
+  /// the caller-owned context, without first saving and remapping those models.
+  func testDeleteAllRemovesSavedAndPendingRows() throws {
+    let isolatedStorage = Storage(storedInMemoryForTesting: true)
+    let context = isolatedStorage.context
+    context.insert(historyItem("saved-clear-all"))
+    try context.save()
+    context.insert(historyItem("pending-clear-all"))
+    XCTAssertTrue(context.hasChanges)
+
+    try SwiftDataHistoryPersistence(context: context).deleteAll()
+
+    XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItem>()), 0)
+    XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItemContent>()), 0)
+  }
+
+  /// SQLite deletion honors the model's cascade relationship rather than only
+  /// appearing correct in the in-memory test store.
   func testDeleteAllRemovesSavedContentsFromSQLiteStore() throws {
     let directory = FileManager.default.temporaryDirectory
       .appending(path: UUID().uuidString, directoryHint: .isDirectory)
