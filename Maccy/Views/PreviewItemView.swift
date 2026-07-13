@@ -148,7 +148,7 @@ struct PreviewTextRep: NSViewRepresentable {
       textView.isVerticallyResizable = true
       textView.isHorizontallyResizable = false
       textView.autoresizingMask = [.width]
-      textView.textContainer?.containerSize = NSSize(
+      textView.textContainer?.size = NSSize(
         width: scrollView.contentSize.width,
         height: .greatestFiniteMagnitude
       )
