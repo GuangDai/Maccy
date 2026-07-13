@@ -71,12 +71,15 @@ final class PopupTests: XCTestCase {
     let popup = Popup(runtimeServices: recorder.services, installsEventHandlers: false)
     let savedWindowSize = Defaults[.windowSize]
     let savedMaxVisibleItems = Defaults[.maxVisibleItems]
+    let savedPreviewMinimumHeightPercent = Defaults[.previewMinimumHeightPercent]
     defer {
       Defaults[.windowSize] = savedWindowSize
       Defaults[.maxVisibleItems] = savedMaxVisibleItems
+      Defaults[.previewMinimumHeightPercent] = savedPreviewMinimumHeightPercent
     }
     Defaults[.windowSize] = NSSize(width: 450, height: 800)
     Defaults[.maxVisibleItems] = 100
+    Defaults[.previewMinimumHeightPercent] = 60
 
     popup.open(height: 120, at: .cursor)
     XCTAssertEqual(recorder.initialSelectionCalls, 1)
@@ -91,9 +94,15 @@ final class PopupTests: XCTestCase {
     XCTAssertEqual(recorder.closePanelCalls, 1)
 
     recorder.previewMinimumRequired = true
-    XCTAssertEqual(popup.preferredHeight(for: 10), Popup.minimumPreviewHeight)
+    XCTAssertEqual(popup.preferredHeight(for: 10), 480)
     popup.resize(height: 120)
-    XCTAssertEqual(recorder.resizedHeights, [Popup.minimumPreviewHeight])
+    XCTAssertEqual(recorder.resizedHeights, [480])
+  }
+
+  func testPreviewMinimumHeightScalesWithWindowAndClampsPercent() {
+    XCTAssertEqual(Popup.previewMinimumHeight(maximumHeight: 800, percent: 60), 480)
+    XCTAssertEqual(Popup.previewMinimumHeight(maximumHeight: 800, percent: 0), 200)
+    XCTAssertEqual(Popup.previewMinimumHeight(maximumHeight: 800, percent: 200), 800)
   }
 
   func testInjectedRuntimeOwnsOpenCycleAndCommitEffects() async {

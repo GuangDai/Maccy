@@ -317,6 +317,20 @@ class HistoryItemDecoratorTests: XCTestCase {
     XCTAssertEqual(deep.length, 11)
   }
 
+  func testPreviewTextScrollViewTracksViewportWidth() throws {
+    let scrollView = PreviewTextRep.makeScrollView()
+    let textView = try XCTUnwrap(scrollView.documentView as? NSTextView)
+
+    XCTAssertTrue(scrollView.hasVerticalScroller)
+    XCTAssertFalse(scrollView.hasHorizontalScroller)
+    XCTAssertTrue(scrollView.autohidesScrollers)
+    XCTAssertTrue(textView.isVerticallyResizable)
+    XCTAssertFalse(textView.isHorizontallyResizable)
+    XCTAssertTrue(textView.autoresizingMask.contains(.width))
+    XCTAssertTrue(try XCTUnwrap(textView.textContainer).widthTracksTextView)
+    XCTAssertEqual(textView.textContainer?.lineBreakMode, .byWordWrapping)
+  }
+
   /// Highlighting reaches matches past the old fixed 500-char render cap.
   /// The render window now tracks the title-preview window, so a match near the
   /// end of a long title is styled instead of silently dropped.
