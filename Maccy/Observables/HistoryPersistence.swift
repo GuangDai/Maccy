@@ -72,7 +72,13 @@ struct SwiftDataHistoryPersistence: HistoryPersistence {
   }
 
   func deleteAll() throws {
-    try context.delete(model: HistoryItem.self)
+    if context.hasChanges {
+      try context.save()
+    }
+    try context.transaction {
+      try context.delete(model: HistoryItem.self)
+      try context.delete(model: HistoryItemContent.self)
+    }
     context.processPendingChanges()
     try context.save()
   }
