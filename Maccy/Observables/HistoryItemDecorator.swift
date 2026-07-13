@@ -172,24 +172,21 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
 
   private let logger = Logger(label: "org.p0deje.Maccy")
 
-  /// Process-wide shared off-main image processor. `let` (lazy, thread-safe
-  /// init) so every decorator that takes the default shares one `ImageProcessor`
-  /// and therefore one `ThumbnailCache`; `AppDelegate` passes this same instance
-  /// into the ingestor so thumbnails are cached across both paths.
-  static let defaultImageProcessor: any ImageProcessing = ImageProcessor(cache: ThumbnailCache())
-
   /// Creates a decorator for `item`, seeding title/shortcuts and the app icon,
-  /// and starting pin/title observation.
+  /// and starting pin/title observation. Persisted projections supply both
+  /// image dependencies through `HistoryItemDecoratorFactory`; the fallbacks
+  /// keep standalone test construction isolated from process-wide resources.
   init(
     _ item: HistoryItem,
     shortcuts: [KeyShortcut] = [],
-    imageProcessor: ImageProcessing = HistoryItemDecorator.defaultImageProcessor
+    imageProcessor: ImageProcessing = PassthroughImageProcessor(),
+    applicationImage: ApplicationImage? = nil
   ) {
     self.item = item
     self.shortcuts = shortcuts
     self.title = item.title
     self.imageProcessor = imageProcessor
-    self.applicationImage = ApplicationImageCache.shared.getImage(item: item)
+    self.applicationImage = applicationImage ?? ApplicationImage(bundleIdentifier: nil)
 
     synchronizeItemPin()
     synchronizeItemTitle()

@@ -1,9 +1,7 @@
 /// Main-actor cache of `ApplicationImage` instances keyed by bundle identifier,
 /// bounded by `NSCache` so the OS can evict entries under memory pressure.
 @MainActor
-class ApplicationImageCache {
-  static let shared = ApplicationImageCache()
-
+final class ApplicationImageCache {
   private let universalClipboardIdentifier: String =
   "com.apple.finder.Open-iCloudDrive"
   private let fallback = ApplicationImage(bundleIdentifier: nil)
