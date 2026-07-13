@@ -147,7 +147,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 | `@unchecked Sendable` on HistoryItemDecorator/AppDelegate | [已修] | `IMG-035`/`historyitem-unchecked-sendable`:BS-7 实际归零(grep 0 标注),complete 模式 CI 绿 |
 | `WrappingTextView` 双次 sizeThatFits | [未修] | `LT-RENDER-02` |
 | `.drawingGroup()` 每行每重绘栅格化 | [部分] | `LT-RENDER-03`:标题/预览高亮 memoize 已做，并由 `RowHighlighter` 直接测试锁定重复输入不重新赋值；`.drawingGroup()` 本身仍保留，所以状态仍为部分。 |
-| `updateUnpinnedShortcuts` 双遍赋值 | [待 CI] | 单遍计算可见 unpinned 项的目标 1–9 bindings，并仅在 key/modifier 语义变化时赋值；不变项保留 shortcut UUID 且不发 Observation 通知。full matrix 待验证。 |
+| `updateUnpinnedShortcuts` 双遍赋值 | [已修] | 单遍计算可见 unpinned 项的目标 1–9 bindings，并仅在 key/modifier 语义变化时赋值；不变项保留 shortcut UUID 且不发 Observation 通知。RED run `29261750444` 精确命中 2 条新增断言；full matrix `29262900732`。 |
 
 ---
 
@@ -165,12 +165,11 @@ ingestor 一次复制只发**一个**后台 context 事务(insert + 去重合并
 
 ### 3.3 仍未修的高危数据安全项
 
+已从下表移除三条过时 finding:`07-F-001` 已将损坏 store 隔离而非删除（`StorageRecoveryTests`）；`07-F-017` 在 file-size 元数据失败时直接返回（`HistoryItemFileDataTests`）；`07-F-032` 在首元素前置导航时返回 `nil`（`CollectionSurroundingTests`）。
+
 | finding-id | 位置 | 问题 |
 |---|---|---|
-| 07-F-001 | `Storage.swift:37-72` | `recoverContainer` 容器加载失败即**删 SQLite/WAL/SHM**(`removeStoreFiles`)——不可逆丢全部历史 |
 | 07-F-002 / 07-F-003 | `History.swift` 多处 | 全局 `try?` 吞所有 save/delete/fetch 错误,内存态与磁盘态可能分叉 |
-| 07-F-017 | `HistoryItem.swift:260-267` | `dataFromFileIfAllowed`:`try?` 取 fileSize 失败→`(fileSize ?? 0) <= cap` 恒真→无界文件 `Data(contentsOf:)` 可 OOM |
-| 07-F-032 | `Collection+Surrounding.swift:18-32` | `item(before:)` 首元素 `offsetBy: -1` **运行时 trap**(可达:首项按 ↑) |
 | 07-F-013 / 07-F-010 | `Search.swift` / `HistoryItemDecorator.swift` | 见 §2.3(正确性) |
 
 ### 3.4 正确代码(勿改)
@@ -303,20 +302,20 @@ heap 证据:624 个 `HistoryItemContent` + 624 个 `_KKMDBackingData`(对应 556
 
 ### 6.4 `07-`(数据安全,F-### / 07-F-###)
 
-> 注:06-28 缺口审计用 `07-F-NNN` 前缀引用本组。下表是仍活跃的 finding。
+> 注:06-28 缺口审计用 `07-F-NNN` 前缀引用本组。下表保留 finding id，并记录当前状态。
 
 | finding-id | 含义 | 当前状态 |
 |---|---|---|
-| `07-F-001` | `recoverContainer` 删 SQLite 文件丢数据 | 未修 |
+| `07-F-001` | `recoverContainer` 删 SQLite 文件丢数据 | 已修(`d05da428` 隔离损坏 store + `StorageRecoveryTests`) |
 | `07-F-002/003` | 全局 `try?` 吞 save/delete 错误 + save 失败仍保留 in-memory | 未修 |
 | `07-F-008` | OCR Task fire-and-forget 改 `@Model` | WONTFIX(OCR 删除) |
 | `07-F-010` | Fuse 返回 UTF-16 偏移,`index(offsetBy:)` 按 grapheme → emoji/CJK 高亮错位 | **未修(commit 夸大)** |
 | `07-F-012` | `shortened(to:)` grapheme vs `stringPrefix` byte 单位不一致 | 未修 |
 | `07-F-013` | highlight 截断 500 vs 搜索截断 5000/1000 → 匹配 >500 字符静默丢高亮 | **未修** |
 | `07-F-014/015` | `clear()` 事务内 `try?` 吞错(非真事务)+ item/content predicate 不对称 | 未修 |
-| `07-F-017` | `dataFromFileIfAllowed` fileSize `try?` 失败→恒真→无界文件 OOM | 未修 |
+| `07-F-017` | `dataFromFileIfAllowed` fileSize `try?` 失败→恒真→无界文件 OOM | 已修(`42965752` + `HistoryItemFileDataTests`) |
 | `07-F-029` | FNV 非密码学哈希 | 安全(命中后仍跑全比较) |
-| `07-F-032` | `item(before:)` 首元素 `offsetBy:-1` trap | 未修 |
+| `07-F-032` | `item(before:)` 首元素 `offsetBy:-1` trap | 已修(`d214b042` + `CollectionSurroundingTests`) |
 
 ### 6.5 `08-`(C++ interop,08-F-###)
 
