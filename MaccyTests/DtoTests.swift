@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Maccy
 
@@ -53,6 +54,32 @@ class DtoTests: XCTestCase {
     XCTAssertEqual(
       signature.entries.first { $0.type == "public.png" }?.fingerprint,
       ClipboardDataProcessor.fingerprintIfLarge(largeValue)
+    )
+  }
+
+  /// The index projection follows the authoritative dedup signature: transient
+  /// pasteboard metadata is absent and a persisted fingerprint is reused.
+  @MainActor
+  func testSignatureProjectionUsesCanonicalDedupRules() {
+    let storedFingerprint: UInt64 = 0xCAFE_BABE
+    let largeValue = Data(repeating: 0x41, count: 16 * 1_024)
+    let durable = HistoryItemContent(type: NSPasteboard.PasteboardType.png.rawValue, value: largeValue)
+    durable.fingerprint = storedFingerprint
+    let transient = HistoryItemContent(
+      type: NSPasteboard.PasteboardType.fromMaccy.rawValue,
+      value: Data()
+    )
+    let item = HistoryItem(contents: [durable, transient])
+
+    XCTAssertEqual(
+      signatureDTO(of: item),
+      SignatureDTO(entries: [
+        ContentSignatureEntry(
+          type: NSPasteboard.PasteboardType.png.rawValue,
+          fingerprint: storedFingerprint,
+          size: largeValue.count
+        )
+      ])
     )
   }
 
