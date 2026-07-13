@@ -14,6 +14,8 @@
 - There is no local Xcode/macOS toolchain: do not run local builds, tests, SwiftLint, or xcodegen.
 - Use TDD for behavior: establish a compiling additive/extractive seam, commit the RED tests, then make the minimum GREEN changes.
 - Never allow an asynchronously arriving thumbnail to change a row's height.
+- Never derive a main-list image row's height from source image dimensions;
+  every image row uses the configured, clamped image-content height.
 - Do not eagerly classify or decode the complete history collection; image-kind resolution is limited to realized row decorators.
 - Keep text-row lines clamped to `1...4`, image content height clamped to `1...200`, and preview minimum height percent clamped to `25...100` with defaults `1`, `40`, and `60`.
 - Keep thumbnails aspect-fit and keep footer/header rows at the platform base height.
@@ -497,9 +499,12 @@ Replace the two legacy-returning methods:
     return baseHeight + CGFloat(clampedLines - 1) * textLineIncrement
   }
 
+  static func effectiveImageContentHeight(_ requestedHeight: Int) -> CGFloat {
+    CGFloat(min(max(requestedHeight, 1), 200))
+  }
+
   static func imageHeight(maxImageHeight: Int) -> CGFloat {
-    let contentHeight = CGFloat(min(max(maxImageHeight, 1), 200))
-    return max(baseHeight, contentHeight + 10)
+    max(baseHeight, effectiveImageContentHeight(maxImageHeight) + 10)
   }
 ```
 
@@ -586,7 +591,7 @@ Pass:
 
 ```swift
       rowHeight: rowHeight,
-      imageContentHeight: CGFloat(max(imageMaxHeight, 1)),
+      imageContentHeight: HistoryRowLayout.effectiveImageContentHeight(imageMaxHeight),
       titleLineLimit: min(max(textRowLines, 1), 4),
 ```
 

@@ -49,6 +49,12 @@ the placeholder and final thumbnail occupy the same reserved row. This makes
 the current image-height control honest, keeps compact text rows compact, and
 does not make every row as tall as the largest content type.
 
+An image's original pixel dimensions, point size, and aspect ratio never
+participate in main-list row-height calculation. Small and very large source
+images reserve the same configured image-row height; the thumbnail is
+aspect-fit inside that bounded box. Source dimensions affect only the scaled
+thumbnail's width within the row, never the row height itself.
+
 ### 2. One uniform configurable row height
 
 This preserves the simplest height cap, but making the default 40 pt thumbnail
