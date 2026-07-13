@@ -59,6 +59,9 @@ class SlideoutController {
 
   let onContentResize: (CGFloat) -> Void
   let onSlideoutResize: (CGFloat) -> Void
+  @ObservationIgnored private let preferredHeight: (CGFloat) -> CGFloat
+  @ObservationIgnored private weak var attachedWindow: NSWindow?
+  @ObservationIgnored private var handledLead: HistoryItemDecorator?
 
   let minimumContentWidth: CGFloat = 200
   var contentResizeWidth: CGFloat = 0
@@ -104,9 +107,19 @@ class SlideoutController {
   private var autoOpenEnabled = true
 
   /// Creates the controller with the resize callbacks that persist width changes.
-  init(onContentResize: @escaping (CGFloat) -> Void, onSlideoutResize: @escaping (CGFloat) -> Void) {
+  init(
+    onContentResize: @escaping (CGFloat) -> Void,
+    onSlideoutResize: @escaping (CGFloat) -> Void,
+    preferredHeight: @escaping (CGFloat) -> CGFloat = { $0 }
+  ) {
     self.onContentResize = onContentResize
     self.onSlideoutResize = onSlideoutResize
+    self.preferredHeight = preferredHeight
+  }
+
+  /// Attaches the panel window without making the controller own its lifetime.
+  func attach(window: NSWindow) {
+    attachedWindow = window
   }
 
   /// Picks `.left` when growing right would overflow the screen, else `.right`.
@@ -265,6 +278,7 @@ class SlideoutController {
 
   /// Applies a navigation lead change to preview auto-open/retarget state.
   func handleLeadChange(_ lead: HistoryItemDecorator?) {
+    handledLead = lead
     if let lead {
       resetAutoOpenSuppression()
       scheduleRetarget(lead: lead)

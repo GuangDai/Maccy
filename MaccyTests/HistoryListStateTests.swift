@@ -59,6 +59,7 @@ final class HistoryListStateTests: XCTestCase {
   func testHistoryObservationTracksNestedVisiblePublication() async {
     let state = HistoryListState(willMutate: {})
     let history = History(
+      persistence: SwiftDataHistoryPersistence(context: Storage.shared.context),
       listState: state,
       logsPersistenceErrors: false
     )

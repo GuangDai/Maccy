@@ -16,26 +16,29 @@ class History: ItemsContainer {
 
   private static func makeShared() -> History {
     let mutationLogger = Logger(label: "org.p0deje.Maccy")
-    return History(runtimeServices: HistoryRuntimeServices(
-      clipboard: HistoryClipboardActions(
-        clear: { Clipboard.shared.clear() },
-        copy: { item, removeFormatting in
-          Clipboard.shared.copy(item, removeFormatting: removeFormatting)
+    return History(
+      persistence: SwiftDataHistoryPersistence(context: Storage.shared.context),
+      runtimeServices: HistoryRuntimeServices(
+        clipboard: HistoryClipboardActions(
+          clear: { Clipboard.shared.clear() },
+          copy: { item, removeFormatting in
+            Clipboard.shared.copy(item, removeFormatting: removeFormatting)
+          },
+          paste: { Clipboard.shared.paste() }
+        ),
+        modifierFlags: {
+          NSApp.currentEvent?.modifierFlags
+            .intersection(.deviceIndependentFlagsMask)
+            .subtracting([.capsLock, .numericPad, .function]) ?? []
         },
-        paste: { Clipboard.shared.paste() }
-      ),
-      modifierFlags: {
-        NSApp.currentEvent?.modifierFlags
-          .intersection(.deviceIndependentFlagsMask)
-          .subtracting([.capsLock, .numericPad, .function]) ?? []
-      },
-      currentEvent: { NSApp.currentEvent },
-      publishStoreEvents: { events in
-        guard !events.isEmpty, let ingestor = Clipboard.shared.ingestor else { return }
-        Task { await ingestor.synchronizeStoreEvents(events) }
-      },
-      log: { mutationLogger.info("\($0)") }
-    ))
+        currentEvent: { NSApp.currentEvent },
+        publishStoreEvents: { events in
+          guard !events.isEmpty, let ingestor = Clipboard.shared.ingestor else { return }
+          Task { await ingestor.synchronizeStoreEvents(events) }
+        },
+        log: { mutationLogger.info("\($0)") }
+      )
+    )
   }
 
   let logger = Logger(label: "org.p0deje.Maccy")
@@ -107,7 +110,7 @@ class History: ItemsContainer {
   /// Creates the history model with its persistence backend and config flags,
   /// and starts listeners that react to relevant Defaults changes.
   init(
-    persistence: HistoryPersistence = SwiftDataHistoryPersistence(),
+    persistence: HistoryPersistence,
     listState: HistoryListState = HistoryListState(),
     runtimeServices: HistoryRuntimeServices = .inert,
     logsPersistenceErrors: Bool = true

@@ -26,6 +26,12 @@ protocol HistoryPersistence {
 /// `HistoryPersistence` backed by `Storage.shared.context` (the main SwiftData
 /// context). Each mutating method processes pending changes and saves.
 struct SwiftDataHistoryPersistence: HistoryPersistence {
+  private let context: ModelContext
+
+  init(context: ModelContext) {
+    self.context = context
+  }
+
   @MainActor
   func delete(_ item: HistoryItem) throws {
     Storage.shared.context.delete(item)

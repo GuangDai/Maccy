@@ -1,4 +1,5 @@
 import AppKit.NSEvent
+import AppKit.NSWindow
 import Defaults
 import SwiftData
 import XCTest
@@ -14,7 +15,10 @@ final class HistoryUIEffectTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     History.shared.clearAll()
-    history = History(logsPersistenceErrors: false)
+    history = History(
+      persistence: SwiftDataHistoryPersistence(context: Storage.shared.context),
+      logsPersistenceErrors: false
+    )
     history.configureUIEffectSink { [weak self] effect in
       self?.effects.append(effect)
     }
@@ -348,6 +352,56 @@ final class NavigationLeadChangeTests: XCTestCase {
     guard changes.count == 2 else { return }
     XCTAssertTrue(changes[0] === first)
     XCTAssertTrue(changes[1] === second)
+  }
+}
+
+@MainActor
+final class SlideoutRuntimeTests: XCTestCase {
+  func testSizeUsesInjectedPreferredHeight() {
+    let controller = makeController(preferredHeight: { _ in 321 })
+
+    let size = controller.computeSizeWithPreview(
+      NSSize(width: 400, height: 100),
+      state: .closed
+    )
+
+    XCTAssertEqual(size.height, 321)
+  }
+
+  func testManualToggleUsesHandledLeadAndAttachedWindow() {
+    AppState.shared.navigator.selectWithoutScrolling()
+    let controller = makeController()
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+      styleMask: [],
+      backing: .buffered,
+      defer: false
+    )
+    let lead = HistoryItemDecorator(
+      HistoryBuilder()
+        .withContent(type: "public.utf8-plain-text", value: Data("lead".utf8))
+        .build()
+    )
+    controller.contentWidth = 400
+    controller.disableAutoOpen()
+    controller.attach(window: window)
+    controller.handleLeadChange(lead)
+
+    controller.togglePreview()
+
+    XCTAssertTrue(controller.state.isOpen)
+    guard controller.state.isOpen else { return }
+    XCTAssertTrue(controller.previewedItem === lead)
+  }
+
+  private func makeController(
+    preferredHeight: @escaping (CGFloat) -> CGFloat = { $0 }
+  ) -> SlideoutController {
+    SlideoutController(
+      onContentResize: { _ in },
+      onSlideoutResize: { _ in },
+      preferredHeight: preferredHeight
+    )
   }
 }
 

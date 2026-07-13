@@ -53,11 +53,24 @@ final class HistoryPinPersistenceTests: XCTestCase {
     pinned.pin = "a"
     XCTAssertTrue(Storage.shared.context.hasChanges)
 
-    try SwiftDataHistoryPersistence().deleteUnpinned()
+    try SwiftDataHistoryPersistence(context: Storage.shared.context).deleteUnpinned()
 
     let stored = try Storage.shared.context.fetch(FetchDescriptor<HistoryItem>())
     XCTAssertEqual(stored.map(\.title), ["pending-pinned"])
     XCTAssertEqual(stored.first?.pin, "a")
+  }
+
+  /// Persistence operations target the context supplied at construction,
+  /// not global storage.
+  func testPersistenceUsesInjectedContext() throws {
+    let isolatedStorage = Storage(storedInMemoryForTesting: true)
+    let context = isolatedStorage.context
+    context.insert(historyItem("isolated"))
+    try context.save()
+
+    try SwiftDataHistoryPersistence(context: context).deleteAll()
+
+    XCTAssertEqual(try context.fetchCount(FetchDescriptor<HistoryItem>()), 0)
   }
 
   /// Pin availability is queried through the caller-provided context and excludes assigned keys.
