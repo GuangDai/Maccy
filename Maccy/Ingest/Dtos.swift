@@ -69,9 +69,9 @@ struct MaccyFingerprint: Equatable, Hashable, Sendable {
 
 /// A `Sendable` projection of a `@Model HistoryItem`.
 ///
-/// `@Model` instances never cross an actor boundary; this value type carries the
-/// fields the main-observer and the dedup index need (title, timestamps, pin,
-/// preview, signature, …) plus the fetchable `persistentID` handle.
+/// `@Model` instances never cross an actor boundary; this value carries only
+/// the identity/title fields the main observer needs and the signature the
+/// dedup index needs.
 struct ItemSnapshotDTO: Equatable, Sendable {
   let id: StoredItemID
 
@@ -82,13 +82,6 @@ struct ItemSnapshotDTO: Equatable, Sendable {
   /// ingest-to-main actor boundary safely.
   let persistentID: PersistentIdentifier?
   let title: String
-  let firstCopiedAt: Date
-  let lastCopiedAt: Date
-  let numberOfCopies: Int
-  let pin: String?
-  let application: String?
-  let textPreview: String
-  let imageFingerprint: UInt64?
   let signature: SignatureDTO
 }
 
@@ -133,19 +126,11 @@ struct IngestMetrics: Equatable, Sendable {
 
 /// Projects a `@Model HistoryItem` into a `Sendable` `ItemSnapshotDTO`, computing its dedup signature.
 func snapshot(of item: HistoryItem) -> ItemSnapshotDTO {
-  let signature = signatureDTO(of: item)
-  return ItemSnapshotDTO(
+  ItemSnapshotDTO(
     id: storedItemID(for: item),
     persistentID: item.persistentModelID,
     title: item.title,
-    firstCopiedAt: item.firstCopiedAt,
-    lastCopiedAt: item.lastCopiedAt,
-    numberOfCopies: item.numberOfCopies,
-    pin: item.pin,
-    application: item.application,
-    textPreview: item.previewableTextPrefix(maxLength: HistoryItem.textPreviewLimit),
-    imageFingerprint: item.imageData.flatMap(ClipboardDataProcessor.fingerprintIfLarge),
-    signature: signature
+    signature: signatureDTO(of: item)
   )
 }
 

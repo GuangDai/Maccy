@@ -87,7 +87,6 @@ class DtoTests: XCTestCase {
   @MainActor
   func testIngestResultCarriesEventAndMetrics() {
     let storedItemID = HistoryItem().persistentModelID.id
-    let copiedAt = Date(timeIntervalSince1970: 1_717_171_717)
     let signature = SignatureDTO(entries: [
       ContentSignatureEntry(type: "public.utf8-plain-text", fingerprint: 42, size: 10)
     ])
@@ -95,13 +94,6 @@ class DtoTests: XCTestCase {
       id: storedItemID,
       persistentID: nil,
       title: "Copied text",
-      firstCopiedAt: copiedAt,
-      lastCopiedAt: copiedAt,
-      numberOfCopies: 1,
-      pin: nil,
-      application: "org.example.App",
-      textPreview: "Copied text",
-      imageFingerprint: nil,
       signature: signature
     )
 

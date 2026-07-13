@@ -518,7 +518,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
       // actor's cached fault and could diverge from the store under a concurrent
       // main-side pin change on the dup).
       if let dup {
-        deletedItemIDs.append(snapshot(of: dup).id)
+        deletedItemIDs.append(storedItemID(for: dup))
         deletedPersistentIDs.append(dup.persistentModelID)
         modelContext.delete(dup)
       }
@@ -544,7 +544,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
         tailDescriptor.fetchLimit = toEvict
         let tail = try modelContext.fetch(tailDescriptor)
         for excess in tail {
-          deletedItemIDs.append(snapshot(of: excess).id)
+          deletedItemIDs.append(storedItemID(for: excess))
           deletedPersistentIDs.append(excess.persistentModelID)
           modelContext.delete(excess)
         }
