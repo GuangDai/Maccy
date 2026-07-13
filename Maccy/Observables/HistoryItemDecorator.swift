@@ -171,6 +171,7 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   private(set) var item: HistoryItem
 
   private let logger = Logger(label: "org.p0deje.Maccy")
+  @ObservationIgnored private var rowHighlighter = RowHighlighter()
 
   /// Creates a decorator for `item`, seeding title/shortcuts and the app icon,
   /// and starting pin/title observation. Persisted projections supply both
@@ -391,16 +392,6 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
     }
   }
 
-  /// Inputs to the last `highlight` build, so a repeat call with unchanged
-  /// title/ranges/style can reuse `attributedTitle` instead of rebuilding.
-  private struct HighlightMemo {
-    let title: String
-    let ranges: [Range<String.Index>]
-    let style: HighlightMatch
-  }
-
-  @ObservationIgnored private var highlightMemo: HighlightMemo?
-
   /// Builds `attributedTitle` with `query`'s `ranges` styled per the highlight
   /// preference; clears highlighting when `query` or `title` is empty. A repeat
   /// call whose title, ranges, and highlight style all match the previous build
@@ -408,54 +399,18 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   /// `AttributedString` construction and the `@Observable` trigger that would
   /// re-rasterize the row.
   func highlight(_ query: String, _ ranges: [Range<String.Index>]) {
-    guard !query.isEmpty, !title.isEmpty else {
-      if attributedTitle != nil { attributedTitle = nil }
-      highlightMemo = nil
+    switch rowHighlighter.title(
+      query: query,
+      text: title,
+      ranges: ranges,
+      style: Defaults[.highlightMatch]
+    ) {
+    case .unchanged:
       return
+    case .replacement(let attributed):
+      attributedTitle = attributed
     }
-
-    let style = Defaults[.highlightMatch]
-    if let memo = highlightMemo, memo.title == title, memo.ranges == ranges, memo.style == style {
-      return
-    }
-
-    var attributedString = AttributedString(title.shortened(to: TextLimits.highlight))
-    for range in ranges {
-      if let lowerBound = AttributedString.Index(range.lowerBound, within: attributedString),
-         let upperBound = AttributedString.Index(range.upperBound, within: attributedString) {
-        switch style {
-        case .bold:
-          attributedString[lowerBound..<upperBound].font = .bold(.body)()
-        case .italic:
-          attributedString[lowerBound..<upperBound].font = .italic(.body)()
-        case .underline:
-          attributedString[lowerBound..<upperBound].underlineStyle = .single
-        default:
-          attributedString[lowerBound..<upperBound].backgroundColor = .findHighlightColor
-          attributedString[lowerBound..<upperBound].foregroundColor = .black
-        }
-      } else {
-        // A range the search produced but the render window doesn't cover.
-        // With TextLimits.highlight == titlePreview this is unreachable in
-        // normal operation; log instead of the old silent nil-drop so any
-        // future mismatch is observable.
-        logger.debug("highlight range fell outside the render window; dropped")
-      }
-    }
-
-    attributedTitle = attributedString
-    highlightMemo = HighlightMemo(title: title, ranges: ranges, style: style)
   }
-
-  /// Inputs to the last preview-highlight build, so a repeat call with unchanged
-  /// text/ranges/style can reuse `previewAttributedText` instead of rebuilding.
-  private struct PreviewHighlightMemo {
-    let text: String
-    let ranges: [Range<Int>]
-    let style: HighlightMatch
-  }
-
-  @ObservationIgnored private var previewHighlightMemo: PreviewHighlightMemo?
 
   /// Builds `previewAttributedText` over the body text with the given
   /// body-relative grapheme `ranges` highlighted, clamped to the preview window:
@@ -466,45 +421,17 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   func setPreviewHighlight(_ query: String, _ ranges: [Range<Int>]) {
     previewBodyQuery = query
     previewBodyRanges = ranges
-    guard !query.isEmpty, !text.isEmpty else {
-      if previewAttributedText != nil { previewAttributedText = nil }
-      previewHighlightMemo = nil
+    switch rowHighlighter.preview(
+      query: query,
+      text: text,
+      ranges: ranges,
+      style: Defaults[.highlightMatch]
+    ) {
+    case .unchanged:
       return
+    case .replacement(let attributed):
+      previewAttributedText = attributed
     }
-
-    let style = Defaults[.highlightMatch]
-    if let memo = previewHighlightMemo,
-       memo.text == text, memo.ranges == ranges, memo.style == style {
-      return
-    }
-
-    var attributed = AttributedString(text)
-    let textCount = text.count
-    for range in ranges {
-      let lower = range.lowerBound
-      let upper = min(range.upperBound, textCount)
-      guard lower < textCount, lower < upper else { continue }
-      let lowerString = text.index(text.startIndex, offsetBy: lower)
-      let upperString = text.index(text.startIndex, offsetBy: upper)
-      guard let lowerAttr = AttributedString.Index(lowerString, within: attributed),
-            let upperAttr = AttributedString.Index(upperString, within: attributed) else {
-        continue
-      }
-      switch style {
-      case .bold:
-        attributed[lowerAttr..<upperAttr].font = .bold(.body)()
-      case .italic:
-        attributed[lowerAttr..<upperAttr].font = .italic(.body)()
-      case .underline:
-        attributed[lowerAttr..<upperAttr].underlineStyle = .single
-      default:
-        attributed[lowerAttr..<upperAttr].backgroundColor = .findHighlightColor
-        attributed[lowerAttr..<upperAttr].foregroundColor = .black
-      }
-    }
-
-    previewAttributedText = attributed
-    previewHighlightMemo = PreviewHighlightMemo(text: text, ranges: ranges, style: style)
   }
 
   /// Re-syncs this decorator's pin shortcut whenever the model's `pin` changes,

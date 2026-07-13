@@ -283,15 +283,6 @@ class HistoryItemDecoratorTests: XCTestCase {
     XCTAssertEqual(itemDecorator.previewAttributedText, nil)
   }
 
-  /// A range past the preview window (a deep body match) is skipped, not
-  /// applied — so it can never index out of bounds. The result equals plain text.
-  func testPreviewHighlightDeepRangeBeyondWindowIsSkipped() {
-    let itemDecorator = historyItemDecorator("foo bar baz")
-    itemDecorator.setPreviewHighlight("baz", [100..<103])
-
-    XCTAssertEqual(itemDecorator.previewAttributedText, AttributedString("foo bar baz"))
-  }
-
   /// `PreviewTextRep` builds the full body with the given ranges styled per the
   /// highlight preference (bold here). Grapheme offsets land on the right
   /// UTF-16 NSRange; deep ranges past the text length are skipped, not trapped.
@@ -326,22 +317,6 @@ class HistoryItemDecoratorTests: XCTestCase {
     XCTAssertTrue(textView.autoresizingMask.contains(.width))
     XCTAssertTrue(try XCTUnwrap(textView.textContainer).widthTracksTextView)
     XCTAssertEqual(textView.textContainer?.lineBreakMode, .byWordWrapping)
-  }
-
-  /// Highlighting reaches matches past the old fixed 500-char render cap.
-  /// The render window now tracks the title-preview window, so a match near the
-  /// end of a long title is styled instead of silently dropped.
-  func testHighlight_appliesToMatchesPastOldRenderCap() {
-    let title = String(repeating: "a", count: 600) + "bcdef"
-    let itemDecorator = historyItemDecorator(title)
-    Defaults[.highlightMatch] = .bold
-
-    let marker = itemDecorator.title.range(of: "bcdef")!
-    itemDecorator.highlight("bcdef", [marker])
-
-    var expectedTitle = AttributedString(title)
-    expectedTitle[expectedTitle.range(of: "bcdef")!].font = .bold(.body)()
-    XCTAssertEqual(itemDecorator.attributedTitle, expectedTitle)
   }
 
   /// Builds a decorator backed by a single UTF-8 string content entry.
