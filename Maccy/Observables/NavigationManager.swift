@@ -26,8 +26,8 @@ class NavigationManager {
   /// each decorator.
   var selection: Selection<HistoryItemDecorator> = Selection() {
     willSet {
-      selection.forEach { _, item in item.isSelected = false }
-      newValue.forEach { _, item in item.isSelected = true }
+      selection.forEach { $0.isSelected = false }
+      newValue.forEach { $0.isSelected = true }
     }
   }
 

@@ -24,9 +24,9 @@ struct Selection<Item: Equatable>: Sendable where Item: Sendable {
     return items.first
   }
 
-  /// Calls `body` with each `(index, item)` pair.
-  func forEach(_ body: (Int, Item) throws -> Void) rethrows {
-    try items.enumerated().forEach(body)
+  /// Calls `body` for each selected item in insertion order.
+  func forEach(_ body: (Item) throws -> Void) rethrows {
+    try items.forEach(body)
   }
 
   /// Removes all occurrences equal to `item`.

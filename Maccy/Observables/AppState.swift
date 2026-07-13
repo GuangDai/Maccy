@@ -204,7 +204,7 @@ class AppState {
   @MainActor
   func togglePin() {
     withTransaction(Transaction()) {
-      navigator.selection.forEach { _, item in
+      navigator.selection.forEach { item in
         history.togglePin(item)
       }
     }
@@ -218,7 +218,7 @@ class AppState {
     let nextUnselectedItem = history.visibleItems.nearest(to: leadItem) { !$0.isSelected }
 
     withTransaction(Transaction()) {
-      navigator.selection.forEach { _, item in
+      navigator.selection.forEach { item in
         history.delete(item)
       }
       navigator.select(item: nextUnselectedItem)
