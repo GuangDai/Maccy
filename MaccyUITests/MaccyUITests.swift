@@ -171,7 +171,9 @@ class MaccyUITests: XCTestCase {
     copyToClipboard(image2)
     copyToClipboard(image1)
     popUpWithMouse()
-    items.matching(imageType).allElementsBoundByIndex[1].click()
+    let secondImage = items.matching(imageType).element(boundBy: 1)
+    assertExists(secondImage)
+    secondImage.click()
     assertPasteboardDataCountEquals(image2.tiffRepresentation!.count, forType: .tiff)
   }
 
