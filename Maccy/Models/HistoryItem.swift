@@ -54,8 +54,9 @@ class HistoryItem {
   ///
   /// `nil` for rows that predate the column (added via a lightweight SwiftData
   /// migration, mirroring `HistoryItemContent.fingerprint`); those degrade to
-  /// title-only search until a future backfill. `""` for image-only items and
-  /// items with no textual payload.
+  /// title-only search until they are copied again (the merge path then keeps
+  /// the fresh projection). `""` for image-only items and items with no textual
+  /// payload.
   var searchText: String?
 
   @Relationship(deleteRule: .cascade, inverse: \HistoryItemContent.item)

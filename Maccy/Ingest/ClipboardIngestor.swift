@@ -473,7 +473,9 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
     item.numberOfCopies += dup.numberOfCopies
     item.pin = dup.pin
     item.title = dup.title
-    item.searchText = dup.searchText
+    // Preserve an existing projection, but let a freshly parsed re-copy heal a
+    // pre-column row whose lightweight-migration value is still nil.
+    item.searchText = dup.searchText ?? item.searchText
     if !item.fromMaccy {
       item.application = dup.application
     }
