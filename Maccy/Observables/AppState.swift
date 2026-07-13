@@ -67,15 +67,18 @@ class AppState {
   /// removes itself (no accumulation across reopens).
   private var settingsWindowCloseObserver: NSObjectProtocol?
   @ObservationIgnored private let runtimeServices: AppStateRuntimeServices
+  @ObservationIgnored let visibilityTracker: VisibilityTracker
 
   init(
     history: History,
     footer: Footer,
-    runtimeServices: AppStateRuntimeServices = .inert
+    runtimeServices: AppStateRuntimeServices = .inert,
+    visibilityTracker: VisibilityTracker = VisibilityTracker()
   ) {
     self.history = history
     self.footer = footer
     self.runtimeServices = runtimeServices
+    self.visibilityTracker = visibilityTracker
     let popup = Popup()
     self.popup = popup
     let preview = SlideoutController(

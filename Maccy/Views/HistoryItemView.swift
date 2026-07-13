@@ -54,12 +54,12 @@ struct HistoryItemView: View {
       Text(verbatim: item.title)
     }
     .onAppear {
-      VisibilityTracker.shared.register(item)
+      appState.visibilityTracker.register(item)
       item.onAppearInViewport()
     }
     .onDisappear {
       item.onDisappearFromViewport()
-      VisibilityTracker.shared.unregister(item)
+      appState.visibilityTracker.unregister(item)
     }
     .onTapGesture {
       appState.history.select(item)

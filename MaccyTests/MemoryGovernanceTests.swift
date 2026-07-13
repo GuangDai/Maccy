@@ -1,28 +1,72 @@
+import AppKit
 import XCTest
 @testable import Maccy
 
-/// Locks memory-pressure cleanup to the resources owned by the attached
-/// History composition, rather than a process-wide cache singleton.
 @MainActor
 final class MemoryGovernanceTests: XCTestCase {
-  func testMemoryWarningPurgesImagesOwnedByAttachedHistory() {
-    var applicationImagePurgeCount = 0
-    let factory = HistoryItemDecoratorFactory(
-      imageProcessor: PassthroughImageProcessor(),
-      applicationImage: { _ in ApplicationImage(bundleIdentifier: nil) },
-      purgeApplicationImages: { applicationImagePurgeCount += 1 }
-    )
-    let storage = Storage(storedInMemoryForTesting: true)
-    let history = History(
-      persistence: SwiftDataHistoryPersistence(context: storage.context),
-      decoratorFactory: factory,
-      logsPersistenceErrors: false
-    )
-    let governor = MemoryGovernor()
+  func testMemoryWarningKeepsVisiblePreviewAndReleasesHiddenPreview() {
+    let visible = decorator("visible")
+    let hidden = decorator("hidden")
+    visible.previewImage = NSImage(size: NSSize(width: 2, height: 2))
+    hidden.previewImage = NSImage(size: NSSize(width: 2, height: 2))
+    let tracker = VisibilityTracker()
+    tracker.register(visible)
+    let history = MemoryHistorySpy(decorators: [visible, hidden])
+    let governor = MemoryGovernor(visibilityTracker: tracker)
     governor.attach(history: history)
 
     governor.handleMemoryWarning()
 
-    XCTAssertEqual(applicationImagePurgeCount, 1)
+    XCTAssertNotNil(visible.previewImage)
+    XCTAssertNil(hidden.previewImage)
+    XCTAssertEqual(history.purgeApplicationImagesCalls, 1)
+  }
+
+  func testAppStatesUseTheirInjectedVisibilityTracker() {
+    let firstTracker = VisibilityTracker()
+    let secondTracker = VisibilityTracker()
+    let observer = decorator("observer")
+    let first = appState(visibilityTracker: firstTracker)
+    let second = appState(visibilityTracker: secondTracker)
+
+    first.visibilityTracker.register(observer)
+
+    XCTAssertTrue(first.visibilityTracker === firstTracker)
+    XCTAssertTrue(second.visibilityTracker === secondTracker)
+    XCTAssertTrue(first.visibilityTracker.isVisible(observer.id))
+    XCTAssertFalse(second.visibilityTracker.isVisible(observer.id))
+  }
+
+  private func decorator(_ title: String) -> HistoryItemDecorator {
+    HistoryItemDecorator(HistoryBuilder().withTitle(title).build())
+  }
+
+  private func appState(visibilityTracker: VisibilityTracker) -> AppState {
+    let storage = Storage(storedInMemoryForTesting: true)
+    let history = History(
+      persistence: SwiftDataHistoryPersistence(context: storage.context),
+      logsPersistenceErrors: false
+    )
+    return AppState(
+      history: history,
+      footer: Footer(),
+      visibilityTracker: visibilityTracker
+    )
+  }
+}
+
+@MainActor
+private final class MemoryHistorySpy: MemoryGovernanceHistory {
+  private let values: [HistoryItemDecorator]
+  private(set) var purgeApplicationImagesCalls = 0
+
+  init(decorators: [HistoryItemDecorator]) {
+    values = decorators
+  }
+
+  func decorators() -> [HistoryItemDecorator] { values }
+
+  func purgeApplicationImages() {
+    purgeApplicationImagesCalls += 1
   }
 }

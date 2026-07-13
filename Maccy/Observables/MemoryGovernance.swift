@@ -38,7 +38,6 @@ protocol VisibilityObserving: AnyObject {
 /// Tracks which decorators are currently in the viewport (main-actor).
 @MainActor
 final class VisibilityTracker {
-  static let shared = VisibilityTracker()
   private var visible: Set<UUID> = []
 
   /// Records `observer` as currently visible.
@@ -67,9 +66,13 @@ final class VisibilityTracker {
 /// main-isolated.
 @MainActor
 final class MemoryGovernor {
-  static let shared = MemoryGovernor()
   private weak var history: MemoryGovernanceHistory?
+  private let visibilityTracker: VisibilityTracker
   private var memoryPressureSource: DispatchSourceMemoryPressure?
+
+  init(visibilityTracker: VisibilityTracker) {
+    self.visibilityTracker = visibilityTracker
+  }
 
   /// Binds the governor to a history it can iterate on memory warning.
   func attach(history: MemoryGovernanceHistory) {
@@ -82,18 +85,18 @@ final class MemoryGovernor {
     // macOS has no `NSApplication.didReceiveMemoryWarningNotification` (that's
     // iOS `UIApplication`); use the dispatch memory-pressure source, signalled
     // at `.warning`/`.critical`. `setEventHandler` takes a non-@Sendable
-    // `() -> Void`, so the handler inherits this class's @MainActor isolation
-    // (SE-0420) and carries a runtime prologue that asserts main. Safety rests
-    // entirely on `queue: .main` (the source fires the handler on the main
-    // queue, so the prologue passes); the inner `MainActor.assumeIsolated` is
-    // then a no-op. Do NOT change `queue:` here without re-evaluating — a
-    // background queue would SIGTRAP on entry, before the body runs.
+    // `() -> Void`, so the weak instance-capturing handler inherits this
+    // class's @MainActor isolation (SE-0420) and carries a runtime prologue
+    // that asserts main. Safety rests entirely on `queue: .main` (the source
+    // fires the handler on the main queue, so the prologue passes). Do NOT
+    // change `queue:` here without re-evaluating — a background queue would
+    // SIGTRAP on entry, before the body runs.
     let source = DispatchSource.makeMemoryPressureSource(
       eventMask: [.warning, .critical],
       queue: .main
     )
-    source.setEventHandler {
-      MainActor.assumeIsolated { MemoryGovernor.shared.handleMemoryWarning() }
+    source.setEventHandler { [weak self] in
+      self?.handleMemoryWarning()
     }
     source.resume()
     memoryPressureSource = source
@@ -110,7 +113,7 @@ final class MemoryGovernor {
   /// tier and the regexp cache — are `NSCache`-backed and auto-evict on system
   /// memory pressure, so an explicit purge here is redundant.
   func handleMemoryWarning() {
-    let visibleIDs = VisibilityTracker.shared.snapshot()
+    let visibleIDs = visibilityTracker.snapshot()
     for decorator in history?.decorators() ?? [] where !visibleIDs.contains(decorator.id) {
       decorator.releaseTransientImages(.memoryWarning)
     }
