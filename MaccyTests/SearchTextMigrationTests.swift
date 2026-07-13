@@ -23,8 +23,11 @@ final class SearchTextMigrationTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     // `Storage.shared` is an in-memory singleton shared across every test in
-    // this run; clear it so each test starts from a known-empty store.
+    // this run. These migration tests deliberately create legacy rows, so
+    // clear both entities explicitly instead of relying on batch-delete
+    // relationship propagation between cases.
     try? Storage.shared.context.delete(model: HistoryItem.self)
+    try? Storage.shared.context.delete(model: HistoryItemContent.self)
     Storage.shared.context.processPendingChanges()
     try? Storage.shared.context.save()
 
