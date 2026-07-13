@@ -15,6 +15,33 @@ enum PopupState {
   case opening
 }
 
+@MainActor
+struct PopupRuntimeServices {
+  let selectInitialItem: @MainActor () -> Void
+  let openPanel: @MainActor (CGFloat, PopupPosition) -> Void
+  let closePanel: @MainActor () -> Void
+  let isPanelPresented: @MainActor () -> Bool
+  let requiresPreviewMinimumHeight: @MainActor () -> Bool
+  let resizePanel: @MainActor (CGFloat) -> Void
+  let prewarmVisibleWindow: @MainActor () -> Void
+  let selectPressedShortcut: @MainActor () -> Bool
+  let highlightNext: @MainActor () -> Void
+  let commitSelection: @MainActor () -> Void
+
+  static let inert = PopupRuntimeServices(
+    selectInitialItem: {},
+    openPanel: { _, _ in },
+    closePanel: {},
+    isPanelPresented: { false },
+    requiresPreviewMinimumHeight: { false },
+    resizePanel: { _ in },
+    prewarmVisibleWindow: {},
+    selectPressedShortcut: { false },
+    highlightNext: {},
+    commitSelection: {}
+  )
+}
+
 /// Observable model for the popup window: geometry constants, the events
 /// monitor, the toggle/cycle state machine, and the hotkey handlers.
 @MainActor
@@ -70,11 +97,22 @@ class Popup {
   private var eventsMonitor: Any?
 
   private var state: PopupState = .toggle
+  @ObservationIgnored private var runtimeServices: PopupRuntimeServices
 
   /// Registers the global `.popup` hotkey and the local events monitor.
-  init() {
-    KeyboardShortcuts.onKeyDown(for: .popup, action: handleFirstKeyDown)
-    initEventsMonitor()
+  init(
+    runtimeServices: PopupRuntimeServices = .inert,
+    installsEventHandlers: Bool = true
+  ) {
+    self.runtimeServices = runtimeServices
+    if installsEventHandlers {
+      KeyboardShortcuts.onKeyDown(for: .popup, action: handleFirstKeyDown)
+      initEventsMonitor()
+    }
+  }
+
+  func configureRuntimeServices(_ runtimeServices: PopupRuntimeServices) {
+    self.runtimeServices = runtimeServices
   }
 
   /// Removes the events monitor.
