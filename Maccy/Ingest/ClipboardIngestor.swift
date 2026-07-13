@@ -31,8 +31,9 @@ protocol ClipboardIngestor: Sendable {
 ///   `lastCopiedAt` so one ingest is internally consistent. `Date()` is never
 ///   called from inside the actor.
 /// - `image` is the `ImageProcessing` strategy (used later for thumbnails and
-///   previews); this actor calls `HistoryItem.generateTitle()` for text titles.
-///   Image items get an empty title (the OCR feature was removed).
+///   previews); text title/search projection goes through `HistoryItemEngine`
+///   over Sendable content values. Image items get an empty title (the OCR
+///   feature was removed).
 ///
 /// ## Single-transaction invariant
 /// One `modelContext.transaction { ... }` followed by one
