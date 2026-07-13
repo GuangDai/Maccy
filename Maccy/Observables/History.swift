@@ -371,4 +371,9 @@ class History: ItemsContainer {
 extension History: HistoryRef {
   /// All decorators (visible or not), for memory-pressure iteration.
   func decorators() -> [HistoryItemDecorator] { all }
+
+  /// Purges the icon cache owned by this History's decorator factory.
+  func purgeApplicationImages() {
+    decoratorFactory.purgeApplicationImages()
+  }
 }

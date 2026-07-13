@@ -22,6 +22,8 @@ enum ReleaseReason {
 protocol HistoryRef: AnyObject {
   /// All decorators (visible or not).
   func decorators() -> [HistoryItemDecorator]
+  /// Purges the application-icon resources owned by this history composition.
+  func purgeApplicationImages()
 }
 
 /// Provides the identity `VisibilityTracker` keys on. The viewport
@@ -112,6 +114,6 @@ final class MemoryGovernor {
     for decorator in history?.decorators() ?? [] where !visibleIDs.contains(decorator.id) {
       decorator.releaseTransientImages(.memoryWarning)
     }
-    ApplicationImageCache.shared.purge()
+    history?.purgeApplicationImages()
   }
 }

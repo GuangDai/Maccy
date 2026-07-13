@@ -15,12 +15,12 @@ final class CompositionRoot {
     appState: AppState = .shared,
     clipboard: Clipboard = .shared,
     storage: Storage = .shared,
-    imageProcessor: any ImageProcessing = HistoryItemDecorator.defaultImageProcessor
+    imageProcessor: (any ImageProcessing)? = nil
   ) {
     self.appState = appState
     self.clipboard = clipboard
     self.storage = storage
-    self.imageProcessor = imageProcessor
+    self.imageProcessor = imageProcessor ?? appState.history.decoratorImageProcessor
   }
 
   /// Installs application bridges and starts clipboard ingestion before launch completes.
