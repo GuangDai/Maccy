@@ -96,7 +96,9 @@ final class PopupTests: XCTestCase {
     recorder.previewMinimumRequired = true
     XCTAssertEqual(popup.preferredHeight(for: 10), 480)
     popup.resize(height: 120)
-    XCTAssertEqual(recorder.resizedHeights, [480])
+    popup.resize(height: 650)
+    popup.resize(height: 900)
+    XCTAssertEqual(recorder.resizedHeights, [480, 650, 800])
   }
 
   func testPreviewMinimumHeightScalesWithWindowAndClampsPercent() {
