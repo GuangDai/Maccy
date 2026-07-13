@@ -37,11 +37,24 @@ class Clipboard {
   /// Serializes burst dispatch without dropping already-observed copies.
   private let ingestMailbox = IngestMailbox()
 
+  /// Reports ingest persistence failures to the composition owner.
+  private var ingestFailureSink: @MainActor (Error) -> Void
+
   /// The application currently in the foreground when a copy is observed.
   private var sourceApp: NSRunningApplication? { NSWorkspace.shared.frontmostApplication }
 
-  init() {
+  init(
+    ingestFailureSink: @escaping @MainActor (Error) -> Void = { _ in }
+  ) {
+    self.ingestFailureSink = ingestFailureSink
     changeCount = pasteboard.changeCount
+  }
+
+  /// Replaces the application-owned destination for ingest persistence errors.
+  func configureIngestFailureSink(
+    _ sink: @escaping @MainActor (Error) -> Void
+  ) {
+    ingestFailureSink = sink
   }
 
   /// Starts the pasteboard polling timer.
@@ -225,13 +238,16 @@ class Clipboard {
     }
   }
 
-  /// Surfaces a persistence failure (the actor set
-  /// `IngestResult.persistenceFailed`) onto `History.lastPersistError` so a lost
-  /// copy is diagnosable instead of only a log line (NEW-ingest-dualpath-4). The
-  /// actor already logged the error detail; this flags it on the main-side state.
+  /// Enqueues committed main-side store events in the same FIFO as ingests.
+  func synchronizeStoreEvents(_ events: [StoreEvent]) {
+    guard !events.isEmpty, let ingestor else { return }
+    ingestMailbox.submit(storeEvents: events, to: ingestor)
+  }
+
+  /// Reports an ingest persistence failure through the configured output.
   func surfaceIngestFailureIfNeeded(_ result: IngestResult) {
     guard result.persistenceFailed else { return }
-    History.shared.lastPersistError = ClipboardIngestPersistenceError()
+    ingestFailureSink(ClipboardIngestPersistenceError())
   }
 
   private struct ClipboardIngestPersistenceError: Error {}

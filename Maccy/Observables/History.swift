@@ -32,10 +32,7 @@ class History: ItemsContainer {
             .subtracting([.capsLock, .numericPad, .function]) ?? []
         },
         currentEvent: { NSApp.currentEvent },
-        publishStoreEvents: { events in
-          guard !events.isEmpty, let ingestor = Clipboard.shared.ingestor else { return }
-          Task { await ingestor.synchronizeStoreEvents(events) }
-        },
+        publishStoreEvents: { Clipboard.shared.synchronizeStoreEvents($0) },
         log: { mutationLogger.info("\($0)") }
       )
     )

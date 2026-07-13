@@ -32,6 +32,9 @@ final class CompositionRoot {
     )
 
     let history = appState.history
+    clipboard.configureIngestFailureSink { [weak history] error in
+      history?.lastPersistError = error
+    }
     clipboard.ingestor = BackgroundClipboardIngestor(
       modelContainer: storage.container,
       image: imageProcessor,
