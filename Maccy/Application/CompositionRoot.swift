@@ -31,10 +31,8 @@ final class CompositionRoot {
       navigator: appState.navigator
     )
 
+    configureIngestFailureReporting()
     let history = appState.history
-    clipboard.configureIngestFailureSink { [weak history] error in
-      history?.lastPersistError = error
-    }
     clipboard.ingestor = BackgroundClipboardIngestor(
       modelContainer: storage.container,
       image: imageProcessor,
@@ -50,6 +48,14 @@ final class CompositionRoot {
       for await _ in Defaults.updates(.clipboardCheckInterval, initial: false) {
         clipboardObserver.restart()
       }
+    }
+  }
+
+  /// Connects ingest persistence failures to this root's History instance.
+  func configureIngestFailureReporting() {
+    let history = appState.history
+    clipboard.configureIngestFailureSink { [weak history] error in
+      history?.lastPersistError = error
     }
   }
 
