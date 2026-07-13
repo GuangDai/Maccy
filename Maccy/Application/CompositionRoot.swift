@@ -8,7 +8,9 @@ final class CompositionRoot {
   private let appState: AppState
   private let clipboard: Clipboard
   private let storage: Storage
-  private let imageProcessor: any ImageProcessing
+  /// Processor selected from the composed History unless explicitly overridden.
+  /// Internal so the composition-identity contract can be regression tested.
+  let imageProcessor: any ImageProcessing
 
   /// Creates the production composition from the existing application objects.
   init(

@@ -368,7 +368,7 @@ class History: ItemsContainer {
 
 }
 
-extension History: HistoryRef {
+extension History: MemoryGovernanceHistory {
   /// All decorators (visible or not), for memory-pressure iteration.
   func decorators() -> [HistoryItemDecorator] { all }
 

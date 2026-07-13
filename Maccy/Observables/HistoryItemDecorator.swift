@@ -120,9 +120,9 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
     }
     return imageDataCache
   }
-  /// Process-wide shared `ImageProcessor` (cache-backed) used when a caller
-  /// doesn't inject its own. `AppDelegate` feeds the same instance into the
-  /// ingestor so the cache is shared across the ingest and view paths.
+  /// Processor supplied by the owning decorator factory. Live History shares
+  /// its cache-backed processor with ingestion; standalone construction uses
+  /// the isolated passthrough default from ``init``.
   private let imageProcessor: ImageProcessing
   @ObservationIgnored private var textPreviewCache: String?
   @ObservationIgnored private var textPreviewCacheLimit: Int = -1

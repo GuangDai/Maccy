@@ -1,6 +1,6 @@
 # 架构与根因总览(单一权威参考)
 
-本文档是 Maccy 当前架构、瓶颈、数据安全、内存、路线图完成度的**单一权威参考**,由 ~30 份历史审计文档(2026-06-14 深度审查 / 2026-06-25 模块分析 / 2026-06-27 内存实测 / 2026-06-28 路线图缺口审计)蒸馏而成,并更新到 **2026-07-13 History B2–B5 / C3 / C4 完成态**。完成度细节见 `docs/audit/2026-06-28-roadmap-bs5-bs8-gap-audit/`,内存实测见 `docs/audit/2026-06-27-memory-floor-and-retention/`。`finding-id` 词汇表见本文末尾。
+本文档是 Maccy 当前架构、瓶颈、数据安全、内存、路线图完成度的**单一权威参考**,由 ~30 份历史审计文档(2026-06-14 深度审查 / 2026-06-25 模块分析 / 2026-06-27 内存实测 / 2026-06-28 路线图缺口审计)蒸馏而成,并更新到 **2026-07-13 History B2–B5 / C3 / C4 / E5 decorator factory 完成态**。完成度细节见 `docs/audit/2026-06-28-roadmap-bs5-bs8-gap-audit/`,内存实测见 `docs/audit/2026-06-27-memory-floor-and-retention/`。`finding-id` 词汇表见本文末尾。
 
 > 代码标识符保留英文;历史行号仅用于定位旧证据,当前结构以类型名和 2026-07-13 branch HEAD 为准。
 
@@ -33,9 +33,10 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 │  ├─ HistoryListState(all/items + mutation hook)    │◄──┤  ├─ 去重(SignatureIndex 内存索引,O(h))            │
 │  ├─ HistorySearchSession(query/actor/corpus)       │ DTO│  ├─ 单事务写(background context)                  │
 │  ├─ HistoryStoreProjector(load/consume/reconcile)  │   │  └─ 发出 StoreEvent + trimmed persistent IDs       │
+│  ├─ HistoryItemDecoratorFactory(image resources)   │   │                                                    │
 │  └─ HistoryMutations(clear/delete/select/pin)      │   │                                                    │
 │       └─ HistoryPersistence → SwiftData adapter    │   │                                                    │
-│                                                    │   │ actor ImageProcessor 【BS-3 已接入】               │
+│                                                    │   │ actor ImageProcessor 【BS-3 已接入,E5 显式组合】   │
 │ @Observable HistoryItemDecorator(UI 状态)          │   │  ├─ ImageIO 降采样(CGImageSourceCreateThumbnail)   │
 │  ├─ thumbnailImage/previewImage(就绪位图)          │   │  └─ 后台解码 + 缩略图/预览(预览封顶 800px)         │
 │  └─ applicationImage(NSCache 限界 128)             │   │                                                    │
@@ -61,6 +62,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 | `Maccy/Ingest/ClipboardIngestor.swift` | ✅ 已接入 live copy 路径(BS-2) |
 | `Maccy/ImageProcessing/ImageProcessing.swift` + `ImageProcessor.swift` + `ImageDownsampler.swift` + `ThumbnailCache.swift` | ✅ ImageIO 降采样已接入(BS-3) |
 | `HistoryListState` / `HistorySearchSession` / `HistoryStoreProjector` / `HistoryMutations` | ✅ B2–B5 完成:列表变更单 chokepoint、actor 搜索语料/O(1) lookup、单 persistence 投影、fake-backed mutations + value UI effects。E5 首个 DI slice 又将 clipboard/event/current-event/log 服务构造注入；普通 `History` 实例 inert，live globals 仅在 `History.shared` composition factory。`History.swift` 978→346 LOC；full matrix `29210900842`。 |
+| `HistoryItemDecoratorFactory` / image composition | ✅ E5 decorator slice:projector 的 load/reconcile/incremental insert 只经 factory 构造；factory 显式拥有 `ImageProcessor` 与 `ApplicationImageCache`。`History.shared` 建一套 live 资源，普通 `History` 使用隔离资源；`CompositionRoot` 将同一 processor 交给 ingest，memory warning 经 attached History 清理同一 icon cache。decorator/cache 不再读取隐藏 `.shared`。 |
 | `AppState` runtime boundary | ✅ E5 第二 slice (`ed664b2`):空选择 query copy 构造注入；prewarm 使用当前组合的 History；Settings close observer 弱捕获 owning AppState，不再回写 `AppState.shared`。文件内 shared 使用 8→3，剩余仅 composition/Settings 构建区；full matrix `29211587341`。 |
 | Footer action flow | ✅ `7d1d3e2`:FooterItem 携带 closed `FooterAction` value；click/confirmation/keyboard 统一交给 owning AppState 解释，Footer 内 5 个 `AppState.shared` 闭包删除。`f84ffa1` 又覆盖全部 interpreter cases，并把键盘 clear 路由从 title string 收敛为 typed lookup；full matrix `29213836925`。 |
 | Navigation → Preview lead flow | ✅ `38ef0c9`:Navigation 在构造时接收单一 current-lead 输出，旧 lead 解码取消仍内聚于 Navigation；AppState 组合该输出到 Preview 的 auto-open/retarget 输入。`NavigationManager` 不再读取 `AppState.shared`，测试也不再借用 global Preview；full matrix `29214579841`。 |
@@ -127,7 +129,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 | `imageData` 全表 fault | [部分] | `img-fullres-dup-storage`:BS-6 已 lazy(`HistoryItemDecorator.imageDataCache`),但**冷开仍会因 `load()` 全表 fault 而触发**;双份(blob+位图)问题在 `imageDataCache` 仍存 |
 | `DecodedImageCache` | [死代码] | `MemoryGovernance.swift:61`:`setImage/image(for:)` **零调用方**,只有 `evict`/`purgeAll` 被调。"解码位图按可视区限界"核心目标**从未实现**,preview 位图仍 per-decorator 持有 |
 | `releaseTransientImages(.previewHidden)` | [死代码] | 枚举 case 零调用方;`FloatingPanel.close()` 从不调 |
-| `ApplicationImageCache` 无界字典 + fd DispatchSource | [已修] | `IMG-010/011`:NSCache 限界 128 + fd guard(M4) |
+| `ApplicationImageCache` 无界字典 + fd DispatchSource | [已修] | `IMG-010/011`:NSCache 限界 128 + fd guard(M4)；E5 后由 History decorator factory 显式拥有并经 memory-governance capability 清理，无进程级 `.shared`。 |
 | `ColorImage` 主线程合成 | [已修] | `IMG-019`:NSCache 限界(M9) |
 | 缩略图缓存键 FNV-1a | [部分] | `IMG-caching-key`:`ImageProcessor.thumbnail` 用 FNV;待统一 xxh3_64(已接入去重热路径,缓存键未切) |
 

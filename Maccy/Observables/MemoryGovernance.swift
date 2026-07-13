@@ -16,10 +16,10 @@ enum ReleaseReason {
   case invalidate
 }
 
-/// Read-only handle to a history's decorators for memory-pressure iteration.
-/// `History` conforms; decouples `MemoryGovernor` from `History`.
+/// Narrow history capability used to reclaim decorator and application-icon
+/// resources under memory pressure.
 @MainActor
-protocol HistoryRef: AnyObject {
+protocol MemoryGovernanceHistory: AnyObject {
   /// All decorators (visible or not).
   func decorators() -> [HistoryItemDecorator]
   /// Purges the application-icon resources owned by this history composition.
@@ -68,11 +68,11 @@ final class VisibilityTracker {
 @MainActor
 final class MemoryGovernor {
   static let shared = MemoryGovernor()
-  private weak var history: HistoryRef?
+  private weak var history: MemoryGovernanceHistory?
   private var memoryPressureSource: DispatchSourceMemoryPressure?
 
   /// Binds the governor to a history it can iterate on memory warning.
-  func attach(history: HistoryRef) {
+  func attach(history: MemoryGovernanceHistory) {
     self.history = history
   }
 
