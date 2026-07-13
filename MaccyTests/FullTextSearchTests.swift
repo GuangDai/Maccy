@@ -24,16 +24,17 @@ final class FullTextSearchTests: XCTestCase {
     XCTAssertEqual(results.first?.ranges, [5_000..<5_006])
   }
 
-  /// A needle deep in the body is found by regexp search, reported as a body match.
+  /// A needle deep in the bounded regexp window is found and reported as a body match.
   func testRegexpFindsDeepBodyMatch() async {
-    let body = String(repeating: "x", count: 10_000) + "token123" + String(repeating: "y", count: 500)
+    let offset = TextLimits.regexp - 100
+    let body = String(repeating: "x", count: offset) + "token123" + String(repeating: "y", count: 500)
     let corpus = [SearchCorpusItem(id: UUID(), title: "title", body: body)]
 
     let results = await searchActor.search(query: "token[0-9]+", within: corpus, mode: .regexp)
 
     XCTAssertEqual(results.count, 1)
     XCTAssertEqual(results.first?.inBody, true)
-    XCTAssertEqual(results.first?.ranges, [10_000..<10_008])
+    XCTAssertEqual(results.first?.ranges, [offset..<(offset + 8)])
   }
 
   /// A query absent from both title and body matches nothing.

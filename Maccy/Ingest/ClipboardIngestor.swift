@@ -525,12 +525,13 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
 
       // Count unpinned WITHOUT faulting any @Model (SELECT COUNT(*) WHERE
       // pin IS NULL). Honors the pending dup delete above, so it excludes the
-      // dup. `limit - 1` leaves room for the new item (mirrors the legacy
-      // `History.add` net-zero-on-merge trim target).
-      let unpinnedCount = (try? modelContext.fetchCount(
+      // dup. An unpinned insert reserves one slot; a pinned merge does not
+      // consume the unpinned retention budget.
+      let unpinnedCount = try modelContext.fetchCount(
         FetchDescriptor<HistoryItem>(predicate: #Predicate { $0.pin == nil })
-      )) ?? 0
-      let toEvict = max(0, unpinnedCount - max(0, limit - 1))
+      )
+      let retainedBeforeInsert = max(0, item.pin == nil ? limit - 1 : limit)
+      let toEvict = max(0, unpinnedCount - retainedBeforeInsert)
 
       // Fetch only the oldest `toEvict` unpinned rows (ascending sort, bounded),
       // not all of them — the steady-state copy evicts ~1, so this faults ~1 row
@@ -541,7 +542,7 @@ actor BackgroundClipboardIngestor: ClipboardIngestor {
           sortBy: [SortDescriptor(\.lastCopiedAt, order: .forward)]
         )
         tailDescriptor.fetchLimit = toEvict
-        let tail = (try? modelContext.fetch(tailDescriptor)) ?? []
+        let tail = try modelContext.fetch(tailDescriptor)
         for excess in tail {
           deletedItemIDs.append(snapshot(of: excess).id)
           deletedPersistentIDs.append(excess.persistentModelID)

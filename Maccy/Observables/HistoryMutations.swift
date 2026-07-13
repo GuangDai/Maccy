@@ -205,6 +205,7 @@ final class HistoryMutations {
   }
 
   private func finishClear() {
+    searchSession.query = ""
     clipboard.clear()
     uiEffectSink(.closePopup)
     Task { uiEffectSink(.resizePopup) }
