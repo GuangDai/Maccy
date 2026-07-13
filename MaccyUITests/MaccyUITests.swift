@@ -478,8 +478,8 @@ class MaccyUITests: XCTestCase {
     popUpWithHotkey()
 
     // Click outside the popup to close it
-    let popup = app.windows.firstMatch
-    let coordinate = popup.coordinate(withNormalizedOffset: CGVector(dx: -0.1, dy: 0.5))
+    let statusBar = app.statusItems.firstMatch
+    let coordinate = statusBar.coordinate(withNormalizedOffset: CGVector(dx: -2.0, dy: 0.5))
     coordinate.click()
     assertNotExists(items[copy1])
 
