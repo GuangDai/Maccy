@@ -168,13 +168,13 @@ class History: ItemsContainer {
 
     Task { @MainActor in
       for await _ in Defaults.updates(.sortBy, initial: false) {
-        await self.loadAfterDefaultsChange()
+        self.resortAfterDefaultsChange()
       }
     }
 
     Task { @MainActor in
       for await _ in Defaults.updates(.pinTo, initial: false) {
-        await self.loadAfterDefaultsChange()
+        self.resortAfterDefaultsChange()
       }
     }
 
@@ -306,13 +306,11 @@ class History: ItemsContainer {
     mutations.togglePin(item)
   }
 
-  /// Reloads the history after a Defaults change that affects ordering/display
-  /// (`.sortBy` / `.pinTo`). Routes through `reconcileWithStore` — which re-sorts
-  /// and re-seeds the search corpus while REUSING decorators by `persistentID`
-  /// — instead of a full `load()`, so decoded/cached images survive the reload
-  /// rather than being discarded and re-decoded (NEW-history-spine-1).
-  private func loadAfterDefaultsChange() async {
-    storeProjector.reconcile()
+  /// Reorders the already-complete projection after `.sortBy` / `.pinTo`
+  /// changes. No store state changed, so this keeps decorator identity and
+  /// avoids an unnecessary full fetch through SwiftData.
+  private func resortAfterDefaultsChange() {
+    storeProjector.resort()
   }
 
   /// Stores `error` on `lastPersistError` and logs it when enabled.

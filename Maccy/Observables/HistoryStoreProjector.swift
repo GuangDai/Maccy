@@ -78,6 +78,24 @@ final class HistoryStoreProjector {
     }
   }
 
+  /// Reorders the complete in-memory projection after a sort or pin-position
+  /// preference changes. The projection already owns every history row, so a
+  /// Defaults-only change must not fetch the store again.
+  func resort() {
+    let visibleIDs = Set(listState.items.map(\.id))
+    let sorted = listState.all.sorted {
+      sorter.areInIncreasingOrder($0.item, $1.item)
+    }
+
+    listState.replaceAll(sorted)
+    if !searchSession.query.isEmpty {
+      listState.publishVisible(sorted.filter { visibleIDs.contains($0.id) })
+    }
+    searchSession.replaceCorpus(sorted)
+    refreshVisibleItems()
+    emitSelectionAndResize()
+  }
+
   /// Rebuilds from persistence while reusing decorators by persistent identity.
   func reconcile() {
     let sorted: [HistoryItem]
