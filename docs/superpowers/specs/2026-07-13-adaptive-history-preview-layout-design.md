@@ -76,7 +76,8 @@ only and has no model, image-processing, or view dependency.
 - `textHeight(lines:)`: `baseHeight + (clampedLines - 1) * lineIncrement`, with
   lines clamped to 1...4.
 - `imageHeight(maxImageHeight:)`: `max(baseHeight, clampedImageHeight +
-  verticalInsets)`.
+  verticalInsets)`, with the content height clamped to the existing 1...200 pt
+  Appearance-setting range.
 - Footer rows remain `baseHeight`; only history content rows are adaptive.
 
 `HistoryItemView` asks its already-realized decorator whether the item has image

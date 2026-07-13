@@ -15,7 +15,7 @@
 - Use TDD for behavior: establish a compiling additive/extractive seam, commit the RED tests, then make the minimum GREEN changes.
 - Never allow an asynchronously arriving thumbnail to change a row's height.
 - Do not eagerly classify or decode the complete history collection; image-kind resolution is limited to realized row decorators.
-- Keep text-row lines clamped to `1...4` and preview minimum height percent clamped to `25...100` with defaults `1` and `60`.
+- Keep text-row lines clamped to `1...4`, image content height clamped to `1...200`, and preview minimum height percent clamped to `25...100` with defaults `1`, `40`, and `60`.
 - Keep thumbnails aspect-fit and keep footer/header rows at the platform base height.
 - `maxVisibleItems` is a compact-text-row viewport cap; larger image rows may reduce the number of simultaneously visible items.
 - Only Sendable DTOs cross actors; no `@Model` crosses an actor boundary.
@@ -195,6 +195,10 @@ final class HistoryRowLayoutTests: XCTestCase {
       HistoryRowLayout.imageHeight(maxImageHeight: -1),
       HistoryRowLayout.baseHeight
     )
+    XCTAssertEqual(
+      HistoryRowLayout.imageHeight(maxImageHeight: 999),
+      max(HistoryRowLayout.baseHeight, 210)
+    )
     XCTAssertNotEqual(
       HistoryRowLayout.rowHeight(isImage: true, maxImageHeight: 40, textLines: 1),
       HistoryRowLayout.rowHeight(isImage: false, maxImageHeight: 40, textLines: 1)
@@ -204,6 +208,23 @@ final class HistoryRowLayoutTests: XCTestCase {
 ```
 
 Expected under Task 1: the 3-line, 40-point image, and unequal-kind assertions fail.
+
+Also add to `HistoryDecoratorTests` so semantic row kind cannot change when
+transient image state is released:
+
+```swift
+  func testImageRowKindSurvivesTransientInvalidation() {
+    let itemDecorator = historyItemDecorator(largeImageData(), .png)
+
+    XCTAssertTrue(itemDecorator.hasImage)
+    itemDecorator.invalidate()
+    XCTAssertTrue(itemDecorator.hasImage)
+  }
+```
+
+Expected before Task 4: the final assertion fails because the current
+`invalidate()` clears the blob cache and the invalidated decorator refuses to
+fault the model again.
 
 - [ ] **Step 2: Replace the fixed preview-floor assertion with percentage contracts**
 
@@ -477,7 +498,7 @@ Replace the two legacy-returning methods:
   }
 
   static func imageHeight(maxImageHeight: Int) -> CGFloat {
-    let contentHeight = CGFloat(max(maxImageHeight, 1))
+    let contentHeight = CGFloat(min(max(maxImageHeight, 1), 200))
     return max(baseHeight, contentHeight + 10)
   }
 ```
