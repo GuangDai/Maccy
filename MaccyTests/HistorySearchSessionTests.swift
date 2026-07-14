@@ -49,6 +49,17 @@ final class HistorySearchSessionTests: XCTestCase {
     XCTAssertEqual(state.items, [new])
   }
 
+  func testReplaceCorpusInvalidatesCurrentGeneration() {
+    let item = decorator(title: "item", body: "body")
+    let state = HistoryListState(decorators: [item])
+    let session = makeSession(state: state, backend: ControlledSearchBackend())
+    let generationBeforeReplacement = session.generation
+
+    session.replaceCorpus([item])
+
+    XCTAssertEqual(session.generation, generationBeforeReplacement + 1)
+  }
+
   func testMissingAndDuplicateResultIDsPublishOneKnownDecorator() async {
     let known = decorator(title: "known", body: "known")
     let state = HistoryListState(decorators: [known])

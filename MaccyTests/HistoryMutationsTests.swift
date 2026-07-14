@@ -193,6 +193,7 @@ final class HistoryMutationsTests: XCTestCase {
     let selected = decorator(item(title: "selected"))
     let harness = makeHarness([selected], modifierFlags: .control)
     harness.searchSession.query = "needle"
+    let generationBeforeSelection = harness.searchSession.generation
 
     harness.subject.select(selected)
     try? await Task.sleep(for: .milliseconds(20))
@@ -201,6 +202,7 @@ final class HistoryMutationsTests: XCTestCase {
     XCTAssertEqual(harness.clipboard.pasteCalls, 0)
     XCTAssertTrue(harness.effects.isEmpty)
     XCTAssertEqual(harness.searchSession.query, "needle")
+    XCTAssertEqual(harness.searchSession.generation, generationBeforeSelection)
   }
 
   func testTogglePinFailureRestoresOldPinWithoutProjectionEffects() async {
