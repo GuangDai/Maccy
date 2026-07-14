@@ -83,21 +83,14 @@ where Content: View, Slideout: View {
       .gesture(
         DragGesture()
           .onChanged({ value in
-            if let window = controller.window {
-              controller.slideoutWidth = min(
-                max(
-                  controller.minimumSlideoutWidth,
-                  controller.slideoutResizeWidth + (leftToRight ? -1 : 1)
-                    * value.translation.width
-                ),
-                window.frame.width - controller.minimumContentWidth
-              )
-              controller.contentWidth = window.frame.width - controller.slideoutWidth
-            }
+            guard let totalWidth = controller.window?.frame.width else { return }
+            controller.updateDividerResize(
+              translation: value.translation.width,
+              totalWidth: totalWidth
+            )
           })
           .onEnded({ _ in
-            controller.slideoutWidth = controller.slideoutResizeWidth
-            controller.contentWidth = controller.contentResizeWidth
+            controller.finishDividerResize()
           })
       )
       .disabled(controller.state != .open)

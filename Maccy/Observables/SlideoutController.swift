@@ -61,6 +61,7 @@ class SlideoutController {
   let onSlideoutResize: (CGFloat) -> Void
   @ObservationIgnored private weak var attachedWindow: NSWindow?
   @ObservationIgnored private var currentLead: HistoryItemDecorator?
+  @ObservationIgnored private var dividerDragStartSlideoutWidth: CGFloat?
 
   let minimumContentWidth: CGFloat = 200
   var contentResizeWidth: CGFloat = 0
@@ -193,6 +194,33 @@ class SlideoutController {
     }
 
     window.setFrame(NSRect(origin: newOrigin, size: newSize), display: true)
+  }
+
+  /// Applies one cumulative divider-drag translation without persisting it.
+  /// The first update captures a stable base so geometry-reader feedback cannot
+  /// compound the gesture's cumulative translation on later updates.
+  func updateDividerResize(translation: CGFloat, totalWidth: CGFloat) {
+    let startingWidth = dividerDragStartSlideoutWidth ?? slideoutWidth
+    dividerDragStartSlideoutWidth = startingWidth
+
+    let direction: CGFloat = placement == .right ? -1 : 1
+    let maximumSlideoutWidth = max(
+      minimumSlideoutWidth,
+      totalWidth - minimumContentWidth
+    )
+    _slideoutWidth = min(
+      max(minimumSlideoutWidth, startingWidth + direction * translation),
+      maximumSlideoutWidth
+    ).rounded()
+    _contentWidth = max(minimumContentWidth, totalWidth - _slideoutWidth).rounded()
+  }
+
+  /// Persists the final divider widths once and closes the drag transaction.
+  func finishDividerResize() {
+    guard dividerDragStartSlideoutWidth != nil else { return }
+    dividerDragStartSlideoutWidth = nil
+    onSlideoutResize(_slideoutWidth)
+    onContentResize(_contentWidth)
   }
 
   /// Begins a resize drag of the given mode, applying the in-progress widths.
