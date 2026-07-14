@@ -161,3 +161,11 @@ master first so a documentation head cannot suppress the automatic code run.
 
 Verify the five-entry primary dirty-state sentinel before and after merge, then
 push code once and the evidence-only commit separately.
+
+## Execution record
+
+Tasks 1–3 completed. RED run `29298677929` isolated only the two desired missing
+controller operations. GREEN run `29298867332` passed the full matrix on its
+first attempt, including all 390 unit tests. The green code commit was pushed to
+master before this `[skip ci]` evidence update so the automatic code workflow
+could not be suppressed.

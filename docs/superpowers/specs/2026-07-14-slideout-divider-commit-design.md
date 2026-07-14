@@ -50,3 +50,15 @@ A controller test sends two cumulative updates, proves callbacks remain empty
 while the observable widths change, then proves finish publishes each final
 width once. A second finish proves idempotence. The full macOS 26 ARM workflow
 is the compile, lint, unit, UI, and performance gate.
+
+## Evidence
+
+- RED run `29298677929` passed project generation and strict lint, then every
+  shard repeated only the expected missing `updateDividerResize` and
+  `finishDividerResize` test-target compile errors.
+- GREEN run `29298867332` passed project generation, strict lint/build, all 390
+  unit tests, both UI shards, and text/image performance shards on its first
+  attempt.
+- Diff review confirms `SlideoutView.onChanged` crosses no committed width
+  setter or persistence callback, cumulative translation uses the captured
+  first-frame base, finish is idempotent, and NSWindow edge resize is unchanged.
