@@ -79,6 +79,21 @@ final class HistorySearchSessionTests: XCTestCase {
     XCTAssertEqual(replacement.bodyLimit, TextLimits.searchBodyMin)
   }
 
+  func testRefreshVisibleItemsOwnsCompleteListPublication() {
+    let first = decorator(title: "first", body: "first")
+    let second = decorator(title: "second", body: "second")
+    let state = HistoryListState(decorators: [first, second])
+    state.publishVisible([])
+    let session = makeSession(state: state, backend: ImmediateSearchBackend(results: []))
+    var publicationCount = 0
+    session.configureDidPublishVisible { publicationCount += 1 }
+
+    session.refreshVisibleItems(mode: .exact)
+
+    XCTAssertEqual(state.items, [first, second])
+    XCTAssertEqual(publicationCount, 1)
+  }
+
   func testMissingAndDuplicateResultIDsPublishOneKnownDecorator() async {
     let known = decorator(title: "known", body: "known")
     let state = HistoryListState(decorators: [known])

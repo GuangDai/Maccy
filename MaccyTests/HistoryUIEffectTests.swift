@@ -173,6 +173,36 @@ final class HistoryUIEffectTests: XCTestCase {
 
 @MainActor
 final class AppStateRuntimeServicesTests: XCTestCase {
+  func testPressedShortcutSelectionUsesOneDeferredCommitPath() async {
+    let item = HistoryBuilder()
+      .withContent(type: "public.utf8-plain-text", value: Data("shortcut".utf8))
+      .build()
+    let decorator = HistoryItemDecorator(item)
+    var copiedItems: [HistoryItem] = []
+    let history = History(
+      persistence: RuntimeServicesPersistence(),
+      listState: HistoryListState(decorators: [decorator]),
+      runtimeServices: HistoryRuntimeServices(
+        clipboard: HistoryClipboardActions(
+          clear: {},
+          copy: { copiedItems.append($0) },
+          paste: {}
+        )
+      ),
+      logsPersistenceErrors: false
+    )
+    let appState = AppState(history: history, footer: Footer())
+
+    XCTAssertTrue(appState.selectPressedShortcut(decorator, delay: .zero))
+    XCTAssertTrue(appState.navigator.selection.first === decorator)
+    for _ in 0..<100 where copiedItems.isEmpty {
+      await Task.yield()
+    }
+
+    XCTAssertEqual(copiedItems.count, 1)
+    XCTAssertTrue(copiedItems.first === item)
+  }
+
   func testEmptySelectionCopiesSearchThroughInjectedRuntimeService() async {
     let savedIgnoreEvents = Defaults[.ignoreEvents]
     let savedIgnoreOnlyNextEvent = Defaults[.ignoreOnlyNextEvent]

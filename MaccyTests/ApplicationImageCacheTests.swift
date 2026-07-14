@@ -1,3 +1,5 @@
+import AppKit
+import Foundation
 import SwiftData
 import XCTest
 @testable import Maccy
@@ -46,5 +48,35 @@ final class ApplicationImageCacheTests: XCTestCase {
     cache.purge()
     let after = cache.getImage(item: item(application: bundle))
     XCTAssertFalse(before === after, "After purge the image must be recreated.")
+  }
+
+  func testRenameReResolvesIconAndWatchesTheNewApplicationURL() throws {
+    let root = FileManager.default.temporaryDirectory
+      .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+    let originalURL = root.appending(path: "Original.app", directoryHint: .isDirectory)
+    let replacementURL = root.appending(path: "Replacement.app", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: originalURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: replacementURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let originalIcon = NSImage(size: NSSize(width: 16, height: 16))
+    let replacementIcon = NSImage(size: NSSize(width: 32, height: 32))
+    var resolvedURL = originalURL
+    let applicationImage = ApplicationImage(
+      bundleIdentifier: "org.maccy.test.renamed-app",
+      resolveApplicationURL: { _ in resolvedURL },
+      loadIcon: { url in
+        url == originalURL ? originalIcon : replacementIcon
+      }
+    )
+
+    XCTAssertTrue(applicationImage.nsImage === originalIcon)
+    XCTAssertEqual(applicationImage.watchedApplicationURL, originalURL)
+
+    resolvedURL = replacementURL
+    let refreshed = applicationImage.reloadAfterRename()
+
+    XCTAssertTrue(refreshed === replacementIcon)
+    XCTAssertEqual(applicationImage.watchedApplicationURL, replacementURL)
   }
 }
