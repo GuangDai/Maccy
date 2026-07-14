@@ -143,8 +143,10 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
   }
 
   /// Minimum popup height enforced during a vertical drag — enough for the
-  /// search header, a few rows, and the footer.
-  private static let minimumDragHeight: CGFloat = 200
+  /// search header, a few rows, and the footer. Computed (not a stored
+  /// property) because `FloatingPanel` is generic and Swift forbids static
+  /// stored properties in generic types.
+  private static var minimumDragHeight: CGFloat { 200 }
 
   /// Constrains the live-resize frame: height follows the vertical drag
   /// (persisted to `windowSize.height`); width follows the horizontal drag and
