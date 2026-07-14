@@ -107,6 +107,27 @@ final class PopupTests: XCTestCase {
     XCTAssertEqual(Popup.previewMinimumHeight(maximumHeight: 800, percent: 200), 800)
   }
 
+  /// The minimum-height floor applies unconditionally — a popup shorter than the
+  /// configured floor is raised to it even when no slideout preview is open.
+  ///
+  /// Stability invariant for candidate ①: search drives filtering only, never
+  /// window geometry, so the floor cannot switch on/off with preview state.
+  func testPreferredHeightAppliesMinimumFloorWithoutPreviewOpen() {
+    let recorder = PopupRuntimeRecorder()
+    let popup = Popup(runtimeServices: recorder.services, installsEventHandlers: false)
+    let savedWindowSize = Defaults[.windowSize]
+    let savedPercent = Defaults[.previewMinimumHeightPercent]
+    defer {
+      Defaults[.windowSize] = savedWindowSize
+      Defaults[.previewMinimumHeightPercent] = savedPercent
+    }
+    Defaults[.windowSize] = NSSize(width: 450, height: 800)
+    Defaults[.previewMinimumHeightPercent] = 60
+    // recorder.previewMinimumRequired is left at its default (false): the floor
+    // must apply regardless of preview state.
+    XCTAssertEqual(popup.preferredHeight(for: 10), 480, accuracy: 0.001)
+  }
+
   func testInjectedRuntimeOwnsOpenCycleAndCommitEffects() async {
     let recorder = PopupRuntimeRecorder()
     let commitExpectation = expectation(description: "selection commits after modifier handling")
