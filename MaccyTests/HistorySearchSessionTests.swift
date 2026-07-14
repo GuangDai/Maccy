@@ -22,7 +22,27 @@ final class HistorySearchSessionTests: XCTestCase {
       guard case .select(let selected) = effect else { return false }
       return selected === first
     })
-    XCTAssertTrue(effects.contains { if case .resizePopup = $0 { true } else { false } })
+    // Empty-query (complete-list) publication must NOT resize the popup —
+    // search/complete-list drives filtering only, never geometry.
+    XCTAssertFalse(effects.contains { if case .resizePopup = $0 { true } else { false } })
+  }
+
+  /// Searching must not request a popup resize — search drives filtering only,
+  /// never window geometry (stability invariant for candidate ①). Resizing on
+  /// search was the root cause of the popup growing/shrinking with each query.
+  func testSearchResultsDoNotEmitResizePopup() async {
+    let item = decorator(title: "needle", body: "needle")
+    let state = HistoryListState(decorators: [item])
+    let session = makeSession(state: state, backend: ImmediateSearchBackend(results: [match(item)]))
+    session.replaceCorpus([item])
+    var effects: [HistoryUIEffect] = []
+    session.configureUIEffectSink { effects.append($0) }
+
+    session.query = "needle"
+    session.refresh(mode: .exact)
+    await session.wait()
+
+    XCTAssertFalse(effects.contains { if case .resizePopup = $0 { true } else { false } })
   }
 
   func testLateResultCannotOverwriteNewerQuery() async {

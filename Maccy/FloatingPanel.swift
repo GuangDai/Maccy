@@ -142,8 +142,15 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     saveWindowPosition()
   }
 
-  /// Constrains the live-resize frame: pins height to the stored frame (height
-  /// is governed by `maxVisibleItems`) and enforces preview/content width floors.
+  /// Minimum popup height enforced during a vertical drag — enough for the
+  /// search header, a few rows, and the footer. Computed (not a stored
+  /// property) because `FloatingPanel` is generic and Swift forbids static
+  /// stored properties in generic types.
+  private static var minimumDragHeight: CGFloat { 200 }
+
+  /// Constrains the live-resize frame: height follows the vertical drag
+  /// (persisted to `windowSize.height`); width follows the horizontal drag and
+  /// drives the preview split. Floors keep the window usable.
   func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
     if inLiveResize && preview.resizingMode == .none {
       let screenPoint = NSEvent.mouseLocation
@@ -158,13 +165,11 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
 
     var finalFrameSize = frameSize
     if inLiveResize {
-      // Height is governed by `Defaults[.maxVisibleItems]`; pin the returned
-      // height to the current frame so manual vertical drag is a no-op. Width
-      // stays freely resizable (and still drives preview resize).
-      // `windowWillResize` is only sent for user live resize — programmatic
-      // `setFrame`/`setContentSize` bypass it — and the `inLiveResize` gate
-      // keeps those paths unaffected.
-      finalFrameSize.height = frame.height
+      // Height follows the vertical drag (no longer pinned); floor it so the
+      // window cannot be dragged too short to use. `windowWillResize` is only
+      // sent for user live resize — programmatic `setFrame`/`setContentSize`
+      // bypass it — so the content-driven resize path is unaffected.
+      finalFrameSize.height = max(finalFrameSize.height, Self.minimumDragHeight)
     }
     var minContent = preview.minimumContentWidth
     var minPreview = 0.0
@@ -181,11 +186,12 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     finalFrameSize.width = max(finalFrameSize.width, minContent + minPreview)
 
     if !preview.state.isAnimating {
-      // Width follows the drag; height is governed by maxVisibleItems, so
-      // preserve the stored window height rather than clobbering it with the
-      // (frozen) frame height.
+      // Both dimensions follow the drag: persist the content width and the
+      // dragged height into the stored window size (the ceiling that
+      // `Popup.preferredHeight` clamps content-driven sizing to).
       var size = Defaults[.windowSize]
       size.width = preview.contentWidth
+      size.height = finalFrameSize.height
       saveWindowFrame(frame: NSRect(origin: frame.origin, size: size))
     }
 
