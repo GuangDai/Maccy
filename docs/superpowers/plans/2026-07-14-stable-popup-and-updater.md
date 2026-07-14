@@ -13,3 +13,11 @@
    explicit checks.
 6. Run the complete workflow, self-review the diff, record evidence, and
    fast-forward the branch into `master` while preserving the primary worktree.
+
+## Execution record
+
+Steps 1–6 completed. RED run `29295765539` isolated the three intended behavior
+failures after run `29295646454` exposed and supplied the generated-project
+registration diff. GREEN run `29296154347` passed the full matrix on attempt 2
+after one failed-job retry for the documented `testCopyImage` 3-second
+contention flake.

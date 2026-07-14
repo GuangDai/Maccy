@@ -38,3 +38,9 @@ Push the GREEN commit and run one complete macOS 26 ARM workflow. Poll at
 for a documented contention flake. Record exact RED/GREEN evidence in
 `architecture-and-root-causes.md`, commit it with `[skip ci]`, then ff-only merge
 to `master` while preserving the primary worktree dirty-state sentinel.
+
+## Execution record
+
+Tasks 1–3 completed. RED run `29294799590` isolated the two intended contract
+failures. GREEN run `29296154347` passed the full matrix on attempt 2 after one
+failed-job retry for the documented `testCopyImage` 3-second contention flake.

@@ -56,3 +56,13 @@ TDD first adds synchronous contract assertions:
 
 The RED commit must fail only those assertions. The GREEN commit then receives
 one macOS 26 ARM full-matrix workflow; no local Xcode commands are run.
+
+## Evidence
+
+- RED run `29294799590` failed exactly the two new generation assertions:
+  `testReplaceCorpusInvalidatesCurrentGeneration` and
+  `testSelectWithUnknownModifiersHasNoSideEffects`.
+- GREEN run `29296154347` completed the full macOS 26 ARM matrix on attempt 2.
+  The unit shard passed all 386 tests. Attempt 1's only failure was the
+  documented 3-second `testCopyImage` UI-runner contention timeout; its single
+  failed-job retry passed.

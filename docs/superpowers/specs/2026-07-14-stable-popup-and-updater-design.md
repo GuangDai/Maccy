@@ -38,3 +38,16 @@ These changes add no startup work and do not change main-list image row sizing.
 - An injected updater-start closure proves disabled initialization performs no
   start, while enabling automatic checks and manual checks start at most once.
 - The GitHub macOS ARM workflow is the build, lint, and test gate.
+
+## Evidence
+
+- Run `29295646454` first caught that the new updater test was absent from the
+  generated Xcode project. The generated artifact's exact project diff was
+  applied before behavior verification.
+- RED run `29295765539` then built successfully and failed exactly the three new
+  contracts: preview height changed from 300 to 480, the disabled updater
+  started once, and the popup shortcut selected Clear All.
+- GREEN run `29296154347` passed project generation, strict lint/build, all 386
+  unit tests, both UI shards, and text/image performance shards on attempt 2.
+  Attempt 1's sole failure was the documented 3-second `testCopyImage`
+  UI-runner contention timeout; its single failed-job retry passed.
