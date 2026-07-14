@@ -19,6 +19,16 @@ final class SearchCorpusOwnershipTests: XCTestCase {
     )
   }
 
+  /// Builds an uncapped source whose id encodes `number`.
+  private func source(_ number: Int, _ title: String, body: String = "") -> SearchCorpusSource {
+    let suffix = String(format: "%012d", number)
+    return SearchCorpusSource(
+      id: UUID(uuidString: "00000000-0000-0000-0000-\(suffix)")!,
+      title: title,
+      body: body
+    )
+  }
+
   /// Extracts the trailing integer each result id encodes, in match order.
   private func ids(_ results: [SearchMatchDTO]) -> [Int] {
     results.compactMap { Int($0.id.uuidString.suffix(12)) }
@@ -31,6 +41,21 @@ final class SearchCorpusOwnershipTests: XCTestCase {
 
     let results = await searchActor.search(query: "", mode: .exact)
     XCTAssertEqual(ids(results), [1, 2, 3])
+  }
+
+  func testOwnedCorpusCapsSourceBodyAtActorBoundary() async {
+    let body = "inside-marker" + String(repeating: "x", count: TextLimits.searchBodyMin)
+      + "outside-marker"
+    await searchActor.replaceCorpus(
+      [source(1, "title", body: body)],
+      bodyLimit: TextLimits.searchBodyMin
+    )
+
+    let inside = await searchActor.search(query: "inside-marker", mode: .exact)
+    let outside = await searchActor.search(query: "outside-marker", mode: .exact)
+
+    XCTAssertEqual(ids(inside), [1])
+    XCTAssertTrue(outside.isEmpty)
   }
 
   /// `insert(at:)` places the entry at the given index, shifting the tail.

@@ -60,6 +60,25 @@ final class HistorySearchSessionTests: XCTestCase {
     XCTAssertEqual(session.generation, generationBeforeReplacement + 1)
   }
 
+  func testReplaceCorpusDefersBodyCappingToBackend() async {
+    let body = String(repeating: "a", count: TextLimits.searchBodyMin + 1)
+    let item = decorator(title: "item", body: body)
+    let state = HistoryListState(decorators: [item])
+    let backend = CorpusSourceRecorder()
+    let session = HistorySearchSession(
+      listState: state,
+      backend: backend,
+      debounce: nil,
+      bodyLimitProvider: { TextLimits.searchBodyMin }
+    )
+
+    session.replaceCorpus([item])
+    let replacement = await backend.waitForReplacement()
+
+    XCTAssertEqual(replacement.sources.map(\.body), [body])
+    XCTAssertEqual(replacement.bodyLimit, TextLimits.searchBodyMin)
+  }
+
   func testMissingAndDuplicateResultIDsPublishOneKnownDecorator() async {
     let known = decorator(title: "known", body: "known")
     let state = HistoryListState(decorators: [known])
@@ -153,6 +172,34 @@ final class HistorySearchSessionTests: XCTestCase {
   private func match(_ decorator: HistoryItemDecorator) -> SearchMatchDTO {
     SearchMatchDTO(id: decorator.id, title: decorator.title, score: nil, ranges: [])
   }
+}
+
+private struct RecordedCorpusReplacement: Sendable {
+  let sources: [SearchCorpusSource]
+  let bodyLimit: Int
+}
+
+private actor CorpusSourceRecorder: HistorySearchBackend {
+  private var replacement: RecordedCorpusReplacement?
+
+  func waitForReplacement() async -> RecordedCorpusReplacement {
+    while true {
+      if let replacement {
+        return replacement
+      }
+      await Task.yield()
+    }
+  }
+
+  func search(query: String, mode: Search.Mode) -> [SearchMatchDTO] { [] }
+
+  func replaceCorpus(_ sources: [SearchCorpusSource], bodyLimit: Int) {
+    replacement = RecordedCorpusReplacement(sources: sources, bodyLimit: bodyLimit)
+  }
+
+  func insert(_ source: SearchCorpusSource, bodyLimit: Int, at position: Int) {}
+  func remove(_ ids: [UUID]) {}
+  func clearCorpus() {}
 }
 
 private actor ImmediateSearchBackend: HistorySearchBackend {
