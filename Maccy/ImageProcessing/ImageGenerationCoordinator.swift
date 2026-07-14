@@ -14,6 +14,14 @@ final class ImageGenerationCoordinator {
     case preview
   }
 
+  #if DEBUG
+  private struct Timing {
+    let clock: ContinuousClock
+    let totalStart: ContinuousClock.Instant
+    let decodeStart: ContinuousClock.Instant
+  }
+  #endif
+
   /// Preview decode/placeholder target size. The longest side is capped at the
   /// configured preview-pixel limit; zero keeps the popup screen size.
   static var previewImageSize: NSSize {
@@ -133,14 +141,10 @@ final class ImageGenerationCoordinator {
 
     return Task { @MainActor [weak self] in
       #if DEBUG
-      let timing: (
-        clock: ContinuousClock,
-        totalStart: ContinuousClock.Instant,
-        decodeStart: ContinuousClock.Instant
-      )? = {
+      let timing: Timing? = {
         guard PerfRecorder.enabled else { return nil }
         let clock = ContinuousClock()
-        return (clock, clock.now, clock.now)
+        return Timing(clock: clock, totalStart: clock.now, decodeStart: clock.now)
       }()
       #endif
 
