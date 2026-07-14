@@ -36,49 +36,16 @@ final class PopupTests: XCTestCase {
     XCTAssertEqual(AppState.shared.navigator.selection.first, newest)
   }
 
-  /// `cappedListHeight` clamps the list to `maxVisibleItems` rows but leaves
-  /// shorter content unchanged, honors the row height, and is uncapped when the
-  /// visible-item limit is non-positive.
-  func testCappedListHeightLimitsRowsToMaxVisibleItems() {
-    // Cap binds when content exceeds maxVisibleItems rows (10 rows × 22pt).
-    XCTAssertEqual(
-      Popup.cappedListHeight(contentHeight: 4_400, maxVisibleItems: 10, itemHeight: 22),
-      220,
-      accuracy: 0.001
-    )
-    // No cap when content already fits within the limit.
-    XCTAssertEqual(
-      Popup.cappedListHeight(contentHeight: 150, maxVisibleItems: 10, itemHeight: 22),
-      150,
-      accuracy: 0.001
-    )
-    // maxVisibleItems <= 0 means uncapped (defensive; not exposed in Settings).
-    XCTAssertEqual(
-      Popup.cappedListHeight(contentHeight: 4_400, maxVisibleItems: 0, itemHeight: 22),
-      4_400,
-      accuracy: 0.001
-    )
-    // Respects itemHeight (macOS 26+ uses 24pt per row).
-    XCTAssertEqual(
-      Popup.cappedListHeight(contentHeight: 4_400, maxVisibleItems: 10, itemHeight: 24),
-      240,
-      accuracy: 0.001
-    )
-  }
-
   func testInjectedRuntimeOwnsWindowAndSizingEffects() {
     let recorder = PopupRuntimeRecorder()
     let popup = Popup(runtimeServices: recorder.services, installsEventHandlers: false)
     let savedWindowSize = Defaults[.windowSize]
-    let savedMaxVisibleItems = Defaults[.maxVisibleItems]
     let savedPreviewMinimumHeightPercent = Defaults[.previewMinimumHeightPercent]
     defer {
       Defaults[.windowSize] = savedWindowSize
-      Defaults[.maxVisibleItems] = savedMaxVisibleItems
       Defaults[.previewMinimumHeightPercent] = savedPreviewMinimumHeightPercent
     }
     Defaults[.windowSize] = NSSize(width: 450, height: 800)
-    Defaults[.maxVisibleItems] = 100
     Defaults[.previewMinimumHeightPercent] = 60
 
     popup.open(height: 120, at: .cursor)
@@ -93,7 +60,9 @@ final class PopupTests: XCTestCase {
     popup.close()
     XCTAssertEqual(recorder.closePanelCalls, 1)
 
-    recorder.previewMinimumRequired = true
+    // The minimum-height floor applies unconditionally (always-on), so a tiny
+    // requested height is raised to previewMinimumHeightPercent of the window
+    // with no preview-open precondition.
     XCTAssertEqual(popup.preferredHeight(for: 10), 480)
     popup.resize(height: 120)
     popup.resize(height: 650)
@@ -123,8 +92,7 @@ final class PopupTests: XCTestCase {
     }
     Defaults[.windowSize] = NSSize(width: 450, height: 800)
     Defaults[.previewMinimumHeightPercent] = 60
-    // recorder.previewMinimumRequired is left at its default (false): the floor
-    // must apply regardless of preview state.
+    // No preview-open precondition is set: the floor must apply unconditionally.
     XCTAssertEqual(popup.preferredHeight(for: 10), 480, accuracy: 0.001)
   }
 
@@ -183,7 +151,6 @@ private final class PopupRuntimeRecorder {
   var openedPanels: [(CGFloat, PopupPosition)] = []
   var closePanelCalls = 0
   var panelPresented = false
-  var previewMinimumRequired = false
   var resizedHeights: [CGFloat] = []
   var prewarmCalls = 0
   var shortcutHandled = false
@@ -200,7 +167,6 @@ private final class PopupRuntimeRecorder {
       },
       closePanel: { [weak self] in self?.closePanelCalls += 1 },
       isPanelPresented: { [weak self] in self?.panelPresented == true },
-      requiresPreviewMinimumHeight: { [weak self] in self?.previewMinimumRequired == true },
       resizePanel: { [weak self] in self?.resizedHeights.append($0) },
       prewarmVisibleWindow: { [weak self] in self?.prewarmCalls += 1 },
       selectPressedShortcut: { [weak self] in

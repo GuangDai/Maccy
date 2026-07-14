@@ -22,7 +22,9 @@ final class HistorySearchSessionTests: XCTestCase {
       guard case .select(let selected) = effect else { return false }
       return selected === first
     })
-    XCTAssertTrue(effects.contains { if case .resizePopup = $0 { true } else { false } })
+    // Empty-query (complete-list) publication must NOT resize the popup —
+    // search/complete-list drives filtering only, never geometry.
+    XCTAssertFalse(effects.contains { if case .resizePopup = $0 { true } else { false } })
   }
 
   /// Searching must not request a popup resize — search drives filtering only,

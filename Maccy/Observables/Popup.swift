@@ -21,7 +21,6 @@ struct PopupRuntimeServices {
   let openPanel: @MainActor (CGFloat, PopupPosition) -> Void
   let closePanel: @MainActor () -> Void
   let isPanelPresented: @MainActor () -> Bool
-  let requiresPreviewMinimumHeight: @MainActor () -> Bool
   let resizePanel: @MainActor (CGFloat) -> Void
   let prewarmVisibleWindow: @MainActor () -> Void
   let selectPressedShortcut: @MainActor () -> Bool
@@ -33,7 +32,6 @@ struct PopupRuntimeServices {
     openPanel: { _, _ in },
     closePanel: {},
     isPanelPresented: { false },
-    requiresPreviewMinimumHeight: { false },
     resizePanel: { _ in },
     prewarmVisibleWindow: {},
     selectPressedShortcut: { false },
@@ -66,21 +64,6 @@ class Popup {
 
   /// Compact single-line row height (version-dependent).
   static var itemHeight: CGFloat { HistoryRowLayout.baseHeight }
-
-  /// Caps the measured scroll-content height to `maxVisibleItems` configured
-  /// text-row units (taller image rows can reduce the visible item count).
-  /// Returns
-  /// `contentHeight` unchanged when `maxVisibleItems <= 0` (no cap). The final
-  /// window height is still floor-clamped to the preview/header minimum and
-  /// ceiling-clamped to the saved window height by `preferredHeight(for:)`.
-  static func cappedListHeight(
-    contentHeight: CGFloat,
-    maxVisibleItems: Int,
-    itemHeight: CGFloat
-  ) -> CGFloat {
-    guard maxVisibleItems > 0 else { return contentHeight }
-    return min(contentHeight, CGFloat(maxVisibleItems) * itemHeight)
-  }
 
   var needsResize = false
   var height: CGFloat = 0
@@ -197,37 +180,28 @@ class Popup {
     !runtimeServices.isPanelPresented()
   }
 
-  /// Floor-clamps to the preview/header minimum and ceiling-clamps to the saved
-  /// window height.
+  /// Floor-clamps to the configured minimum height and ceiling-clamps to the
+  /// drag-persisted window height. The floor applies unconditionally — not only
+  /// when the slideout preview is open — so popup height never depends on search
+  /// or preview state (stability invariant for the resize-on-search fix).
   func preferredHeight(for newHeight: CGFloat) -> CGFloat {
     let maximumHeight = Defaults[.windowSize].height
-    var minimumHeight = headerHeight + Self.verticalPadding
-    if runtimeServices.requiresPreviewMinimumHeight() {
-      minimumHeight = max(
-        minimumHeight,
-        Self.previewMinimumHeight(
-          maximumHeight: maximumHeight,
-          percent: Defaults[.previewMinimumHeightPercent]
-        )
+    let minimumHeight = max(
+      headerHeight + Self.verticalPadding,
+      Self.previewMinimumHeight(
+        maximumHeight: maximumHeight,
+        percent: Defaults[.previewMinimumHeightPercent]
       )
-    }
+    )
     return min(max(newHeight, minimumHeight), maximumHeight)
   }
 
-  /// Resizes the panel to fit `height`, capped to `maxVisibleItems` configured
-  /// text-row units; taller image rows may reduce the visible item count.
+  /// Resizes the panel to fit `height` (the measured scroll-content height),
+  /// then floor/ceiling-clamps via `preferredHeight(for:)`. The ceiling is the
+  /// drag-persisted `windowSize.height`, so long histories scroll instead of
+  /// growing the window unbounded; the floor is `previewMinimumHeightPercent`.
   func resize(height: CGFloat) {
-    // `height` is the full scroll-content height (all visible-unpinned rows).
-    // Cap it to maxVisibleItems configured text-row units; the ScrollView
-    // reveals the rest. Default maxVisibleItems (36) keeps the content taller
-    // than the preferredHeight window-height guardrail, so the shipped ~800px
-    // look is unchanged unless the user lowers the count.
-    let listHeight = Self.cappedListHeight(
-      contentHeight: height,
-      maxVisibleItems: Defaults[.maxVisibleItems],
-      itemHeight: HistoryRowLayout.textHeight(lines: Defaults[.textRowLines])
-    )
-    self.height = listHeight + headerHeight + extraTopHeight + extraBottomHeight + footerHeight
+    self.height = height + headerHeight + extraTopHeight + extraBottomHeight + footerHeight
     runtimeServices.resizePanel(preferredHeight(for: self.height))
     needsResize = false
   }

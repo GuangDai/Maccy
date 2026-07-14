@@ -13,7 +13,6 @@ struct AppearanceSettingsPane: View {
   @Default(.imageMaxPreviewPixels) private var imageMaxPreviewPixels
   @Default(.previewDelay) private var previewDelay
   @Default(.previewMinimumHeightPercent) private var previewMinimumHeightPercent
-  @Default(.maxVisibleItems) private var maxVisibleItems
   @Default(.textPreviewLimit) private var textPreviewLimit
   @Default(.highlightMatch) private var highlightMatch
   @Default(.menuIcon) private var menuIcon
@@ -51,13 +50,6 @@ struct AppearanceSettingsPane: View {
     let formatter = NumberFormatter()
     formatter.minimum = 25
     formatter.maximum = 100
-    return formatter
-  }()
-
-  private let maxVisibleItemsFormatter: NumberFormatter = {
-    let formatter = NumberFormatter()
-    formatter.minimum = 1
-    formatter.maximum = 50
     return formatter
   }()
 
@@ -179,16 +171,6 @@ struct AppearanceSettingsPane: View {
           .frame(width: 120)
           .help(Text("PreviewMinimumHeightPercentTooltip", tableName: "AppearanceSettings"))
           Stepper("", value: $previewMinimumHeightPercent, in: 25...100)
-            .labelsHidden()
-        }
-      }
-
-      Settings.Section(label: { Text("MaxVisibleItems", tableName: "AppearanceSettings") }) {
-        HStack {
-          TextField("", value: $maxVisibleItems, formatter: maxVisibleItemsFormatter)
-            .frame(width: 120)
-            .help(Text("MaxVisibleItemsTooltip", tableName: "AppearanceSettings"))
-          Stepper("", value: $maxVisibleItems, in: 1...50)
             .labelsHidden()
         }
       }

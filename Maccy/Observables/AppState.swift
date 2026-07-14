@@ -115,10 +115,6 @@ class AppState {
       },
       closePanel: { [weak self] in self?.appDelegate?.panel.close() },
       isPanelPresented: { [weak self] in self?.appDelegate?.panel.isPresented == true },
-      requiresPreviewMinimumHeight: { [weak self] in
-        guard let self else { return false }
-        return self.preview.state.isOpen && self.navigator.leadSelection != nil
-      },
       resizePanel: { [weak self] height in
         self?.appDelegate?.panel.verticallyResize(to: height)
       },

@@ -188,7 +188,6 @@ final class HistorySearchSession {
     didPublishVisible()
     let firstUnpinned = listState.items.first(where: \.isUnpinned)
     uiEffectSink(.select(firstUnpinned))
-    uiEffectSink(.resizePopup)
   }
 
   private func apply(_ matches: [SearchMatchDTO], query: String, generation: Int) {
@@ -204,7 +203,6 @@ final class HistorySearchSession {
     listState.publishVisible(visible)
     didPublishVisible()
     uiEffectSink(.highlightFirst)
-    uiEffectSink(.resizePopup)
   }
 
   private func applyHighlight(
