@@ -117,7 +117,7 @@ final class ImageGenerationCoordinator {
       previewImageGenerationTask?.cancel()
       previewImageGenerationTask = nil
       previewImage = nil
-    case .settingChange, .memoryWarning, .invalidate:
+    case .memoryWarning, .invalidate:
       thumbnailImageGenerationTask?.cancel()
       previewImageGenerationTask?.cancel()
       thumbnailImageGenerationTask = nil

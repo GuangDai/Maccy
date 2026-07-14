@@ -120,12 +120,6 @@ final class MainThreadProbe: Sendable {
     }
   }
 
-  /// Resets `maxGap` to zero without restarting the sampler — for per-item
-  /// measurements within one probe session.
-  func reset() {
-    state.withLock { $0.maxDelay = 0 }
-  }
-
   // MARK: - Private (called from arbitrary threads)
 
   private var isRunning: Bool {

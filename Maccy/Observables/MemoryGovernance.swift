@@ -11,7 +11,6 @@ import AppKit
 /// Why transient images are being released; drives how much each call drops.
 enum ReleaseReason {
   case scrollOut
-  case settingChange
   case memoryWarning
   case invalidate
 }

@@ -38,7 +38,6 @@ struct PinValueView: View {
   @State private var isTextContent: Bool
   @State private var isRichText: Bool
   @FocusState private var isEditing: Bool
-  @State private var showWarningPopover: Bool = false
 
   /// Initializes editable state, classifying the item as plain text or rich text.
   init(item: HistoryItem) {

@@ -41,24 +41,4 @@ class PerformanceTestCase: XCTestCase {
     }
     try await super.tearDown()
   }
-
-  /// Asserts no main-thread stall exceeded `threshold` since `probe.start()`.
-  /// The default 16 ms equals one display frame, the budget the main thread must
-  /// stay within for jank-free interaction.
-  ///
-  /// This method is `async` because it must drain the probe's queued sampler
-  /// ticks — they only record their delay once the main thread runs them —
-  /// before reading `maxGap`. A synchronous read returns `0.0` because the ticks
-  /// have not yet been delivered.
-  func assertMainThreadFree(threshold: TimeInterval = 0.016,
-                            file: StaticString = #filePath, line: UInt = #line) async {
-    let gap = await probe.maxGapAsync()
-    XCTAssertLessThan(
-      gap,
-      threshold,
-      "Main thread stalled \(gap)s > \(threshold)s threshold",
-      file: file,
-      line: line
-    )
-  }
 }

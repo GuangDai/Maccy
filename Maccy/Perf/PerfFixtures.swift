@@ -11,20 +11,17 @@ import ImageIO
 /// and didn't reliably produce renderable image items on the headless runner.
 ///
 /// Items are batch-inserted into the context + saved once, then a single
-/// `History.load()` materializes decorators (the popup-open path). This is NOT
-/// `History.add` per item — that legacy path is O(n²) on main (full sort +
-/// decorate + legacy duplicate scan + invalidation per item) and froze the app ~115s
-/// for 30 mixed items. `#if DEBUG` + only wired under `MaccyPerfRecord`, so no
-/// ship impact. Image bytes are generated via CoreGraphics (no binaries
-/// committed, no images in logs — only `PERF|` text).
+/// `History.load()` materializes decorators (the popup-open path) — far
+/// cheaper than per-item insertion. `#if DEBUG` + only wired under
+/// `MaccyPerfRecord`, so no ship impact. Image bytes are generated via
+/// CoreGraphics (no binaries committed, no images in logs — only `PERF|` text).
 @MainActor
 enum PerfFixtures {
   /// Populates `History.shared` with `count` items of `category`
   /// ("image" / "text" / "mixed"), clearing first. Each item has a distinct
   /// seed-dependent value so dedup keeps them all. Items are batch-inserted
   /// with a single save, then one `History.load()` materializes decorators
-  /// (matching the popup-open path) rather than the per-item `History.add`
-  /// legacy path.
+  /// (matching the popup-open path).
   static func populate(count: Int, category: String) {
     let history = History.shared
     history.clearAll()

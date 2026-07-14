@@ -73,13 +73,6 @@ struct ToolbarButton<Label: View>: View {
 struct ToolbarView: View {
   @Environment(AppState.self) private var appState
 
-  @Namespace var unionNamespace
-
-  /// Matched-transition namespaces grouped under the toolbar.
-  enum Section: Hashable {
-    case itemOptions
-  }
-
   /// Whether every selected item is already pinned (so the action would unpin).
   private var shouldUnpin: Bool {
     return appState.navigator.selection.items.allSatisfy { $0.isPinned }

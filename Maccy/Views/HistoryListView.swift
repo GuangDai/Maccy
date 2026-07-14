@@ -19,9 +19,6 @@ struct HistoryListView: View {
   private var unpinnedItems: [HistoryItemDecorator] {
     appState.history.unpinnedItems.filter(\.isVisible)
   }
-  private var showPinsSeparator: Bool {
-    pinsVisible && !unpinnedItems.isEmpty
-  }
 
   private var pinsVisible: Bool {
     return !pinnedItems.isEmpty

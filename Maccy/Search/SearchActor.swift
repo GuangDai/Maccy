@@ -1,7 +1,7 @@
 import Foundation
 import Fuse
 
-/// Off-main search actor mirroring the four modes of the main-actor `Search`
+/// Off-main search actor implementing the four search modes
 /// (`exact`, `fuzzy`, `regexp`, `mixed`) on `Sendable` value types.
 ///
 /// A throttled keystroke dispatches a search here instead of blocking the main
@@ -23,10 +23,6 @@ import Fuse
 /// `startIndex..<startIndex` on the main actor (the apply side computes both
 /// bounds independently via `index(startIndex, offsetBy:)`, never
 /// `offsetBy: upper - 1`).
-///
-/// The legacy `Search` is intentionally left unchanged: `SearchTests` remain its
-/// behavior gate. `SearchActor` has its own suite asserting the same four-mode
-/// semantics against value types.
 actor SearchActor {
   private let fuse = Fuse(threshold: 0.7)   // threshold found by trial-and-error
   private let fuzzySearchLimit = TextLimits.fuzzy
@@ -99,8 +95,7 @@ actor SearchActor {
     )
   }
 
-  /// Searches `corpus` for `query` under `mode`, returning `SearchMatchDTO`s
-  /// with the same order and semantics as `Search.search`.
+  /// Searches `corpus` for `query` under `mode`, returning `SearchMatchDTO`s.
   func search(
     query: String,
     within corpus: [SearchCorpusItem],

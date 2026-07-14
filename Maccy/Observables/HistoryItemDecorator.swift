@@ -201,7 +201,7 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
     switch reason {
     case .scrollOut:
       break
-    case .settingChange, .memoryWarning, .invalidate:
+    case .memoryWarning, .invalidate:
       textPreviewCache = nil
     }
   }
