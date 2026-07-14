@@ -6,8 +6,8 @@ import Observation
 /// Actor backend hidden behind the main-actor search session.
 protocol HistorySearchBackend: Sendable {
   func search(query: String, mode: Search.Mode) async -> [SearchMatchDTO]
-  func replaceCorpus(_ entries: [SearchCorpusItem]) async
-  func insert(_ entry: SearchCorpusItem, at position: Int) async
+  func replaceCorpus(_ sources: [SearchCorpusSource], bodyLimit: Int) async
+  func insert(_ source: SearchCorpusSource, bodyLimit: Int, at position: Int) async
   func remove(_ ids: [UUID]) async
   func clearCorpus() async
 }
@@ -29,6 +29,7 @@ final class HistorySearchSession {
   @ObservationIgnored private let listState: HistoryListState
   @ObservationIgnored private let backend: any HistorySearchBackend
   @ObservationIgnored private let modeProvider: @MainActor () -> Search.Mode
+  @ObservationIgnored private let bodyLimitProvider: @MainActor () -> Int
   @ObservationIgnored private let queryStream: AsyncStream<String>
   @ObservationIgnored private let queryContinuation: AsyncStream<String>.Continuation
   @ObservationIgnored private var consumer: Task<Void, Never>?
@@ -42,11 +43,13 @@ final class HistorySearchSession {
     listState: HistoryListState,
     backend: any HistorySearchBackend = SearchActor(),
     debounce: Duration? = .milliseconds(200),
-    modeProvider: @escaping @MainActor () -> Search.Mode = { Defaults[.searchMode] }
+    modeProvider: @escaping @MainActor () -> Search.Mode = { Defaults[.searchMode] },
+    bodyLimitProvider: @escaping @MainActor () -> Int = { Defaults[.searchBodyLimit] }
   ) {
     self.listState = listState
     self.backend = backend
     self.modeProvider = modeProvider
+    self.bodyLimitProvider = bodyLimitProvider
 
     var continuation: AsyncStream<String>.Continuation!
     let stream = AsyncStream<String> { continuation = $0 }
@@ -107,18 +110,20 @@ final class HistorySearchSession {
     decoratorsByID = Dictionary(
       uniqueKeysWithValues: decorators.map { ($0.id, $0) }
     )
-    let entries = decorators.map { corpusEntry(for: $0) }
+    let sources = decorators.map { corpusSource(for: $0) }
+    let bodyLimit = bodyLimitProvider()
     enqueueCorpusUpdate { backend in
-      await backend.replaceCorpus(entries)
+      await backend.replaceCorpus(sources, bodyLimit: bodyLimit)
     }
   }
 
   /// Inserts one decorator into both corpus owners at the same list position.
   func insertCorpus(_ decorator: HistoryItemDecorator, at position: Int) {
     decoratorsByID[decorator.id] = decorator
-    let entry = corpusEntry(for: decorator)
+    let source = corpusSource(for: decorator)
+    let bodyLimit = bodyLimitProvider()
     enqueueCorpusUpdate { backend in
-      await backend.insert(entry, at: position)
+      await backend.insert(source, bodyLimit: bodyLimit, at: position)
     }
   }
 
@@ -208,10 +213,12 @@ final class HistorySearchSession {
     }
   }
 
-  private func corpusEntry(for decorator: HistoryItemDecorator) -> SearchCorpusItem {
-    let cap = TextLimits.clampedSearchBody(Defaults[.searchBodyLimit])
-    let body = decorator.item.searchText.map { String($0.prefix(cap)) } ?? ""
-    return SearchCorpusItem(id: decorator.id, title: decorator.title, body: body)
+  private func corpusSource(for decorator: HistoryItemDecorator) -> SearchCorpusSource {
+    SearchCorpusSource(
+      id: decorator.id,
+      title: decorator.title,
+      body: decorator.item.searchText ?? ""
+    )
   }
 
   private func indexRange(_ range: Range<Int>, in title: String) -> Range<String.Index> {

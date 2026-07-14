@@ -210,8 +210,8 @@ private actor ImmediateSearchBackend: HistorySearchBackend {
   }
 
   func search(query: String, mode: Search.Mode) -> [SearchMatchDTO] { results }
-  func replaceCorpus(_ entries: [SearchCorpusItem]) {}
-  func insert(_ entry: SearchCorpusItem, at position: Int) {}
+  func replaceCorpus(_ sources: [SearchCorpusSource], bodyLimit: Int) {}
+  func insert(_ source: SearchCorpusSource, bodyLimit: Int, at position: Int) {}
   func remove(_ ids: [UUID]) {}
   func clearCorpus() {}
 }
@@ -235,8 +235,8 @@ private actor ControlledSearchBackend: HistorySearchBackend {
     pending.removeValue(forKey: query)?.resume(returning: results)
   }
 
-  func replaceCorpus(_ entries: [SearchCorpusItem]) {}
-  func insert(_ entry: SearchCorpusItem, at position: Int) {}
+  func replaceCorpus(_ sources: [SearchCorpusSource], bodyLimit: Int) {}
+  func insert(_ source: SearchCorpusSource, bodyLimit: Int, at position: Int) {}
   func remove(_ ids: [UUID]) {}
   func clearCorpus() {}
 }

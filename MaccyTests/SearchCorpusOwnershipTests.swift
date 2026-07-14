@@ -37,7 +37,10 @@ final class SearchCorpusOwnershipTests: XCTestCase {
   /// `replaceCorpus` seeds the full corpus; an empty query returns every entry
   /// in the order given.
   func testReplaceCorpusSeedsCorpusInOrder() async {
-    await searchActor.replaceCorpus([item(1, "foo"), item(2, "bar"), item(3, "baz")])
+    await searchActor.replaceCorpus(
+      [source(1, "foo"), source(2, "bar"), source(3, "baz")],
+      bodyLimit: TextLimits.searchBodyMax
+    )
 
     let results = await searchActor.search(query: "", mode: .exact)
     XCTAssertEqual(ids(results), [1, 2, 3])
@@ -60,8 +63,15 @@ final class SearchCorpusOwnershipTests: XCTestCase {
 
   /// `insert(at:)` places the entry at the given index, shifting the tail.
   func testInsertAtPositionMaintainsOrder() async {
-    await searchActor.replaceCorpus([item(1, "a"), item(2, "c")])
-    await searchActor.insert(item(3, "b"), at: 1)
+    await searchActor.replaceCorpus(
+      [source(1, "a"), source(2, "c")],
+      bodyLimit: TextLimits.searchBodyMax
+    )
+    await searchActor.insert(
+      source(3, "b"),
+      bodyLimit: TextLimits.searchBodyMax,
+      at: 1
+    )
 
     let results = await searchActor.search(query: "", mode: .exact)
     XCTAssertEqual(ids(results), [1, 3, 2])
@@ -70,8 +80,15 @@ final class SearchCorpusOwnershipTests: XCTestCase {
   /// Inserting an entry whose id is already present moves it (re-insert), so a
   /// `.merged` re-insert at a new position doesn't leave a stale duplicate.
   func testInsertWithExistingIdMovesIt() async {
-    await searchActor.replaceCorpus([item(1, "a"), item(2, "b"), item(3, "c")])
-    await searchActor.insert(item(2, "b-moved"), at: 0)
+    await searchActor.replaceCorpus(
+      [source(1, "a"), source(2, "b"), source(3, "c")],
+      bodyLimit: TextLimits.searchBodyMax
+    )
+    await searchActor.insert(
+      source(2, "b-moved"),
+      bodyLimit: TextLimits.searchBodyMax,
+      at: 0
+    )
 
     let results = await searchActor.search(query: "", mode: .exact)
     XCTAssertEqual(ids(results), [2, 1, 3])
@@ -80,8 +97,11 @@ final class SearchCorpusOwnershipTests: XCTestCase {
 
   /// `remove` drops the named entries and preserves the order of the survivors.
   func testRemoveDropsItems() async {
-    await searchActor.replaceCorpus([item(1, "a"), item(2, "b"), item(3, "c")])
-    await searchActor.remove([item(2, "b").id])
+    await searchActor.replaceCorpus(
+      [source(1, "a"), source(2, "b"), source(3, "c")],
+      bodyLimit: TextLimits.searchBodyMax
+    )
+    await searchActor.remove([source(2, "b").id])
 
     let results = await searchActor.search(query: "", mode: .exact)
     XCTAssertEqual(ids(results), [1, 3])
@@ -90,7 +110,10 @@ final class SearchCorpusOwnershipTests: XCTestCase {
   /// `clearCorpus` empties the corpus, so a query that previously matched now
   /// matches nothing.
   func testClearCorpusEmpties() async {
-    await searchActor.replaceCorpus([item(1, "foo"), item(2, "bar")])
+    await searchActor.replaceCorpus(
+      [source(1, "foo"), source(2, "bar")],
+      bodyLimit: TextLimits.searchBodyMax
+    )
     await searchActor.clearCorpus()
 
     let results = await searchActor.search(query: "foo", mode: .exact)
@@ -102,7 +125,8 @@ final class SearchCorpusOwnershipTests: XCTestCase {
   /// corpus, it does not change match semantics.
   func testOwnedSearchMatchesPureOverCorpus() async {
     let corpus = [item(1, "foo bar"), item(2, "baz qux"), item(3, "xyz")]
-    await searchActor.replaceCorpus(corpus)
+    let sources = [source(1, "foo bar"), source(2, "baz qux"), source(3, "xyz")]
+    await searchActor.replaceCorpus(sources, bodyLimit: TextLimits.searchBodyMax)
 
     for mode in Search.Mode.allCases {
       let owned = await searchActor.search(query: "ba", mode: mode)

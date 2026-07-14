@@ -48,25 +48,27 @@ actor SearchActor {
 
   // MARK: - Corpus ownership
 
-  /// Rebuilds the corpus from `entries` (in `all` order). Used at load, after a
+  /// Rebuilds the corpus from `sources` (in `all` order). Used at load, after a
   /// clear leaves survivors, and as the full-reconcile fallback.
-  func replaceCorpus(_ entries: [SearchCorpusItem]) {
+  func replaceCorpus(_ sources: [SearchCorpusSource], bodyLimit: Int) {
     corpusByID.removeAll(keepingCapacity: true)
-    order = entries.map(\.id)
-    for entry in entries {
+    order = sources.map(\.id)
+    for source in sources {
+      let entry = corpusItem(from: source, bodyLimit: bodyLimit)
       corpusByID[entry.id] = entry
     }
   }
 
-  /// Inserts `entry` at `position` (the index its decorator occupies in `all`),
-  /// removing any prior entry that shares its id first. `position` is clamped
-  /// to the corpus bounds so a racy ship can't trap.
-  func insert(_ entry: SearchCorpusItem, at position: Int) {
-    if corpusByID[entry.id] != nil {
-      remove([entry.id])
+  /// Inserts `source` at `position` (the index its decorator occupies in
+  /// `all`), removing any prior entry that shares its id first. `position` is
+  /// clamped to the corpus bounds so a racy ship can't trap.
+  func insert(_ source: SearchCorpusSource, bodyLimit: Int, at position: Int) {
+    if corpusByID[source.id] != nil {
+      remove([source.id])
     }
     let clamped = max(0, min(position, order.count))
-    order.insert(entry.id, at: clamped)
+    let entry = corpusItem(from: source, bodyLimit: bodyLimit)
+    order.insert(source.id, at: clamped)
     corpusByID[entry.id] = entry
   }
 
@@ -84,6 +86,17 @@ actor SearchActor {
   func clearCorpus() {
     corpusByID.removeAll()
     order.removeAll()
+  }
+
+  /// Materializes the bounded body inside actor isolation. Full source bodies
+  /// are transient operation inputs and never enter `corpusByID`.
+  private func corpusItem(from source: SearchCorpusSource, bodyLimit: Int) -> SearchCorpusItem {
+    let cap = TextLimits.clampedSearchBody(bodyLimit)
+    return SearchCorpusItem(
+      id: source.id,
+      title: source.title,
+      body: String(source.body.prefix(cap))
+    )
   }
 
   /// Searches `corpus` for `query` under `mode`, returning `SearchMatchDTO`s

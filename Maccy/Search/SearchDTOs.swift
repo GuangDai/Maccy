@@ -1,14 +1,22 @@
 import Foundation
 
-/// `Sendable` corpus projection for off-main search.
+/// Uncapped `Sendable` source snapshot consumed by SearchActor corpus updates.
 ///
 /// `HistoryItemDecorator` is `@MainActor` (its `title` reads main-actor model
-/// state), so the decorator cannot cross to `SearchActor`. The main
-/// actor projects each visible item into this value type — only the id (a
-/// caller-chosen `UUID`), the searchable `title`, and the searchable `body`
-/// (the item's full text, capped) leave the main actor. `id` is opaque to the
-/// actor; the caller owns the id-to-decorator association and resolves it back
-/// on the main actor in the apply callback.
+/// state), so the decorator cannot cross to `SearchActor`. The main actor reads
+/// its String values into this transient COW snapshot without materializing a
+/// substring. SearchActor caps `body` before converting the source to its
+/// long-lived ``SearchCorpusItem`` representation.
+struct SearchCorpusSource: Equatable, Sendable {
+  let id: UUID
+  let title: String
+  let body: String
+}
+
+/// Capped `Sendable` corpus item owned by SearchActor and used for matching.
+///
+/// `id` is opaque to the actor; the caller owns the id-to-decorator association
+/// and resolves it back on the main actor in the apply callback.
 ///
 /// The actor owns its corpus of these entries and maintains it incrementally on
 /// add/remove/clear, so a keystroke no longer rebuilds the projection on the

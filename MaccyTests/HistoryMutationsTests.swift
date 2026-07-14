@@ -521,9 +521,9 @@ private actor MutationSearchBackend: HistorySearchBackend {
   private(set) var clearCorpusCalls = 0
 
   func search(query: String, mode: Search.Mode) async -> [SearchMatchDTO] { [] }
-  func replaceCorpus(_ entries: [SearchCorpusItem]) async {}
-  func insert(_ entry: SearchCorpusItem, at position: Int) async {
-    inserted.append(MutationCorpusInsert(id: entry.id, position: position))
+  func replaceCorpus(_ sources: [SearchCorpusSource], bodyLimit: Int) async {}
+  func insert(_ source: SearchCorpusSource, bodyLimit: Int, at position: Int) async {
+    inserted.append(MutationCorpusInsert(id: source.id, position: position))
   }
   func remove(_ ids: [UUID]) async { removedIDs.append(contentsOf: ids) }
   func clearCorpus() async { clearCorpusCalls += 1 }
