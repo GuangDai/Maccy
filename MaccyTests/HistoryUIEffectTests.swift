@@ -373,6 +373,33 @@ final class NavigationLeadChangeTests: XCTestCase {
 
 @MainActor
 final class SlideoutRuntimeTests: XCTestCase {
+  func testDividerResizePersistsOnlyOnceAtFinish() {
+    var contentWrites: [CGFloat] = []
+    var slideoutWrites: [CGFloat] = []
+    let controller = SlideoutController(
+      onContentResize: { contentWrites.append($0) },
+      onSlideoutResize: { slideoutWrites.append($0) }
+    )
+    controller.contentWidth = 400
+    controller.slideoutWidth = 400
+    contentWrites.removeAll()
+    slideoutWrites.removeAll()
+
+    controller.updateDividerResize(translation: 40, totalWidth: 800)
+    controller.updateDividerResize(translation: 80, totalWidth: 800)
+
+    XCTAssertEqual(controller.contentWidth, 480)
+    XCTAssertEqual(controller.slideoutWidth, 320)
+    XCTAssertTrue(contentWrites.isEmpty)
+    XCTAssertTrue(slideoutWrites.isEmpty)
+
+    controller.finishDividerResize()
+    controller.finishDividerResize()
+
+    XCTAssertEqual(contentWrites, [480])
+    XCTAssertEqual(slideoutWrites, [320])
+  }
+
   func testSizePreservesMainPanelHeight() {
     let controller = makeController()
 
