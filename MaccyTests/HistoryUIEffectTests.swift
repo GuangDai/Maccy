@@ -53,7 +53,7 @@ final class HistoryUIEffectTests: XCTestCase {
     XCTAssertTrue(effects.contains { if case .resizePopup = $0 { true } else { false } })
   }
 
-  func testSearchRequestsHighlightAndResize() async throws {
+  func testSearchRequestsHighlightWithoutResize() async throws {
     _ = try HistoryTestDriver.seed(textItem("needle"), in: history)
     effects = []
 
@@ -62,7 +62,9 @@ final class HistoryUIEffectTests: XCTestCase {
     await history.waitForInFlightSearch()
 
     XCTAssertTrue(effects.contains { if case .highlightFirst = $0 { true } else { false } })
-    XCTAssertTrue(effects.contains { if case .resizePopup = $0 { true } else { false } })
+    // Search drives filtering only, never window geometry — it must not request
+    // a popup resize (stability invariant for candidate ①).
+    XCTAssertFalse(effects.contains { if case .resizePopup = $0 { true } else { false } })
   }
 
   func testUnpinRequestsScrollTarget() throws {
