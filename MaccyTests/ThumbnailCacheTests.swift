@@ -8,10 +8,15 @@ import XCTest
 /// keying.
 @MainActor
 final class ThumbnailCacheTests: XCTestCase {
+  /// Returns a fresh temp directory dedicated to one cache test.
+  private func makeDirectory() -> URL {
+    FileManager.default.temporaryDirectory
+      .appending(path: "ThumbnailCacheTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+  }
+
   /// Builds a `ThumbnailCache` backed by a fresh temp directory.
   private func makeCache() -> (ThumbnailCache, URL) {
-    let dir = FileManager.default.temporaryDirectory
-      .appending(path: "ThumbnailCacheTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+    let dir = makeDirectory()
     let cache = ThumbnailCache(diskDirectory: dir)
     return (cache, dir)
   }
@@ -19,6 +24,43 @@ final class ThumbnailCacheTests: XCTestCase {
   /// Wraps a raw hash in a fixed-size `MaccyFingerprint`.
   private func fingerprint(_ value: UInt64) -> MaccyFingerprint {
     MaccyFingerprint(size: 100, hash: value)
+  }
+
+  func testDiskUsageLedgerInventoriesOnlyWhenUnknownOrOverBudget() {
+    var ledger = ThumbnailDiskUsageLedger(budget: 100)
+
+    XCTAssertEqual(ledger.recordWrite(replacing: 0, with: 40), .inventory)
+    ledger.recordInventory(totalBytes: 40)
+    XCTAssertEqual(ledger.recordWrite(replacing: 0, with: 30), .none)
+    XCTAssertEqual(ledger.totalBytes, 70)
+  }
+
+  func testDiskUsageLedgerTracksOverBudgetInventoryAndRemoval() {
+    var ledger = ThumbnailDiskUsageLedger(budget: 100)
+    ledger.recordInventory(totalBytes: 70)
+
+    XCTAssertEqual(ledger.recordWrite(replacing: 0, with: 31), .inventory)
+    ledger.recordInventory(totalBytes: 101)
+    ledger.recordRemoval(bytes: 40)
+
+    XCTAssertEqual(ledger.totalBytes, 61)
+  }
+
+  func testCancellationAfterDownsampleSkipsDiskWrite() async throws {
+    let dir = makeDirectory()
+    let cache = ThumbnailCache(diskDirectory: dir, downsample: { data, maxPixelSize in
+      let image = ImageDownsampler.thumbnail(data: data, max: maxPixelSize)
+      withUnsafeCurrentTask { $0?.cancel() }
+      return image
+    })
+    let data = try FixtureLoader.imageData()
+
+    let result = await Task {
+      await cache.thumbnail(for: fingerprint(5), data: data, max: 50)
+    }.value
+
+    XCTAssertNil(result)
+    XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: dir.path).isEmpty)
   }
 
   /// The first lookup misses (and writes a disk thumbnail); the second hits the
