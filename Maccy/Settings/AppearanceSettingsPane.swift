@@ -74,12 +74,12 @@ struct LabeledNumericPreference: View {
   let option: NumericPreferenceOption
 
   var body: some View {
-    Settings.Section(label: { Text(option.labelKey, tableName: option.tableName) }) {
+    Settings.Section(label: { Text(LocalizedStringKey(option.labelKey), tableName: option.tableName) }) {
       HStack {
         TextField("", value: $value, formatter: option.formatter)
           .frame(width: 120)
-          .help(Text(option.tooltipKey, tableName: option.tableName))
-        Text(option.unit)
+          .help(Text(LocalizedStringKey(option.tooltipKey), tableName: option.tableName))
+        Text(verbatim: option.unit)
           .foregroundStyle(.secondary)
           .fixedSize()
         Stepper("", value: $value, in: option.range)
