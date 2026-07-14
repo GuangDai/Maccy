@@ -8,6 +8,8 @@ final class PopupTests: XCTestCase {
   private let history = History.shared
   private let savedSize = Defaults[.size]
   private let savedSortBy = Defaults[.sortBy]
+  private let savedShowSearch = Defaults[.showSearch]
+  private let savedSearchVisibility = Defaults[.searchVisibility]
 
   override func setUp() async throws {
     try await super.setUp()
@@ -19,9 +21,32 @@ final class PopupTests: XCTestCase {
 
   override func tearDown() async throws {
     history.searchQuery = ""
+    Defaults[.showSearch] = savedShowSearch
+    Defaults[.searchVisibility] = savedSearchVisibility
     Defaults[.size] = savedSize
     Defaults[.sortBy] = savedSortBy
     try await super.tearDown()
+  }
+
+  func testSearchVisibleTracksPreferenceAndQuery() {
+    Defaults[.showSearch] = false
+    Defaults[.searchVisibility] = .always
+    XCTAssertFalse(AppState.shared.searchVisible)
+
+    Defaults[.showSearch] = true
+    XCTAssertTrue(AppState.shared.searchVisible)
+
+    Defaults[.searchVisibility] = .duringSearch
+    history.searchQuery = ""
+    XCTAssertFalse(AppState.shared.searchVisible)
+
+    history.searchQuery = "needle"
+    XCTAssertTrue(AppState.shared.searchVisible)
+  }
+
+  func testHeaderLayoutCollapsesOnlyWhenSearchIsNotVisible() {
+    XCTAssertEqual(HeaderView.maximumLayoutHeight(isVisible: false), 0)
+    XCTAssertNil(HeaderView.maximumLayoutHeight(isVisible: true))
   }
 
   /// Opening the popup re-selects the newest history item, regardless of the
