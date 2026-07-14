@@ -1,7 +1,6 @@
 import AppKit.NSWorkspace
 import Defaults
 import Foundation
-import Logging
 import Observation
 import Sauce
 
@@ -27,25 +26,10 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   /// the 256 MB+ bitmap a true native decode of a huge image would cost).
   /// Configurable in Appearance settings.
   static var previewImageSize: NSSize {
-    let raw = NSScreen.forPopup?.visibleFrame.size ?? NSSize(width: 2048, height: 1536)
-    let cap = Defaults[.imageMaxPreviewPixels]
-    return cap > 0 ? capped(raw, max: CGFloat(cap)) : raw
+    ImageGenerationCoordinator.previewImageSize
   }
   static var thumbnailImageSize: NSSize {
-    NSSize(
-      width: 340,
-      height: HistoryRowLayout.effectiveImageContentHeight(Defaults[.imageMaxHeight])
-    )
-  }
-
-  /// Returns `size` with its longer side clamped to `max`, preserving aspect.
-  private static func capped(_ size: NSSize, max maxPixels: CGFloat) -> NSSize {
-    let longest = max(size.width, size.height)
-    guard longest > maxPixels, longest > 0 else {
-      return size
-    }
-    let scale = maxPixels / longest
-    return NSSize(width: size.width * scale, height: size.height * scale)
+    ImageGenerationCoordinator.thumbnailImageSize
   }
 
   let id = UUID()
@@ -86,47 +70,25 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
     return url.deletingPathExtension().lastPathComponent
   }
 
-  @ObservationIgnored private var hasImageContentCache: Bool?
-
   /// Whether the item carries image data.
-  var hasImage: Bool {
-    if let hasImageContentCache { return hasImageContentCache }
-    let hasImage = imageData != nil
-    hasImageContentCache = hasImage
-    return hasImage
-  }
+  var hasImage: Bool { imageGeneration.hasImage }
 
-  var previewImageGenerationTask: Task<(), Never>?
-  var thumbnailImageGenerationTask: Task<(), Never>?
-  var previewImage: NSImage?
-  var thumbnailImage: NSImage?
-  var applicationImage: ApplicationImage
-  private var isInvalidated = false
-  /// The item's image blob, loaded lazily on first use — not at decoration time.
-  ///
-  /// `History.load()` decorates every item; eagerly copying each `imageData`
-  /// blob (~1MB) in `init` faulted + copied N blobs onto the main thread during
-  /// cold-open — a large share of the measured image-many load block. Deferring
-  /// the read to the first thumbnail/preview generation means only items that
-  /// actually render an image (the visible window) ever read their blob; the
-  /// other ~N−visible fault nothing.
-  ///
-  /// Mirrors the `textPreviewCache` lazy pattern below. `isInvalidated` is
-  /// guarded so a post-deletion access never faults a torn `@Model` (the eager
-  /// copy doubled as invalidation insurance; the guard restores that safety).
-  @ObservationIgnored private var imageDataCache: Data?
-  @ObservationIgnored private var imageDataCacheLoaded = false
-  private var imageData: Data? {
-    if !imageDataCacheLoaded {
-      imageDataCache = isInvalidated ? nil : item.imageData
-      imageDataCacheLoaded = true
-    }
-    return imageDataCache
+  var previewImageGenerationTask: Task<Void, Never>? {
+    imageGeneration.previewImageGenerationTask
   }
-  /// Processor supplied by the owning decorator factory. Live History shares
-  /// its cache-backed processor with ingestion; standalone construction uses
-  /// the isolated passthrough default from ``init``.
-  private let imageProcessor: ImageProcessing
+  var thumbnailImageGenerationTask: Task<Void, Never>? {
+    imageGeneration.thumbnailImageGenerationTask
+  }
+  var previewImage: NSImage? {
+    get { imageGeneration.previewImage }
+    set { imageGeneration.previewImage = newValue }
+  }
+  var thumbnailImage: NSImage? {
+    get { imageGeneration.thumbnailImage }
+    set { imageGeneration.thumbnailImage = newValue }
+  }
+  var applicationImage: ApplicationImage
+  @ObservationIgnored private let imageGeneration: ImageGenerationCoordinator
   @ObservationIgnored private var textPreviewCache: String?
   @ObservationIgnored private var textPreviewCacheLimit: Int = -1
 
@@ -173,7 +135,6 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
 
   private(set) var item: HistoryItem
 
-  private let logger = Logger(label: "org.p0deje.Maccy")
   @ObservationIgnored private var rowHighlighter = RowHighlighter()
 
   /// Creates a decorator for `item`, seeding shortcuts and the app icon.
@@ -188,7 +149,10 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   ) {
     self.item = item
     self.shortcuts = shortcuts
-    self.imageProcessor = imageProcessor
+    self.imageGeneration = ImageGenerationCoordinator(
+      imageProcessor: imageProcessor,
+      imageData: { item.imageData }
+    )
     self.applicationImage = applicationImage ?? ApplicationImage(bundleIdentifier: nil)
   }
 
@@ -202,30 +166,12 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
 
   /// Kicks off thumbnail generation (off-main) if not already cached or in flight.
   func ensureThumbnailImage() {
-    guard imageData != nil else {
-      return
-    }
-    guard thumbnailImage == nil else {
-      return
-    }
-    guard thumbnailImageGenerationTask == nil else {
-      return
-    }
-    thumbnailImageGenerationTask = startThumbnailGeneration()
+    imageGeneration.ensureThumbnailImage()
   }
 
   /// Kicks off preview generation (off-main) if not already cached or in flight.
   func ensurePreviewImage() {
-    guard imageData != nil else {
-      return
-    }
-    guard previewImage == nil else {
-      return
-    }
-    guard previewImageGenerationTask == nil else {
-      return
-    }
-    previewImageGenerationTask = startPreviewGeneration()
+    imageGeneration.ensurePreviewImage()
   }
 
   /// Awaits the preview image, generating it if needed. `nil` after completion
@@ -233,21 +179,13 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   /// is expected when the decorator is invalidated/superseded, so only genuine
   /// decode failures are logged (they would otherwise look like an empty clipboard).
   func asyncGetPreviewImage() async -> NSImage? {
-    if let image = previewImage {
-      return image
-    }
-    ensurePreviewImage()
-    _ = await previewImageGenerationTask?.result
-    if previewImage == nil, !isInvalidated {
-      logger.error("preview image generation produced no image (corrupt data)")
-    }
-    return previewImage
+    await imageGeneration.asyncGetPreviewImage()
   }
 
   /// Marks the decorator invalidated and drops all transient images.
   func invalidate() {
-    isInvalidated = true
-    cleanupImages()
+    imageGeneration.invalidate()
+    textPreviewCache = nil
   }
 
   /// Drops all transient images (preview, thumbnail, decoded cache, text/blob).
@@ -259,21 +197,12 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   /// (list scroll reuses it fast) and frees only the preview bitmap; the heavier
   /// reasons also clear thumbnail/text/blob state.
   func releaseTransientImages(_ reason: ReleaseReason) {
+    imageGeneration.release(reason)
     switch reason {
     case .scrollOut:
-      previewImageGenerationTask?.cancel()
-      previewImageGenerationTask = nil
-      previewImage = nil
+      break
     case .settingChange, .memoryWarning, .invalidate:
-      thumbnailImageGenerationTask?.cancel()
-      previewImageGenerationTask?.cancel()
-      thumbnailImageGenerationTask = nil
-      previewImageGenerationTask = nil
-      thumbnailImage = nil
-      previewImage = nil
       textPreviewCache = nil
-      imageDataCache = nil
-      imageDataCacheLoaded = false
     }
   }
 
@@ -298,105 +227,14 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
   /// cancelled-uncached item re-kicks via `ensurePreviewImage` (the nil'd handle
   /// lets it through).
   func cancelPreviewGeneration() {
-    previewImageGenerationTask?.cancel()
-    previewImageGenerationTask = nil
+    imageGeneration.cancelPreviewGeneration()
   }
 
   /// Kicks off (preview, thumbnail) generation. Used by `sizeImages()` for the
   /// benchmark/tests that want both rendered; production paths call the
   /// individual `ensure*` accessors as the view appears.
   func sizeImages() {
-    ensurePreviewImage()
-    ensureThumbnailImage()
-  }
-
-  // MARK: - Off-main generation
-
-  /// Structured (non-detached) task that runs the decode + downsample on the
-  /// `imageProcessor` actor, then publishes the result on the main actor.
-  /// Cancellation propagates: `cleanupImages`/`invalidate` cancel the stored
-  /// handle, and the actor's `Task.isCancelled` checkpoints turn that into an
-  /// early `nil` before any decode. Captures only Sendable values
-  /// (`imageData`, `imageProcessor`) — never the old `self.image()` (that would
-  /// re-introduce main-thread `NSImage(data:)` decode). The closure is
-  /// `@MainActor`-isolated so the cheap pre/post work runs on main while the
-  /// `await processor.thumbnail(...)` hop runs the decode on the actor.
-  private func startThumbnailGeneration() -> Task<(), Never> {
-    guard let imageData else {
-      return Task {}
-    }
-    let processor = imageProcessor
-    let target = HistoryItemDecorator.thumbnailImageSize
-    return Task { @MainActor [weak self] in
-      #if DEBUG
-      if PerfRecorder.enabled {
-        // latency = total (kick → published); mainBlock = on-main portion
-        // (total − the off-main decode await).
-        let clock = ContinuousClock()
-        let totalStart = clock.now
-        let decodeStart = clock.now
-        let image = await processor.thumbnail(for: imageData, max: target)
-        let decode = decodeStart.duration(to: clock.now)
-        guard let self, !self.isInvalidated else {
-          return
-        }
-        self.thumbnailImage = image
-        let total = totalStart.duration(to: clock.now)
-        PerfRecorder.shared.recordThumbnail(
-          latency: total,
-          mainBlock: max(Duration.zero, total - decode)
-        )
-        return
-      }
-      #endif
-      let image = await processor.thumbnail(for: imageData, max: target)
-      guard let self, !self.isInvalidated else {
-        return
-      }
-      self.thumbnailImage = image
-    }
-  }
-
-  /// Structured task mirroring `startThumbnailGeneration` for the larger preview
-  /// image; decode + downsample run off-main, result published on main, with the
-  /// same cancellation propagation. Records latency on decode completion (not on
-  /// the `await` in `asyncGetPreviewImage`) so a render is captured even if the
-  /// requesting view is torn down mid-decode — the generation task is owned by
-  /// the decorator, not the view.
-  private func startPreviewGeneration() -> Task<(), Never> {
-    guard let imageData else {
-      return Task {}
-    }
-    let processor = imageProcessor
-    let target = HistoryItemDecorator.previewImageSize
-    return Task { @MainActor [weak self] in
-      #if DEBUG
-      if PerfRecorder.enabled {
-        // latency = total (kick → published); mainBlock = on-main portion
-        // (total − the off-main decode await).
-        let clock = ContinuousClock()
-        let totalStart = clock.now
-        let decodeStart = clock.now
-        let image = await processor.preview(for: imageData, max: target)
-        let decode = decodeStart.duration(to: clock.now)
-        guard let self, !self.isInvalidated else {
-          return
-        }
-        self.previewImage = image
-        let total = totalStart.duration(to: clock.now)
-        PerfRecorder.shared.recordPreview(
-          latency: total,
-          mainBlock: max(Duration.zero, total - decode)
-        )
-        return
-      }
-      #endif
-      let image = await processor.preview(for: imageData, max: target)
-      guard let self, !self.isInvalidated else {
-        return
-      }
-      self.previewImage = image
-    }
+    imageGeneration.sizeImages()
   }
 
   /// Builds `attributedTitle` with `query`'s `ranges` styled per the highlight
@@ -440,5 +278,4 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility, VisibilityObs
       previewAttributedText = attributed
     }
   }
-
 }

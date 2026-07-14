@@ -11,9 +11,9 @@ import Foundation
 ///
 /// Enabled only when the app is launched with the `MaccyPerfRecord` argument
 /// (DEBUG builds only; the whole type is `#if DEBUG`, and call sites in
-/// `HistoryItemDecorator` are `#if DEBUG`-gated, so Release ships zero
+/// `ImageGenerationCoordinator` are `#if DEBUG`-gated, so Release ships zero
 /// instrumentation and blocking UI shards — which run DEBUG without the arg —
-/// hit the plain render path byte-for-byte). The UI test sets
+/// hit the plain render path). The UI test sets
 /// `app.launchEnvironment["MACCY_PERF_LOG"]` to a temp file path, drives the
 /// traversal, then posts the `MaccyPerfDump` distributed notification; the app
 /// writes `PERF|…` lines to that file and the test re-prints them from the test
