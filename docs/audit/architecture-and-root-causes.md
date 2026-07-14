@@ -1,8 +1,8 @@
 # 架构与根因总览(单一权威参考)
 
-本文档是 Maccy 当前架构、瓶颈、数据安全、内存、路线图完成度的**单一权威参考**,由 ~30 份历史审计文档(2026-06-14 深度审查 / 2026-06-25 模块分析 / 2026-06-27 内存实测 / 2026-06-28 路线图缺口审计)蒸馏而成,并更新到 **2026-07-14 History B2–B5 / C3 / C4 / E5 decorator factory + UI/memory ownership + RowHighlighter + BS-7.13 decorator projection 拆分态**。完成度细节见 `docs/audit/2026-06-28-roadmap-bs5-bs8-gap-audit/`,内存实测见 `docs/audit/2026-06-27-memory-floor-and-retention/`。`finding-id` 词汇表见本文末尾。
+本文档是 Maccy 当前架构、瓶颈、数据安全、内存、路线图完成度的**单一权威参考**,由 ~30 份历史审计文档(2026-06-14 深度审查 / 2026-06-25 模块分析 / 2026-06-27 内存实测 / 2026-06-28 路线图缺口审计)蒸馏而成,并更新到 **2026-07-14 actor-owned search projection + BS-7.13 显式菜单投影 + UI/runtime 边界收口 + ImageGenerationCoordinator + Release 优化闸门**。完成度细节见 `docs/audit/2026-06-28-roadmap-bs5-bs8-gap-audit/`,内存实测见 `docs/audit/2026-06-27-memory-floor-and-retention/`。`finding-id` 词汇表见本文末尾。
 
-> 代码标识符保留英文;历史行号仅用于定位旧证据,当前结构以类型名和 2026-07-13 branch HEAD 为准。
+> 代码标识符保留英文;历史行号仅用于定位旧证据,当前结构以类型名和 2026-07-14 master 为准。
 
 ---
 
@@ -39,7 +39,8 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 │                                                    │   │ actor ImageProcessor 【BS-3 已接入,E5 显式组合】   │
 │ @Observable HistoryItemDecorator(UI 状态)          │   │  ├─ ImageIO 降采样(CGImageSourceCreateThumbnail)   │
 │  ├─ RowHighlighter(title/preview text projection)  │   │                                                    │
-│  ├─ thumbnailImage/previewImage(就绪位图)          │   │  └─ 后台解码 + 缩略图/预览(预览封顶 800px)         │
+│  ├─ ImageGenerationCoordinator(lazy blob/task)    │   │  └─ 后台解码 + 缩略图/预览(预览封顶 800px)         │
+│  │   └─ thumbnail/preview + release policy        │   │                                                    │
 │  └─ applicationImage(NSCache 限界 128)             │   │                                                    │
 └────────────────────────────────────────────────────┘   └────────────────────────────────────────────────────┘
                   ▲                                                          │
@@ -62,10 +63,12 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 | `Maccy/Ingest/SignatureIndex.swift` | ✅ 纯值去重索引 `[SignatureDTO: ItemID]`,接入 ingestor(BS-4.2) |
 | `Maccy/Ingest/ClipboardIngestor.swift` | ✅ 已接入 live copy 路径(BS-2) |
 | `Maccy/ImageProcessing/ImageProcessing.swift` + `ImageProcessor.swift` + `ImageDownsampler.swift` + `ThumbnailCache.swift` | ✅ ImageIO 降采样已接入(BS-3)。D3/D7 收尾后，actor 内懒初始化磁盘字节账本取代每次 PNG 写入的全目录扫描：首次成功写才盘点，此后 O(1) 增减，只有超出 256 MiB/账本未知才重扫并 LRU 淘汰；同步 downsample 后、PNG 编码前有协作取消点。无启动扫描，外部 cache interface 与图片 UI 几何不变；full matrix `29297868166`（389 unit）。 |
-| `HistoryListState` / `HistorySearchSession` / `HistoryStoreProjector` / `HistoryMutations` | ✅ B2–B5 完成:列表变更单 chokepoint、actor 搜索语料/O(1) lookup、单 persistence 投影、fake-backed mutations + value UI effects。E5 首个 DI slice 又将 clipboard/event/current-event/log 服务构造注入；普通 `History` 实例 inert，live globals 仅在 `History.shared` composition factory。后续状态边界收口令 `replaceCorpus` 自己推进 generation，未知 modifier action 在 invalidation 前返回，调用方不再承担隐式时序前提。`History.swift` 978→346 LOC；full matrix `29210900842`。 |
+| `HistoryListState` / `HistorySearchSession` / `HistoryStoreProjector` / `HistoryMutations` | ✅ B2–B5 完成:列表变更单 chokepoint、actor 搜索语料/O(1) lookup、单 persistence 投影、fake-backed mutations + value UI effects。E5 首个 DI slice 又将 clipboard/event/current-event/log 服务构造注入；普通 `History` 实例 inert，live globals 仅在 `History.shared` composition factory。D4 收尾后 main 仅投影一次 `SearchCorpusSource`，完整 body 只作为短命 actor 输入，`SearchActor` 内按当次 `bodyLimit` 封顶并仅持有有界 `SearchCorpusItem`；搜索发起只传 query/mode。后续状态边界收口令 `replaceCorpus` 自己推进 generation，未知 modifier action 在 invalidation 前返回，调用方不再承担隐式时序前提。`History.swift` 978→346 LOC；D4 + 边界收尾 full matrix `29301008565`，master `29301400111`。 |
 | `HistoryItemDecoratorFactory` / image composition | ✅ E5 decorator slice:projector 的 load/reconcile/incremental insert 只经 factory 构造；factory 显式拥有 `ImageProcessor` 与 `ApplicationImageCache`。`History.shared` 建一套 live 资源，普通 `History` 使用隔离资源；`CompositionRoot` 将同一 processor 交给 ingest，memory warning 经 attached History 清理同一 icon cache。decorator/cache 不再读取隐藏 `.shared`。 |
-| `RowHighlighter` / decorator text projection | ✅ E5 cohesion slice:`RowHighlighter` 内聚标题与正文预览的 memo key、`AttributedString` 构建、截断/clamp、index 转换与单一高亮样式分支；`HistoryItemDecorator` 仅保留 Observable 赋值适配与图片生命周期所有权。新模块不依赖 `HistoryItem`/SwiftData/图片/`AppState`/进程级 shared；full matrix `29257167506`。 |
-| Decorator model projection | ✅ BS-7.13 decorator slice:删除每个 decorator 的 `pin`/`title` 两条自重装 `withObservationTracking + main.async` relay；`title` 直接投影 SwiftData 真源，pin shortcut 只在保存成功的 mutation 边界显式同步，失败回滚不改变 UI 投影。RED run `29264161531` 精确失败 2 条新增断言；GREEN full matrix `29264760355` attempt 2 全绿（attempt 1 仅 `testOpenAndSelectThirdItemRepeatedPress` 3 s contention timeout）。`AppDelegate.synchronizeMenuIconText` 的单实例 relay 仍是 7.13 残项。 |
+| `RowHighlighter` / decorator text projection | ✅ E5 cohesion slice:`RowHighlighter` 内聚标题与正文预览的 memo key、`AttributedString` 构建、截断/clamp、index 转换与单一高亮样式分支；`HistoryItemDecorator` 只保留 Observable 赋值适配，图片生命周期已下沉到独立协调器。`RowHighlighter` 不依赖 `HistoryItem`/SwiftData/图片/`AppState`/进程级 shared；full matrix `29257167506`。 |
+| `ImageGenerationCoordinator` / decorator image projection | ✅ 每行图片的 lazy bytes、has-image cache、thumbnail/preview task、就绪位图、cancel/invalidate/release policy 归一个 `@MainActor @Observable` 深模块；thumbnail/preview 共用一条 kind-driven pipeline。`HistoryItemDecorator` 444→281 LOC，只暴露兼容 facade。主 UI thumbnail 目标高度只取 `imageMaxHeight` 经 `HistoryRowLayout.effectiveImageContentHeight`，源图尺寸不参与行高/窗口高度。RED `29302252110` 仅因协调器尚不存在而编译失败；GREEN full matrix `29302930231`（401 unit）。 |
+| Explicit UI/runtime projections | ✅ BS-7.13 已完成：decorator 的 `pin`/`title` 两条自重装 relay 已删；`AppDelegate.synchronizeMenuIconText` 也由 `HistoryListState → AppState → status item` 的同步单向 sink 取代，100 次快速列表变化不丢最终值。`refreshVisibleItems` 归入 search session，Popup/KeyHandling 快捷键共用 AppState 单一 deferred-commit 路径，App Intent command service 从 error 类型中分文件，`ModifierFlags` 显式 main-actor 隔离。`ApplicationImage` rename 会重新解析 bundle URL、取消旧 fd source 并监视新路径，不添加启动工作。full matrix `29301008565`，master `29301400111`。 |
+| Release compiler/package gate | ✅ runner 基线显示 `GCC_OPTIMIZATION_LEVEL` 为空（非 O2），因此仅对 Release 显式设 `2`；Swift 保持原有安全 `-O + wholemodule`，不启用 `-Ounchecked`、O3、fast-math 或 LTO。release workflow 先校验有效 build settings 再打包。dry-run `29303300412` 绿，ZIP checksum 通过；`Maccy.app.zip` 内只有 `Maccy.app` 与其必需 runtime resources，无 test bundle/审计 docs。 |
 | `AppState` runtime boundary | ✅ E5 第二 slice (`ed664b2`):空选择 query copy 构造注入；prewarm 使用当前组合的 History；Settings close observer 弱捕获 owning AppState，不再回写 `AppState.shared`。文件内 shared 使用 8→3，剩余仅 composition/Settings 构建区；full matrix `29211587341`。后续 UI-ownership slice 保留 `ContentView` 为 popup 状态 composition root，`HeaderView`/`ToolbarView` 由 SwiftUI environment 接收同一实例；`GeneralSettingsPane` 只接收 popup-shortcut 窄回调。三者均不再各自抓取 global；full matrix `29253455968`（`ui-1` 首次 runner setup 遇 GitHub Service Unavailable，failed-job retry 后通过）。 |
 | Memory governance ownership | ✅ E5 memory slice:每个 `AppState` 显式拥有 viewport `VisibilityTracker`，`HistoryItemView` 通过 owning environment 登记；`CompositionRoot` 拥有用同一 tracker 构造的 `MemoryGovernor`，memory-pressure handler 弱捕获自身。生产中 `MemoryGovernor.shared` / `VisibilityTracker.shared` 引用归零，图片回收策略与 launch 时机不变；full matrix `29260238295`（`ui-1` 首次遇已知 `testCopyHTML` 3 s contention timeout，单次 failed-job retry 后通过）。 |
 | Footer action flow | ✅ `7d1d3e2`:FooterItem 携带 closed `FooterAction` value；click/confirmation/keyboard 统一交给 owning AppState 解释，Footer 内 5 个 `AppState.shared` 闭包删除。`f84ffa1` 又覆盖全部 interpreter cases，并把键盘 clear 路由从 title string 收敛为 typed lookup；full matrix `29213836925`。Clear/Clear All 的 modifier 分类现由 Footer 纯函数拥有，并在 device-independent mask 后精确匹配，唤醒 popup 的 `Shift-Command-C` 不再被 clear-all 的 modifier 子集误判。 |
@@ -131,7 +134,7 @@ BS-1~BS-4 已围绕此根因重构管线(copy 路径已离主线程)。主侧读
 |---|---|---|
 | 解码/缩略图/预览在主线程 | [已修] | `IMG-001/002/003/004`:BS-3 已用 `ImageProcessor` actor + `CGImageSourceCreateThumbnailAtIndex` 降采样,off-main |
 | 预览封顶 800px | [已修] | BS-4.10(原 `visibleFrame` ~50MiB/张) |
-| `imageData` 全表 fault | [部分] | `img-fullres-dup-storage`:BS-6 已 lazy(`HistoryItemDecorator.imageDataCache`),但**冷开仍会因 `load()` 全表 fault 而触发**;双份(blob+位图)问题在 `imageDataCache` 仍存 |
+| `imageData` 全表 fault | [部分] | `img-fullres-dup-storage`:BS-6 已 lazy（现由 `ImageGenerationCoordinator.imageDataCache` 所有）,但**冷开仍会因 `load()` 全表 fault 而触发**;双份(blob+位图)问题在 lazy cache 激活后仍存 |
 | `DecodedImageCache` | [已修] | 无调用的 shared decoded cache 已于 `0bde9276` 删除；preview 位图改由 per-decorator 仅持有当前 transient 结果，scroll-out/memory warning/invalidate 可回收，不再额外保留一份进程级解码缓存。 |
 | `releaseTransientImages(.previewHidden)` | [已修] | 零调用的 `.previewHidden` case 已与 `DecodedImageCache` 一同删除；当前仅保留 `scrollOut`/setting-memory-invalidate 等实际生命周期路径。 |
 | `ApplicationImageCache` 无界字典 + fd DispatchSource | [已修] | `IMG-010/011`:NSCache 限界 128 + fd guard(M4)；E5 后由 History decorator factory 显式拥有并经 memory-governance capability 清理，无进程级 `.shared`。 |
@@ -241,7 +244,7 @@ heap 证据:624 个 `HistoryItemContent` + 624 个 `_KKMDBackingData`(对应 556
 | **BS-4** 数据管线 | 部分 | ⚠️ | 增量 consume/reconcile | D1 已量测保留完整 load 并删除 loader 死代码；`findSimilarItem`/`History.add` 死代码未删 |
 | **BS-5** 文本搜索 | **2/13** | ❌ | off-main ✓(已达成) | **07-F-010 高亮错位 commit 夸大("bug-2 fix" 是空描述);07-F-013 静默丢高亮未修**;5.1/5.2/5.5/5.7/5.8/5.9/5.10 跳过;G-search 测 legacy 非 actor |
 | **BS-6** 内存治理 | **5/12** | ❌ | decoded-image bounded to visible | **`DecodedImageCache` 死代码**(`setImage/image(for:)` 零调用);`.previewHidden` 死枚举;G-memory 闸门未建;6.11 测试套件 0/6 |
-| **BS-7** Swift 6 | **13/17 + 7.13 部分** | ⚠️ | complete 模式 CI 绿、零 @unchecked ✓(达成) | 7.13 decorator 的 `pin`/`title` 两条 recursive relay 已删除并由专项 RED/GREEN 锁定；仅 `AppDelegate.synchronizeMenuIconText` 单实例 relay 仍保留。 |
+| **BS-7** Swift 6 | **14/17** | ⚠️ | complete 模式 CI 绿、零 @unchecked ✓、7.13 显式投影 ✓ | 剩余规格缺口是 7.12 AppIntent 默认执行器全面复核、7.14 entitlements/Info.plist 复核、7.16 C++ 标准决策；7.13 recursive relay 已彻底删除。 |
 | **BS-8** C++/指纹 | **4/8** | ⚠️ | xxh3 接入 live 去重 ✓(达成) | **8.5 旧数据行 lazy backfill 缺失**(老行永远 nil,落回全量 `==`);8.3 桥加固丢弃(`enumerateByteRanges` 流式 08-F-004、UTF-8 防御 03-LT-CPP-01 未做);8.8 测试 0/4,FNV baseline 切换前未捕获 |
 
 **系统性模式**:核心热路径做、外围正确性/限界/测试/文档勾选丢;偏差只记 commit message 或旁侧文档(违反 CLAUDE.md "记录偏差在 audit docs");规范要求 ~19 个新测试文件,实际只建 `SearchActorTests.swift` 一个。
