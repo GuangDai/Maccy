@@ -83,6 +83,12 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      - name: Verify effective Release optimizations
+        shell: bash
+        env:
+          TARGET: Maccy
+        run: bash scripts/verify-release-optimizations.sh
+
       - name: Package app
         id: package
         shell: bash
