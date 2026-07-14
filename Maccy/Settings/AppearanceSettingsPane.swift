@@ -69,22 +69,20 @@ struct NumericPreferenceOption {
 /// a `Settings.Section` with a text field bound to a `Defaults` integer, the
 /// unit shown beside it, and a stepper over the option's range — so the range,
 /// formatter, unit, label, and tooltip are declared once.
-struct LabeledNumericPreference: View {
-  @Binding var value: Int
-  let option: NumericPreferenceOption
-
-  var body: some View {
-    Settings.Section(label: { Text(LocalizedStringKey(option.labelKey), tableName: option.tableName) }) {
-      HStack {
-        TextField("", value: $value, formatter: option.formatter)
-          .frame(width: 120)
-          .help(Text(LocalizedStringKey(option.tooltipKey), tableName: option.tableName))
-        Text(verbatim: option.unit)
-          .foregroundStyle(.secondary)
-          .fixedSize()
-        Stepper("", value: $value, in: option.range)
-          .labelsHidden()
-      }
+private func labeledNumericPreference(
+  value: Binding<Int>,
+  option: NumericPreferenceOption
+) -> Settings.Section {
+  Settings.Section(label: { Text(LocalizedStringKey(option.labelKey), tableName: option.tableName) }) {
+    HStack {
+      TextField("", value: value, formatter: option.formatter)
+        .frame(width: 120)
+        .help(Text(LocalizedStringKey(option.tooltipKey), tableName: option.tableName))
+      Text(verbatim: option.unit)
+        .foregroundStyle(.secondary)
+        .fixedSize()
+      Stepper("", value: value, in: option.range)
+        .labelsHidden()
     }
   }
 }
@@ -153,17 +151,17 @@ struct AppearanceSettingsPane: View {
         .help(Text("PinToTooltip", tableName: "AppearanceSettings"))
       }
 
-      LabeledNumericPreference(value: $imageHeight, option: .imageMaxHeight)
+      labeledNumericPreference(value: $imageHeight, option: .imageMaxHeight)
 
-      LabeledNumericPreference(value: $textRowLines, option: .textRowLines)
+      labeledNumericPreference(value: $textRowLines, option: .textRowLines)
 
-      LabeledNumericPreference(value: $imageMaxPreviewPixels, option: .imageMaxPreviewPixels)
+      labeledNumericPreference(value: $imageMaxPreviewPixels, option: .imageMaxPreviewPixels)
 
-      LabeledNumericPreference(value: $textPreviewLimit, option: .textPreviewLimit)
+      labeledNumericPreference(value: $textPreviewLimit, option: .textPreviewLimit)
 
-      LabeledNumericPreference(value: $previewDelay, option: .previewDelay)
+      labeledNumericPreference(value: $previewDelay, option: .previewDelay)
 
-      LabeledNumericPreference(
+      labeledNumericPreference(
         value: $previewMinimumHeightPercent,
         option: .previewMinimumHeightPercent
       )
