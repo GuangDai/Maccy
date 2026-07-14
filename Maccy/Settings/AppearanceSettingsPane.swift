@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 import Defaults
-import Settings
+import enum Settings.Settings
 
 /// UI metadata for a numeric `Defaults` preference stepper: the valid range, the
 /// unit shown beside the field, and the localized label/tooltip keys. Co-locates
