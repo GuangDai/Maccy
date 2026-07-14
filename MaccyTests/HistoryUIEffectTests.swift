@@ -185,7 +185,7 @@ final class AppStateRuntimeServicesTests: XCTestCase {
       runtimeServices: HistoryRuntimeServices(
         clipboard: HistoryClipboardActions(
           clear: {},
-          copy: { copiedItems.append($0) },
+          copy: { item, _ in copiedItems.append(item) },
           paste: {}
         )
       ),
@@ -193,7 +193,7 @@ final class AppStateRuntimeServicesTests: XCTestCase {
     )
     let appState = AppState(history: history, footer: Footer())
 
-    XCTAssertTrue(appState.selectPressedShortcut(decorator, delay: .zero))
+    XCTAssertTrue(appState.selectPressedShortcut(decorator, delay: Duration.zero))
     XCTAssertTrue(appState.navigator.selection.first === decorator)
     for _ in 0..<100 where copiedItems.isEmpty {
       await Task.yield()
