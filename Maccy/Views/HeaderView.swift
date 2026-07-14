@@ -1,13 +1,15 @@
-import Defaults
 import SwiftUI
 
 /// The popup header containing the search field and the preview toggle button.
 struct HeaderView: View {
   @Environment(AppState.self) private var appState
-  @Default(.showSearch) private var showSearch
 
   let controller: SlideoutController
   @FocusState.Binding var searchFocused: Bool
+
+  static func maximumLayoutHeight(isVisible: Bool) -> CGFloat? {
+    isVisible ? nil : 0
+  }
 
   var previewPlacement: SlideoutPlacement {
     return controller.placement
@@ -47,7 +49,10 @@ struct HeaderView: View {
     .padding(.horizontal, 10)
     .animation(.default.speed(3), value: appState.navigator.leadSelection)
     .background(.clear)
-    .frame(maxHeight: showSearch ? nil : 0, alignment: .top)
+    .frame(
+      maxHeight: Self.maximumLayoutHeight(isVisible: appState.searchVisible),
+      alignment: .top
+    )
     .readHeight(appState, into: \.popup.headerHeight)
   }
 }
