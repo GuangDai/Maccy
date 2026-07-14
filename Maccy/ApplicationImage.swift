@@ -14,8 +14,11 @@ class ApplicationImage {
   private static let retryInterval: TimeInterval = 60 * 60
 
   let bundleIdentifier: String?
+  private let resolveApplicationURL: @MainActor (String) -> URL?
+  private let loadIcon: @MainActor (URL) -> NSImage
   private var image: NSImage?
   private var lastChecked: Date?
+  private(set) var watchedApplicationURL: URL?
   // The dispatch source is reached from both the @MainActor getter/handler and
   // the nonisolated deinit. ApplicationImageCache holds these instances in an
   // NSCache, whose memory-pressure eviction is not guaranteed to run on the main
@@ -28,9 +31,20 @@ class ApplicationImage {
     (any DispatchSourceFileSystemObject)?
   >(initialState: nil)
 
-  init(bundleIdentifier: String?, image: NSImage? = nil) {
+  init(
+    bundleIdentifier: String?,
+    image: NSImage? = nil,
+    resolveApplicationURL: @escaping @MainActor (String) -> URL? = {
+      NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0)
+    },
+    loadIcon: @escaping @MainActor (URL) -> NSImage = {
+      NSWorkspace.shared.icon(forFile: $0.path)
+    }
+  ) {
     self.bundleIdentifier = bundleIdentifier
     self.image = image
+    self.resolveApplicationURL = resolveApplicationURL
+    self.loadIcon = loadIcon
   }
 
   deinit {
@@ -62,13 +76,11 @@ class ApplicationImage {
     }
     lastChecked = .now
 
-    if let appURL = NSWorkspace.shared.urlForApplication(
-      withBundleIdentifier: bundleIdentifier
-    ) {
-      let img = NSWorkspace.shared.icon(forFile: appURL.path)
+    if let appURL = resolveApplicationURL(bundleIdentifier) {
+      let img = loadIcon(appURL)
       image = img
 
-      eventSourceLock.withLock { $0?.cancel() }
+      stopWatching()
       let descriptor = open(appURL.path, O_EVTONLY)
       guard descriptor != -1 else {
         let errorCode = errno
@@ -110,19 +122,20 @@ class ApplicationImage {
         if event.contains(.delete) {
           // App bundle deleted (uninstalled) — drop the cached icon.
           Self.logger.info("ApplicationImage: deleted \(appURL.path)")
-          eventSource.cancel()
-          self.eventSourceLock.withLock { $0 = nil }
+          self.stopWatching()
           self.image = nil
         } else if event.contains(.rename) {
-          // App bundle renamed/replaced (e.g. updated) — re-fetch the icon.
+          // App bundle renamed/replaced (e.g. updated) — resolve its current
+          // URL and arm a new source instead of reading the stale captured path.
           Self.logger.info("ApplicationImage: renamed \(appURL.path)")
-          self.image = NSWorkspace.shared.icon(forFile: appURL.path)
+          self.reloadAfterRename()
         }
       }
       source.setCancelHandler {
         close(descriptor)
       }
       eventSourceLock.withLock { $0 = source }
+      watchedApplicationURL = appURL
       sourceInstalled = true
       source.resume()
 
@@ -130,5 +143,27 @@ class ApplicationImage {
     }
 
     return Self.fallbackImage
+  }
+
+  /// Invalidates a renamed bundle's old descriptor, resolves the bundle id
+  /// again, reloads its icon, and arms a source for the newly resolved URL.
+  @discardableResult
+  func reloadAfterRename() -> NSImage {
+    stopWatching()
+    image = nil
+    lastChecked = nil
+    return nsImage
+  }
+
+  /// Cancels and detaches the current file-system source. The cancel handler
+  /// owns descriptor closure, so replacing a source cannot leak the old fd.
+  private func stopWatching() {
+    let source = eventSourceLock.withLock { current in
+      let source = current
+      current = nil
+      return source
+    }
+    source?.cancel()
+    watchedApplicationURL = nil
   }
 }
