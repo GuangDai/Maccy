@@ -12,7 +12,6 @@ final class HistoryStoreProjector {
   private let decoratorFactory: HistoryItemDecoratorFactory
   private var uiEffectSink: HistoryUIEffectSink = { _ in }
   private var errorSink: @MainActor (String, Error) -> Void = { _, _ in }
-  private var didPublishVisible: @MainActor () -> Void = {}
   private var storeEventSink: @MainActor ([StoreEvent]) -> Void = { _ in }
 
   init(
@@ -35,10 +34,6 @@ final class HistoryStoreProjector {
 
   func configureErrorSink(_ sink: @escaping @MainActor (String, Error) -> Void) {
     errorSink = sink
-  }
-
-  func configureDidPublishVisible(_ action: @escaping @MainActor () -> Void) {
-    didPublishVisible = action
   }
 
   func configureStoreEventSink(_ sink: @escaping @MainActor ([StoreEvent]) -> Void) {
@@ -95,7 +90,7 @@ final class HistoryStoreProjector {
       listState.publishVisible(sorted.filter { visibleIDs.contains($0.id) })
     }
     searchSession.replaceCorpus(sorted)
-    refreshVisibleItems()
+    searchSession.refreshVisibleItems(mode: Defaults[.searchMode])
     emitSelectionAndResize()
   }
 
@@ -130,7 +125,7 @@ final class HistoryStoreProjector {
       )
     }
     searchSession.replaceCorpus(rebuilt)
-    refreshVisibleItems()
+    searchSession.refreshVisibleItems(mode: Defaults[.searchMode])
     emitSelectionAndResize()
   }
 
@@ -171,7 +166,7 @@ final class HistoryStoreProjector {
     if !trimmedPersistentIDs.isEmpty {
       removeDecorators(storedIDs: Set(trimmedPersistentIDs))
     }
-    refreshVisibleItems()
+    searchSession.refreshVisibleItems(mode: Defaults[.searchMode])
     emitSelectionAndResize()
   }
 
@@ -181,15 +176,6 @@ final class HistoryStoreProjector {
       decorator.invalidate()
     }
     searchSession.removeCorpus(removed.map(\.id))
-  }
-
-  private func refreshVisibleItems() {
-    if searchSession.query.isEmpty {
-      listState.publishVisible(listState.all)
-      didPublishVisible()
-    } else {
-      searchSession.refresh(mode: Defaults[.searchMode])
-    }
   }
 
   private func emitSelectionAndResize() {

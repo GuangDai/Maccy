@@ -51,13 +51,9 @@ class AppState {
     }
   }
 
-  /// Shortened text of the most recent unpinned item, for the menu-bar icon.
-  var menuIconText: String {
-    var title = history.unpinnedItems.first?.text.shortened(to: 100)
-      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    title.unicodeScalars.removeAll(where: CharacterSet.newlines.contains)
-    return title.shortened(to: 20)
-  }
+  /// Explicit projection of the most recent visible unpinned text for the
+  /// menu-bar item. Updated synchronously at the visible-list mutation edge.
+  private(set) var menuIconText: String
 
   private let about = About()
   private var settingsWindowController: SettingsWindowController?
@@ -68,6 +64,7 @@ class AppState {
   private var settingsWindowCloseObserver: NSObjectProtocol?
   @ObservationIgnored private let runtimeServices: AppStateRuntimeServices
   @ObservationIgnored let visibilityTracker: VisibilityTracker
+  @ObservationIgnored private var menuIconTextSink: @MainActor (String) -> Void = { _ in }
 
   init(
     history: History,
@@ -79,6 +76,7 @@ class AppState {
     self.footer = footer
     self.runtimeServices = runtimeServices
     self.visibilityTracker = visibilityTracker
+    menuIconText = Self.projectMenuIconText(from: history)
     let popup = Popup()
     self.popup = popup
     let preview = SlideoutController(
@@ -102,6 +100,9 @@ class AppState {
     history.configureUIEffectSink { [weak self] effect in
       self?.applyHistoryUIEffect(effect)
     }
+    history.configureVisibleItemsChanged { [weak self] in
+      self?.refreshMenuIconText()
+    }
     popup.configureRuntimeServices(PopupRuntimeServices(
       selectInitialItem: { [weak self] in
         guard let self else { return }
@@ -122,15 +123,39 @@ class AppState {
         self?.appDelegate?.panel.verticallyResize(to: height)
       },
       prewarmVisibleWindow: { [weak self] in self?.prewarmVisibleWindow() },
-      selectPressedShortcut: { [weak self] in
-        guard let self, let item = self.history.pressedShortcutItem else { return false }
-        self.navigator.select(item: item)
-        Task { @MainActor [weak self] in self?.history.select(item) }
-        return true
-      },
+      selectPressedShortcut: { [weak self] in self?.selectPressedShortcut() ?? false },
       highlightNext: { [weak self] in self?.navigator.highlightNext(allowCycle: true) },
       commitSelection: { [weak self] in self?.select() }
     ))
+  }
+
+  /// Installs the status-item projection and immediately supplies its current
+  /// value. Subsequent list changes are delivered synchronously in order.
+  func configureMenuIconTextSink(_ sink: @escaping @MainActor (String) -> Void) {
+    menuIconTextSink = sink
+    sink(menuIconText)
+  }
+
+  /// Resolves, highlights, and commits a pressed item through one timing path
+  /// shared by Popup and KeyHandlingView. The delay lets the triggering key
+  /// event leave `NSApp.currentEvent` before History resolves modifier actions.
+  @discardableResult
+  func selectPressedShortcut(
+    _ item: HistoryItemDecorator? = nil,
+    delay: Duration = .milliseconds(50)
+  ) -> Bool {
+    guard let item = item ?? history.pressedShortcutItem else { return false }
+    navigator.select(item: item)
+    let history = history
+    Task { @MainActor in
+      do {
+        try await Task.sleep(for: delay)
+      } catch {
+        return
+      }
+      history.select(item)
+    }
+    return true
   }
 
   /// Interprets outward history requests at the composition boundary.
@@ -147,6 +172,18 @@ class AppState {
     case .scrollTo(let id):
       navigator.scrollTarget = id
     }
+  }
+
+  private func refreshMenuIconText() {
+    menuIconText = Self.projectMenuIconText(from: history)
+    menuIconTextSink(menuIconText)
+  }
+
+  private static func projectMenuIconText(from history: History) -> String {
+    var title = history.unpinnedItems.first?.text.shortened(to: 100)
+      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    title.unicodeScalars.removeAll(where: CharacterSet.newlines.contains)
+    return title.shortened(to: 20)
   }
 
   /// Resolves the current selection into an action: a single history item is

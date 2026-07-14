@@ -104,6 +104,18 @@ final class HistorySearchSession {
     }
   }
 
+  /// Publishes the complete list when no query is active; otherwise re-runs
+  /// the actor search. This is the single visible-projection refresh policy
+  /// shared by the History facade and persistence projector.
+  func refreshVisibleItems(mode: Search.Mode) {
+    if query.isEmpty {
+      listState.publishVisible(listState.all)
+      didPublishVisible()
+    } else {
+      refresh(mode: mode)
+    }
+  }
+
   /// Replaces the owned corpus and O(1) result lookup in complete-list order.
   func replaceCorpus(_ decorators: [HistoryItemDecorator]) {
     invalidate()

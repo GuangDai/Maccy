@@ -10,6 +10,7 @@ final class HistoryListState {
   private(set) var items: [HistoryItemDecorator]
   @ObservationIgnored private(set) var all: [HistoryItemDecorator]
   @ObservationIgnored private var willMutate: @MainActor () -> Void
+  @ObservationIgnored private var didChangeVisible: @MainActor () -> Void = {}
 
   init(
     decorators: [HistoryItemDecorator] = [],
@@ -25,11 +26,19 @@ final class HistoryListState {
     willMutate = action
   }
 
+  /// Installs the composition-facing notification for a completed visible-list
+  /// mutation. Delivery is synchronous on the main actor, so rapid updates
+  /// cannot be coalesced or lost by a recursively re-armed observer.
+  func configureDidChangeVisible(_ action: @escaping @MainActor () -> Void) {
+    didChangeVisible = action
+  }
+
   /// Replaces the complete list and publishes it as the visible list.
   func replaceAll(_ decorators: [HistoryItemDecorator]) {
     willMutate()
     all = decorators
     items = decorators
+    didChangeVisible()
   }
 
   /// Inserts one decorator into the complete list.
@@ -47,6 +56,7 @@ final class HistoryListState {
     willMutate()
     all.removeAll { ids.contains($0.item.persistentModelID) }
     items.removeAll { ids.contains($0.item.persistentModelID) }
+    didChangeVisible()
     return removed
   }
 
@@ -58,11 +68,13 @@ final class HistoryListState {
     willMutate()
     all.removeAll { $0 == decorator }
     items.removeAll { $0 == decorator }
+    didChangeVisible()
     return true
   }
 
   /// Publishes a visible projection without invalidating the search producing it.
   func publishVisible(_ decorators: [HistoryItemDecorator]) {
     items = decorators
+    didChangeVisible()
   }
 }

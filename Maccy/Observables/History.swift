@@ -164,9 +164,6 @@ class History: ItemsContainer {
     storeProjector.configureErrorSink { [weak self] message, error in
       self?.recordPersistenceError(message, error)
     }
-    storeProjector.configureDidPublishVisible { [weak mutations] in
-      mutations?.updateUnpinnedShortcuts()
-    }
     storeProjector.configureStoreEventSink(runtimeServices.publishStoreEvents)
     mutations.configureUIEffectSink { [weak self] effect in
       self?.emit(effect)
@@ -200,7 +197,7 @@ class History: ItemsContainer {
           updateTitle(item: item, title: item.item.generateTitle())
         }
         searchSession.replaceCorpus(all)
-        refreshVisibleItems()
+        searchSession.refreshVisibleItems(mode: Defaults[.searchMode])
       }
     }
 
@@ -219,7 +216,7 @@ class History: ItemsContainer {
         // The body-scan cap changed; existing corpus entries still hold bodies
         // capped to the old window, so rebuild and re-run the active search.
         searchSession.replaceCorpus(all)
-        refreshVisibleItems()
+        searchSession.refreshVisibleItems(mode: Defaults[.searchMode])
       }
     }
   }
@@ -246,6 +243,13 @@ class History: ItemsContainer {
   /// Tests and non-UI consumers keep the default no-op sink.
   func configureUIEffectSink(_ sink: @escaping HistoryUIEffectSink) {
     uiEffectSink = sink
+  }
+
+  /// Installs the owner-facing hook for changes to the currently visible list.
+  /// AppState uses this explicit edge to project its menu-bar text without a
+  /// recursive Observation relay.
+  func configureVisibleItemsChanged(_ action: @escaping @MainActor () -> Void) {
+    listState.configureDidChangeVisible(action)
   }
 
   /// Emits one request through the output port configured by `AppState`.
@@ -334,18 +338,6 @@ class History: ItemsContainer {
     lastPersistError = error
     if logsPersistenceErrors {
       logger.error("\(message): \(String(describing: error))")
-    }
-  }
-
-  /// Refreshes `items` after a mutation (add/pin/reconcile): `all` when the
-  /// query is empty, otherwise asks the extracted session to re-run its actor
-  /// search immediately against the owned corpus.
-  private func refreshVisibleItems() {
-    if searchQuery.isEmpty {
-      listState.publishVisible(all)
-      mutations.updateUnpinnedShortcuts()
-    } else {
-      searchSession.refresh(mode: Defaults[.searchMode])
     }
   }
 

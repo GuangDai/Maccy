@@ -72,7 +72,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       }
     }
 
-    synchronizeMenuIconText()
+    appState.configureMenuIconTextSink { [weak self] text in
+      guard Defaults[.showRecentCopyInMenuBar] else { return }
+      self?.statusItem.button?.title = text
+    }
     Task {
       for await value in Defaults.updates(.showRecentCopyInMenuBar) {
         if value {
@@ -182,24 +185,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     panel.toggle(height: appState.popup.height, at: .statusItem)
-  }
-
-  /// Keeps the status item title in sync with the recent-copy text via
-  /// observation tracking.
-  private func synchronizeMenuIconText() {
-    _ = withObservationTracking {
-      appState.menuIconText
-    } onChange: {
-      Task { @MainActor [weak self] in
-        guard let self else {
-          return
-        }
-        if Defaults[.showRecentCopyInMenuBar] {
-          self.statusItem.button?.title = self.appState.menuIconText
-        }
-        self.synchronizeMenuIconText()
-      }
-    }
   }
 
   /// Disables the unused built-in delete/pin global shortcuts and keeps them
