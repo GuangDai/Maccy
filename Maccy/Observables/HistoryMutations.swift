@@ -159,9 +159,14 @@ final class HistoryMutations {
 
   func select(_ item: HistoryItemDecorator?) {
     guard let item else { return }
-    searchSession.invalidate()
 
     let flags = modifierFlags()
+    let action = HistoryItemAction(flags)
+    if !flags.isEmpty, case .unknown = action {
+      return
+    }
+    searchSession.invalidate()
+
     if flags.isEmpty {
       uiEffectSink(.closePopup)
       clipboard.copy(item.item, Defaults[.removeFormattingByDefault])
@@ -169,7 +174,7 @@ final class HistoryMutations {
         clipboard.paste()
       }
     } else {
-      switch HistoryItemAction(flags) {
+      switch action {
       case .copy:
         uiEffectSink(.closePopup)
         clipboard.copy(item.item, false)

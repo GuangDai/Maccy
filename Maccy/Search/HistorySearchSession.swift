@@ -103,6 +103,7 @@ final class HistorySearchSession {
 
   /// Replaces the owned corpus and O(1) result lookup in complete-list order.
   func replaceCorpus(_ decorators: [HistoryItemDecorator]) {
+    invalidate()
     decoratorsByID = Dictionary(
       uniqueKeysWithValues: decorators.map { ($0.id, $0) }
     )
