@@ -69,6 +69,7 @@ struct NumericPreferenceOption {
 /// a `Settings.Section` with a text field bound to a `Defaults` integer, the
 /// unit shown beside it, and a stepper over the option's range — so the range,
 /// formatter, unit, label, and tooltip are declared once.
+@MainActor
 private func labeledNumericPreference(
   value: Binding<Int>,
   option: NumericPreferenceOption
