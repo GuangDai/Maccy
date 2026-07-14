@@ -147,6 +147,10 @@ struct ThumbnailDiskUsageLedger {
   mutating func recordInventory(totalBytes: Int) {
     self.totalBytes = max(0, totalBytes)
   }
+
+  mutating func invalidate() {
+    totalBytes = nil
+  }
 }
 ```
 
@@ -160,9 +164,10 @@ the disk file. A cancelled operation returns `nil` and publishes nothing.
 - [ ] **Step 3: Make disk writes report accounting data**
 
 Measure the prior file size, finalize the PNG, and measure the resulting size.
-Feed both optionals into `recordWrite`. A failed PNG finalization preserves the
-existing behavior of returning/memory-caching the decoded image but does not
-mutate the ledger.
+Feed both optionals into `recordWrite`. A failed PNG finalization invalidates
+the possibly stale ledger while preserving the existing behavior of returning
+and memory-caching the decoded image; the next successful write repairs the
+total lazily.
 
 - [ ] **Step 4: Replace per-write eviction with requested inventory**
 
@@ -225,3 +230,11 @@ git commit -am "docs(quality): record thumbnail maintenance evidence [skip ci]"
 Verify the primary dirty-state sentinel is unchanged, fast-forward `master`,
 push once, and let the automatic master workflow run without dispatching a
 duplicate workflow.
+
+## Execution record
+
+Tasks 1–3 completed. RED run `29297630052` isolated the intended missing ledger
+and downsample-seam compile contracts. GREEN run `29297868166` passed the full
+matrix on its first attempt, including all 389 unit tests. The green code commit
+was pushed to `master` before this evidence-only update so `[skip ci]` could not
+suppress the automatic code workflow.

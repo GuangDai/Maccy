@@ -18,9 +18,9 @@ import Foundation
 ///
 /// Both methods begin with a `Task.isCancelled` checkpoint so a render that is
 /// superseded (the caller cancels its parent task) returns nil at the actor
-/// boundary before any decode or disk work. `preview` adds a second checkpoint
-/// between the downsample and the cheap `NSImage` wrap so a cancellation that
-/// lands during decode still short-circuits.
+/// boundary before any decode or disk work. Each path also checks immediately
+/// after its synchronous downsample: `preview` before the cheap `NSImage` wrap,
+/// and `ThumbnailCache` before PNG encoding, disk maintenance, and publication.
 actor ImageProcessor: ImageProcessing {
   private let cache: ThumbnailCache
 

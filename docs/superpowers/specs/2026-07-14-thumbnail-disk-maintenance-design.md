@@ -70,3 +70,16 @@ explicit-evict, and per-size-key tests remain the behavior regression suite.
 The macOS 26 ARM workflow is the only compile, lint, and test gate. The RED
 commit intentionally names the desired internal interfaces before production
 implementation; the GREEN commit must pass the complete matrix.
+
+## Evidence
+
+- RED run `29297630052` passed project generation and strict lint, then every
+  shard repeated only the expected `ThumbnailCacheTests.swift` build failures:
+  missing `ThumbnailDiskUsageLedger`, missing maintenance enum context, and the
+  absent `downsample` initializer argument.
+- GREEN run `29297868166` passed project generation, strict lint/build, all 389
+  unit tests, both UI shards, and the text/image performance shards on its first
+  attempt.
+- Diff review confirms cache construction still performs no inventory, disk
+  hits bypass the ledger, and the post-downsample cancellation guard precedes
+  file measurement, PNG encoding, disk mutation, and memory publication.
