@@ -3,6 +3,92 @@ import SwiftUI
 import Defaults
 import Settings
 
+/// UI metadata for a numeric `Defaults` preference stepper: the valid range, the
+/// unit shown beside the field, and the localized label/tooltip keys. Co-locates
+/// what each numeric control previously re-declared separately in a
+/// `NumberFormatter`, a `Stepper`, and a tooltip string, removing the drift.
+struct NumericPreferenceOption {
+  let range: ClosedRange<Int>
+  let unit: String
+  let labelKey: String
+  let tooltipKey: String
+  let tableName: String
+  let formatter: NumberFormatter
+
+  init(
+    range: ClosedRange<Int>,
+    unit: String,
+    labelKey: String,
+    tooltipKey: String,
+    tableName: String
+  ) {
+    self.range = range
+    self.unit = unit
+    self.labelKey = labelKey
+    self.tooltipKey = tooltipKey
+    self.tableName = tableName
+    let formatter = NumberFormatter()
+    formatter.minimum = NSNumber(value: range.lowerBound)
+    formatter.maximum = NSNumber(value: range.upperBound)
+    self.formatter = formatter
+  }
+
+  static let imageMaxHeight = NumericPreferenceOption(
+    range: 1...200, unit: "px",
+    labelKey: "ImageHeight", tooltipKey: "ImageHeightTooltip",
+    tableName: "AppearanceSettings"
+  )
+  static let textRowLines = NumericPreferenceOption(
+    range: 1...4, unit: "lines",
+    labelKey: "TextRowLines", tooltipKey: "TextRowLinesTooltip",
+    tableName: "AppearanceSettings"
+  )
+  static let imageMaxPreviewPixels = NumericPreferenceOption(
+    range: 0...4000, unit: "px",
+    labelKey: "ImageMaxPreviewPixels", tooltipKey: "ImageMaxPreviewPixelsTooltip",
+    tableName: "AppearanceSettings"
+  )
+  static let textPreviewLimit = NumericPreferenceOption(
+    range: 0...100_000, unit: "chars",
+    labelKey: "TextPreviewLimit", tooltipKey: "TextPreviewLimitTooltip",
+    tableName: "AppearanceSettings"
+  )
+  static let previewDelay = NumericPreferenceOption(
+    range: 0...100_000, unit: "ms",
+    labelKey: "PreviewDelay", tooltipKey: "PreviewDelayTooltip",
+    tableName: "AppearanceSettings"
+  )
+  static let previewMinimumHeightPercent = NumericPreferenceOption(
+    range: 25...100, unit: "%",
+    labelKey: "PreviewMinimumHeightPercent", tooltipKey: "PreviewMinimumHeightPercentTooltip",
+    tableName: "AppearanceSettings"
+  )
+}
+
+/// A labeled numeric preference field rendered from a `NumericPreferenceOption`:
+/// a `Settings.Section` with a text field bound to a `Defaults` integer, the
+/// unit shown beside it, and a stepper over the option's range — so the range,
+/// formatter, unit, label, and tooltip are declared once.
+struct LabeledNumericPreference: View {
+  @Binding var value: Int
+  let option: NumericPreferenceOption
+
+  var body: some View {
+    Settings.Section(label: { Text(option.labelKey, tableName: option.tableName) }) {
+      HStack {
+        TextField("", value: $value, formatter: option.formatter)
+          .frame(width: 120)
+          .help(Text(option.tooltipKey, tableName: option.tableName))
+        Text(option.unit)
+          .foregroundStyle(.secondary)
+          .fixedSize()
+        Stepper("", value: $value, in: option.range)
+          .labelsHidden()
+      }
+    }
+  }
+}
+
 /// Appearance settings: popup position, sizes, preview limits, menu icon, and visibility toggles.
 struct AppearanceSettingsPane: View {
   @Default(.popupPosition) private var popupAt
@@ -24,48 +110,6 @@ struct AppearanceSettingsPane: View {
   @Default(.showApplicationIcons) private var showApplicationIcons
 
   @State private var screens = NSScreen.screens
-
-  private let imageHeightFormatter: NumberFormatter = {
-    let formatter = NumberFormatter()
-    formatter.minimum = 1
-    formatter.maximum = 200
-    return formatter
-  }()
-
-  private let textRowLinesFormatter: NumberFormatter = {
-    let formatter = NumberFormatter()
-    formatter.minimum = 1
-    formatter.maximum = 4
-    return formatter
-  }()
-
-  private let previewDelayFormatter: NumberFormatter = {
-    let formatter = NumberFormatter()
-    formatter.minimum = 0
-    formatter.maximum = 100_000
-    return formatter
-  }()
-
-  private let previewMinimumHeightPercentFormatter: NumberFormatter = {
-    let formatter = NumberFormatter()
-    formatter.minimum = 25
-    formatter.maximum = 100
-    return formatter
-  }()
-
-  private let imageMaxPreviewPixelsFormatter: NumberFormatter = {
-    let formatter = NumberFormatter()
-    formatter.minimum = 0
-    formatter.maximum = 4000
-    return formatter
-  }()
-
-  private let textPreviewLimitFormatter: NumberFormatter = {
-    let formatter = NumberFormatter()
-    formatter.minimum = 0
-    formatter.maximum = 100_000
-    return formatter
-  }()
 
   var body: some View {
     Settings.Container(contentWidth: 650) {
@@ -109,71 +153,20 @@ struct AppearanceSettingsPane: View {
         .help(Text("PinToTooltip", tableName: "AppearanceSettings"))
       }
 
-      Settings.Section(label: { Text("ImageHeight", tableName: "AppearanceSettings") }) {
-        HStack {
-          TextField("", value: $imageHeight, formatter: imageHeightFormatter)
-            .frame(width: 120)
-            .help(Text("ImageHeightTooltip", tableName: "AppearanceSettings"))
-          Stepper("", value: $imageHeight, in: 1...200)
-            .labelsHidden()
-        }
-      }
+      LabeledNumericPreference(value: $imageHeight, option: .imageMaxHeight)
 
-      Settings.Section(label: { Text("TextRowLines", tableName: "AppearanceSettings") }) {
-        HStack {
-          TextField("", value: $textRowLines, formatter: textRowLinesFormatter)
-            .frame(width: 120)
-            .help(Text("TextRowLinesTooltip", tableName: "AppearanceSettings"))
-          Stepper("", value: $textRowLines, in: 1...4)
-            .labelsHidden()
-        }
-      }
+      LabeledNumericPreference(value: $textRowLines, option: .textRowLines)
 
-      Settings.Section(label: { Text("ImageMaxPreviewPixels", tableName: "AppearanceSettings") }) {
-        HStack {
-          TextField("", value: $imageMaxPreviewPixels, formatter: imageMaxPreviewPixelsFormatter)
-            .frame(width: 120)
-            .help(Text("ImageMaxPreviewPixelsTooltip", tableName: "AppearanceSettings"))
-          Stepper("", value: $imageMaxPreviewPixels, in: 0...4000)
-            .labelsHidden()
-        }
-      }
+      LabeledNumericPreference(value: $imageMaxPreviewPixels, option: .imageMaxPreviewPixels)
 
-      Settings.Section(label: { Text("TextPreviewLimit", tableName: "AppearanceSettings") }) {
-        HStack {
-          TextField("", value: $textPreviewLimit, formatter: textPreviewLimitFormatter)
-            .frame(width: 120)
-            .help(Text("TextPreviewLimitTooltip", tableName: "AppearanceSettings"))
-          Stepper("", value: $textPreviewLimit, in: 0...100_000)
-            .labelsHidden()
-        }
-      }
+      LabeledNumericPreference(value: $textPreviewLimit, option: .textPreviewLimit)
 
-      Settings.Section(label: { Text("PreviewDelay", tableName: "AppearanceSettings") }) {
-        HStack {
-          TextField("", value: $previewDelay, formatter: previewDelayFormatter)
-            .frame(width: 120)
-            .help(Text("PreviewDelayTooltip", tableName: "AppearanceSettings"))
-          Stepper("", value: $previewDelay, in: 0...100_000)
-            .labelsHidden()
-        }
-      }
+      LabeledNumericPreference(value: $previewDelay, option: .previewDelay)
 
-      Settings.Section(
-        label: { Text("PreviewMinimumHeightPercent", tableName: "AppearanceSettings") }
-      ) {
-        HStack {
-          TextField(
-            "",
-            value: $previewMinimumHeightPercent,
-            formatter: previewMinimumHeightPercentFormatter
-          )
-          .frame(width: 120)
-          .help(Text("PreviewMinimumHeightPercentTooltip", tableName: "AppearanceSettings"))
-          Stepper("", value: $previewMinimumHeightPercent, in: 25...100)
-            .labelsHidden()
-        }
-      }
+      LabeledNumericPreference(
+        value: $previewMinimumHeightPercent,
+        option: .previewMinimumHeightPercent
+      )
 
       Settings.Section(
         bottomDivider: true,
