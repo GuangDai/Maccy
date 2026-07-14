@@ -409,6 +409,29 @@ final class SlideoutRuntimeTests: XCTestCase {
     XCTAssertTrue(controller.previewedItem === lead)
   }
 
+  func testImagePreviewTogglePreservesCurrentPanelHeight() {
+    let controller = makeController(preferredHeight: { 480 })
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+      styleMask: [],
+      backing: .buffered,
+      defer: false
+    )
+    let image = HistoryItemDecorator(
+      HistoryBuilder()
+        .withContent(type: NSPasteboard.PasteboardType.png.rawValue, value: Data([0]))
+        .build()
+    )
+    controller.contentWidth = 400
+    controller.disableAutoOpen()
+    controller.attach(window: window)
+    controller.handleLeadChange(image)
+
+    controller.togglePreview()
+
+    XCTAssertEqual(window.frame.height, 300, accuracy: 0.001)
+  }
+
   private func makeController(
     preferredHeight: @escaping () -> CGFloat = { 0 }
   ) -> SlideoutController {
@@ -416,6 +439,19 @@ final class SlideoutRuntimeTests: XCTestCase {
       onContentResize: { _ in },
       onSlideoutResize: { _ in },
       preferredHeight: preferredHeight
+    )
+  }
+}
+
+@MainActor
+final class FooterModifierTests: XCTestCase {
+  func testPopupShortcutModifiersDoNotSelectClearAll() {
+    let footer = Footer()
+
+    XCTAssertEqual(footer.clearAction(for: [.command, .shift]), .clearHistory)
+    XCTAssertEqual(
+      footer.clearAction(for: [.command, .option, .shift]),
+      .clearAllHistory
     )
   }
 }
