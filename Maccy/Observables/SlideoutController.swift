@@ -59,7 +59,6 @@ class SlideoutController {
 
   let onContentResize: (CGFloat) -> Void
   let onSlideoutResize: (CGFloat) -> Void
-  @ObservationIgnored private let preferredHeight: () -> CGFloat
   @ObservationIgnored private weak var attachedWindow: NSWindow?
   @ObservationIgnored private var currentLead: HistoryItemDecorator?
 
@@ -109,12 +108,10 @@ class SlideoutController {
   /// Creates the controller with the resize callbacks that persist width changes.
   init(
     onContentResize: @escaping (CGFloat) -> Void,
-    onSlideoutResize: @escaping (CGFloat) -> Void,
-    preferredHeight: @escaping () -> CGFloat
+    onSlideoutResize: @escaping (CGFloat) -> Void
   ) {
     self.onContentResize = onContentResize
     self.onSlideoutResize = onSlideoutResize
-    self.preferredHeight = preferredHeight
   }
 
   /// Attaches the panel window without making the controller own its lifetime.
@@ -133,13 +130,12 @@ class SlideoutController {
     }
   }
 
-  /// Returns `size` widened by the slideout width when open, height-adjusted to `preferredHeight`.
+  /// Returns `size` widened by the slideout width when open, preserving its height.
   func computeSizeWithPreview(_ size: NSSize, state newState: SlideoutState) -> NSSize {
     var newSize = size
     if newState.isOpen {
       newSize.width += slideoutWidth
     }
-    newSize.height = preferredHeight()
     return newSize
   }
 

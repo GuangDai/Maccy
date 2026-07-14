@@ -8,6 +8,9 @@ class SoftwareUpdater {
   /// underlying `SPUUpdater` and kept in sync with its KVO notifications.
   var automaticallyChecksForUpdates = false {
     didSet {
+      if automaticallyChecksForUpdates {
+        startUpdaterIfNeeded()
+      }
       updater.automaticallyChecksForUpdates = automaticallyChecksForUpdates
     }
   }
@@ -17,9 +20,10 @@ class SoftwareUpdater {
   private let updaterController: SPUStandardUpdaterController
   private let startUpdater: @MainActor () -> Void
   private let performUpdateCheck: @MainActor () -> Void
+  private var hasStartedUpdater = false
 
-  /// Initializes the updater and observes `SPUUpdater.automaticallyChecksForUpdates`
-  /// so external changes (e.g. from System settings) propagate into the binding.
+  /// Creates a stopped updater and observes `SPUUpdater.automaticallyChecksForUpdates`
+  /// so external changes propagate into the binding and opt-in starts it on demand.
   init(
     updaterController: SPUStandardUpdaterController = SPUStandardUpdaterController(
       startingUpdater: false,
@@ -33,7 +37,6 @@ class SoftwareUpdater {
     self.startUpdater = startUpdater ?? { updaterController.startUpdater() }
     self.performUpdateCheck = performUpdateCheck ?? { updaterController.updater.checkForUpdates() }
     updater = updaterController.updater
-    self.startUpdater()
     automaticallyChecksForUpdatesObservation = updater.observe(
       \.automaticallyChecksForUpdates,
       options: [.initial, .new, .old]
@@ -55,6 +58,13 @@ class SoftwareUpdater {
 
   /// Prompts Sparkle to check for updates immediately.
   func checkForUpdates() {
+    startUpdaterIfNeeded()
     performUpdateCheck()
+  }
+
+  private func startUpdaterIfNeeded() {
+    guard !hasStartedUpdater else { return }
+    hasStartedUpdater = true
+    startUpdater()
   }
 }

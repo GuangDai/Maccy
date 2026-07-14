@@ -87,8 +87,7 @@ class AppState {
       },
       onSlideoutResize: { previewWidth in
         Defaults[.previewWidth] = previewWidth
-      },
-      preferredHeight: { popup.preferredHeight(for: popup.height) }
+      }
     )
     self.preview = preview
     navigator = NavigationManager(

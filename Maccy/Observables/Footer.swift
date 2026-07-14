@@ -33,13 +33,13 @@ class Footer: ItemsContainer {
 
   /// Resolves which destructive footer action the currently held modifiers describe.
   func clearAction(for pressedModifiers: NSEvent.ModifierFlags) -> FooterAction {
-    let clearModifiers = items.first(where: { $0.action == .clearHistory })?
-      .shortcuts.first?.modifierFlags ?? []
-    let clearAllModifiers = items.first(where: { $0.action == .clearAllHistory })?
-      .shortcuts.first?.modifierFlags ?? []
-    let selectsClearAll = !pressedModifiers.isEmpty
-      && !pressedModifiers.isSubset(of: clearModifiers)
-      && pressedModifiers.isSubset(of: clearAllModifiers)
+    guard let clearAllModifiers = items.first(where: { $0.action == .clearAllHistory })?
+      .shortcuts.first?.modifierFlags else {
+      return .clearHistory
+    }
+    let actionModifiers: NSEvent.ModifierFlags = [.command, .option, .control, .shift]
+    let selectsClearAll = pressedModifiers.intersection(actionModifiers)
+      == clearAllModifiers.intersection(actionModifiers)
     return selectsClearAll ? .clearAllHistory : .clearHistory
   }
 

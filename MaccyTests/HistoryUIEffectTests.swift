@@ -373,15 +373,15 @@ final class NavigationLeadChangeTests: XCTestCase {
 
 @MainActor
 final class SlideoutRuntimeTests: XCTestCase {
-  func testSizeUsesInjectedPreferredHeight() {
-    let controller = makeController(preferredHeight: { 321 })
+  func testSizePreservesMainPanelHeight() {
+    let controller = makeController()
 
     let size = controller.computeSizeWithPreview(
       NSSize(width: 400, height: 100),
       state: .closed
     )
 
-    XCTAssertEqual(size.height, 321)
+    XCTAssertEqual(size.height, 100)
   }
 
   func testManualToggleUsesCurrentLeadAndAttachedWindow() {
@@ -410,7 +410,7 @@ final class SlideoutRuntimeTests: XCTestCase {
   }
 
   func testImagePreviewTogglePreservesCurrentPanelHeight() {
-    let controller = makeController(preferredHeight: { 480 })
+    let controller = makeController()
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
       styleMask: [],
@@ -432,13 +432,10 @@ final class SlideoutRuntimeTests: XCTestCase {
     XCTAssertEqual(window.frame.height, 300, accuracy: 0.001)
   }
 
-  private func makeController(
-    preferredHeight: @escaping () -> CGFloat = { 0 }
-  ) -> SlideoutController {
+  private func makeController() -> SlideoutController {
     SlideoutController(
       onContentResize: { _ in },
-      onSlideoutResize: { _ in },
-      preferredHeight: preferredHeight
+      onSlideoutResize: { _ in }
     )
   }
 }
@@ -461,8 +458,7 @@ final class FloatingPanelDependencyTests: XCTestCase {
   func testCloseResetsInjectedPreview() {
     let preview = SlideoutController(
       onContentResize: { _ in },
-      onSlideoutResize: { _ in },
-      preferredHeight: { 300 }
+      onSlideoutResize: { _ in }
     )
     let panel = FloatingPanel(
       contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
