@@ -14,17 +14,26 @@ class SoftwareUpdater {
 
   private var updater: SPUUpdater
   private var automaticallyChecksForUpdatesObservation: NSKeyValueObservation?
-
-  private let updaterController = SPUStandardUpdaterController(
-    startingUpdater: true,
-    updaterDelegate: nil,
-    userDriverDelegate: nil
-  )
+  private let updaterController: SPUStandardUpdaterController
+  private let startUpdater: @MainActor () -> Void
+  private let performUpdateCheck: @MainActor () -> Void
 
   /// Initializes the updater and observes `SPUUpdater.automaticallyChecksForUpdates`
   /// so external changes (e.g. from System settings) propagate into the binding.
-  init() {
+  init(
+    updaterController: SPUStandardUpdaterController = SPUStandardUpdaterController(
+      startingUpdater: false,
+      updaterDelegate: nil,
+      userDriverDelegate: nil
+    ),
+    startUpdater: (@MainActor () -> Void)? = nil,
+    performUpdateCheck: (@MainActor () -> Void)? = nil
+  ) {
+    self.updaterController = updaterController
+    self.startUpdater = startUpdater ?? { updaterController.startUpdater() }
+    self.performUpdateCheck = performUpdateCheck ?? { updaterController.updater.checkForUpdates() }
     updater = updaterController.updater
+    self.startUpdater()
     automaticallyChecksForUpdatesObservation = updater.observe(
       \.automaticallyChecksForUpdates,
       options: [.initial, .new, .old]
@@ -46,6 +55,6 @@ class SoftwareUpdater {
 
   /// Prompts Sparkle to check for updates immediately.
   func checkForUpdates() {
-    updater.checkForUpdates()
+    performUpdateCheck()
   }
 }

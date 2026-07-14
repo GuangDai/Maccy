@@ -1,3 +1,4 @@
+import AppKit.NSEvent
 import Defaults
 import SwiftUI
 
@@ -28,6 +29,18 @@ class Footer: ItemsContainer {
   /// Whether the footer is visible (from `showFooter`).
   var containerVisible: Bool {
     return showFooter
+  }
+
+  /// Resolves which destructive footer action the currently held modifiers describe.
+  func clearAction(for pressedModifiers: NSEvent.ModifierFlags) -> FooterAction {
+    let clearModifiers = items.first(where: { $0.action == .clearHistory })?
+      .shortcuts.first?.modifierFlags ?? []
+    let clearAllModifiers = items.first(where: { $0.action == .clearAllHistory })?
+      .shortcuts.first?.modifierFlags ?? []
+    let selectsClearAll = !pressedModifiers.isEmpty
+      && !pressedModifiers.isSubset(of: clearModifiers)
+      && pressedModifiers.isSubset(of: clearAllModifiers)
+    return selectsClearAll ? .clearAllHistory : .clearHistory
   }
 
   /// Builds the fixed set of footer actions (clear, clear all, preferences,

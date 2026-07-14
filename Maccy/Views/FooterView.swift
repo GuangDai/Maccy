@@ -21,11 +21,7 @@ struct FooterView: View {
 
   /// Whether the currently pressed modifiers select the clear-all action over clear.
   var clearAllModifiersPressed: Bool {
-    let clearModifiers = clearItem?.shortcuts.first?.modifierFlags ?? []
-    let clearAllModifiers = clearAllItem?.shortcuts.first?.modifierFlags ?? []
-    return !modifierFlags.flags.isEmpty
-      && !modifierFlags.flags.isSubset(of: clearModifiers)
-      && modifierFlags.flags.isSubset(of: clearAllModifiers)
+    footer.clearAction(for: modifierFlags.flags) == .clearAllHistory
   }
 
   var body: some View {
