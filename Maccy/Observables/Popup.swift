@@ -83,7 +83,7 @@ class Popup {
   private var state: PopupState = .toggle
   @ObservationIgnored private var runtimeServices: PopupRuntimeServices
 
-  /// Registers the global `.popup` hotkey and the local events monitor.
+  /// Registers the global `.popup` hotkey and the local modifier monitor.
   init(
     runtimeServices: PopupRuntimeServices = .inert,
     installsEventHandlers: Bool = true
@@ -104,34 +104,24 @@ class Popup {
     deinitEventsMonitor()
   }
 
-  /// Installs the local `flagsChanged`/`keyDown` monitor (no-op if installed).
+  /// Installs the local `flagsChanged` monitor (no-op if installed).
   func initEventsMonitor() {
     guard eventsMonitor == nil else { return }
     eventsMonitor = NSEvent.addLocalMonitorForEvents(
-      matching: [.flagsChanged, .keyDown]
+      matching: .flagsChanged
     ) { [weak self] event in
       // Local NSEvent monitors fire on the main run loop, so this nonisolated
       // closure runs on main and MainActor.assumeIsolated is a runtime no-op
       // assertion. NSEvent is NOT Sendable, so it must not cross the isolation
-      // boundary — extract Sendable properties (type / all-released Bool) on
+      // boundary — extract the Sendable all-released Bool on
       // this side, decide on main via assumeIsolated, and return nil/event
       // here without ever moving `event` across actors. No @unchecked, no
       // nonisolated(unsafe).
-      switch event.type {
-      case .flagsChanged:
-        let allReleased = event.modifierFlags.isDisjoint(with: .deviceIndependentFlagsMask)
-        let consume = MainActor.assumeIsolated {
-          self?.shouldConsumeFlagsChanged(allReleased: allReleased) ?? false
-        }
-        return consume ? nil : event
-      case .keyDown:
-        // The global `.popup` Carbon hotkey consumes its keyDown, so in-popup
-        // hotkey behavior is routed via `handleFirstKeyDown`; pass non-hotkey
-        // keyDowns through unchanged.
-        return event
-      default:
-        return event
+      let allReleased = event.modifierFlags.isDisjoint(with: .deviceIndependentFlagsMask)
+      let consume = MainActor.assumeIsolated {
+        self?.shouldConsumeFlagsChanged(allReleased: allReleased) ?? false
       }
+      return consume ? nil : event
     }
   }
 
